@@ -5,22 +5,22 @@
 > - **Graduation:** the token moves into a Uniswap v4 pool, where a `ListingHook` enforces NSE-inspired listing-day and circuit rules.
 > - **Policy:** Chainlink CRE posts the listing and incident policy.
 > - **Tickers:** ENSv2 gives every SME a ticker name (`acme.listingday.eth`) whose records point to its auction, pool and policy.
-> - **Eligibility:** the only rule is "this wallet belongs to a unique real person". Investors prove it with World ID; a backend-signed, short-lived pass carries it to the auction. One human, one application.
+> - **Eligibility:** open listings. Any wallet can bid, up to a per-wallet budget cap (`AllowAllModule`). *World ID was dropped (v5 owner decision); [§8](#8-world-id-eligibility) is kept as the unbuilt design.*
 > - **Privacy:** Anon-RPC carries every app read.
 
 | | |
 |---|---|
 | Event | ETHGlobal Mumbai, Classic track |
 | Deadline | **Sat Nov 7 2026, 09:00 IST** (03:30 UTC); confirmed on the official [event details page](https://ethglobal.com/events/mumbai/info/details). "Late submissions won't be accepted." |
-| Built into the product | Uniswap · Chainlink CRE · EF Anon-RPC · ENSv2 · World ID (all 5) |
+| Built into the product | Uniswap · Chainlink CRE · EF Anon-RPC · ENSv2 (World ID dropped) |
 | Claimed at submission | **Up to 3 partner prizes.** Several tracks from the same partner count as **one** pick (official rule). See the [Pitch matrix](#2-pitch-matrix); decide after the MetaMask e2e checkpoint. |
 | Chain | Ethereum Sepolia (11155111) |
 | Client | Mobile-first Next.js PWA, wagmi + viem, MetaMask / WalletConnect |
 | Quote currency | Circle **Sepolia USDC** `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (6 dec); test funds from the [Circle faucet](https://faucet.circle.com/) |
-| Scope | Design only; nothing has been built or deployed |
-| Disclaimer | Every exchange rule is an **NSE-inspired mock**: not a regulated product, no regulatory claims. The World ID check proves uniqueness only; it is **not KYC** |
+| Scope | Contracts, demo scripts, CRE workflow and mock exchange built and rehearsed on an anvil Sepolia fork; the read/prepare proxy (`services/api`, [§6.1](#61-backend-proxy-servicesapi)) is built; the app still renders mocks; nothing broadcast to Sepolia yet |
+| Disclaimer | Every exchange rule is an **NSE-inspired mock**: not a regulated product, no regulatory claims. Listings are open: no identity or uniqueness is checked, and there is **no KYC** |
 
-Last updated Fri Nov 6 2026, ~14:20 IST (v4: owner decision, eligibility is World ID uniqueness only; v3 was validated against primary sources, see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history.
+Last updated Fri Nov 6 2026, ~19:30 IST (v5: World ID dropped, listings are open; the backend proxy `services/api` is the frontend's data layer, [§6.1](#61-backend-proxy-servicesapi). v4: eligibility was World ID uniqueness only; v3 was validated against primary sources, see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history.
 
 ---
 
@@ -201,18 +201,42 @@ Show "unsold → issuer treasury" in the console and still walk the path once in
 | `MockSME` ERC-20 | Fixed-supply share token (110,000) | Launcher `createToken` or a deposit | Uni | 0.5 |
 | `ListingPolicyReceiver` | CRE policy store: version, `maxAge`, chain selector, monotonic `asOf`; best-effort ENS status mirror (try/catch). Emits its own `PolicyApplied` event. Hackathon guard: the mock forwarder is permissionless, so also require `tx.origin ==` our CRE broadcaster key | `onReport` → `policy()`; `setText(dnsEncode("acme.listingday.eth"), "listingday.status", …)` | CRE, ENS | 2 |
 | `AuctionValidationHook` | 190% cap + delegates to a pluggable `IEligibilityModule` | `validate(maxPrice, amount, owner, sender, hookData)` | Uni, World | 1.5 |
-| `AllowAllModule` (Phase 1) | Per-wallet cumulative cap only | owner, amount → ok / `CapExceeded` | Uni | 0.5 |
-| `WorldPassModule` (Phase 2) | Checks an EIP-712 pass signed by our verify backend: `{nullifier, wallet, auction, cap, expiry}`; requires `wallet == owner` and `auction ==` this auction; binds nullifier → wallet once; caps by nullifier | hookData pass → ok / `NotEligible` / `CapExceeded` | World | 1.5 |
-| Verify backend (Next.js API routes) | IDKit RP signature + `/v4/verify` (or Agent Pass OIDC), stores `(nullifier, auction) → wallet`, signs short-lived passes | World ID result → pass | World | 2.5–6 |
+| `AllowAllModule` | Per-wallet cumulative cap only; the module every listing uses | owner, amount → ok / `CapExceeded` | Uni | 0.5 |
+| ~~`WorldPassModule` (Phase 2)~~ *dropped* | Checks an EIP-712 pass signed by our verify backend: `{nullifier, wallet, auction, cap, expiry}`; requires `wallet == owner` and `auction ==` this auction; binds nullifier → wallet once; caps by nullifier | hookData pass → ok / `NotEligible` / `CapExceeded` | World | 1.5 |
+| ~~Verify backend (Next.js API routes)~~ *dropped* | IDKit RP signature + `/v4/verify` (or Agent Pass OIDC), stores `(nullifier, auction) → wallet`, signs short-lived passes | World ID result → pass | World | 2.5–6 |
 | CCA + LiquidityLauncher + LBPStrategy | Auction → automatic graduation | Params → auction → pool + LP NFT | Uni | 3 |
 | `ListingHook` (inherits `InitializerHook`) | Bands, modes, halt; LP never blocked | `beforeInitialize` (inherited auth check; `view`, so no writes), `afterInitialize` (store listing price + bands), `beforeSwap`, `afterSwap` | Uni | 4 |
 | CRE workflow (TS) | Cron or manual → HTTP GET mock exchange API → `writeReport` with `gasConfig.gasLimit` ≈ 1.5–2M (the ENS mirror is storage-heavy) | JSON → report → receiver | CRE | 2 |
 | Mock exchange API | Editable JSON (ref price, mode, halt); the console edits it | Console → JSON | CRE | 0.5 |
+| Backend proxy (`services/api`) | Thin Hono service the app fetches: live chain reads shaped like the app's mocks, plus unsigned calldata + simulation for every write ([§6.1](#61-backend-proxy-servicesapi)) | Deployments JSON + RPC → JSON; `POST /v1/prepare/*` → `{to, data, value}` + decoded revert | All | 4 (built) |
 | ENS namespace setup | `listingday.eth` → UserRegistry → `acme` subname owned by the issuer; issuer resolver records; scoped roles | Scripts + console | ENS | 3–4.5 |
 | Mobile PWA (Next.js + wagmi/viem) | 7 screens incl. the issuer console | Reads via Anon-RPC; writes via the wallet | All | 7–9 |
 | Anon-RPC layer | `@anon-rpc/browser-harness` `AnonRpcWorker` on the **Nox** specifier (Sepolia, ~1.8 MB bundle); `worker.fetch` as the viem `custom`/`http({ fetchFn })` transport; badge and counter; no fallback to direct RPC | All `eth_call` / `eth_getLogs` / ENS reads (CCIP-Read off or routed through `worker.fetch`) | EF | 2–4 |
 | Charts (Lightweight Charts v5) | Pool vs reference, bands, markers, clearing per block | Logs + receipts → series | All | 2 |
 | Demo wallets + scripts | ~8 wallets pre-funded with Sepolia USDC (Circle faucet, 20 USDC / 2 h / address) + Sepolia ETH; funder → distribute script; bids, swaps, failure paths | Foundry scripts | All | 1.5 (+ faucet rounds every 2 h) |
+
+### 6.1 Backend proxy (`services/api`)
+
+The app's data layer. The frontend swaps its `app/src/lib/mock.ts` reads for `fetch` calls to it, and sends every write through MetaMask itself.
+
+- **Pure proxy.** Every request does live `eth_call` / `eth_getLogs` through viem against the configured RPC, pinned to one head block per request. There is no cache, no indexer and no DB. Same-tick reads are folded into one Multicall3 call, and ENS goes through the Universal Resolver with CCIP-Read off.
+- **Never signs or sends.** `POST /v1/prepare/{bid,swap,exit,claim}` returns the final call as `{to, data, value}` plus every wallet step in order (`USDC.approve(Permit2)`, `Permit2.approve(token, spender, amount, expiry)`, then the action). Steps whose allowance is already in place are marked `needed: false`. It also returns a simulation from the user's address at the head block:
+  - `eth_call` when nothing else is pending;
+  - `eth_simulateV1` when approvals must land first.
+- **Decoded reverts.** Revert data is unwrapped through `ValidationHookCallFailed`, v4 `WrappedError`, V4Quoter `UnexpectedRevertBytes` and Universal Router `ExecutionFailed`. The innermost error is returned with its args and UI copy from `contracts/errors.md`: `OutOfBand` (with the band in USDC / lot), `Halted`, `CoolingOff`, `DirectionalWidening`, `CapExceeded`, `BidAboveCap`, CCA bid/exit/claim errors and `TransferFromFailed`.
+- **Config (W0).** Chain, addresses and listings come from the deployments JSON the demo scripts write (`DEPLOYMENTS_FILES`, one listing per file, re-read per request), with env overrides for RPC, chain id and every external address. The same build serves an anvil Sepolia fork (31337) and real Sepolia.
+- **Reads (W1).** These endpoints are shaped like the mock types:
+  - `GET /v1/listings`, `/v1/listings/:ticker`, `/v1/ens/:ticker`
+  - `/v1/auction/:ticker`, `/v1/auction/:ticker/clearing`
+  - `/v1/bids?ticker=&owner=` (state plus the exit / claim action available now)
+  - `/v1/eligibility?ticker=&address=` (always eligible, with the cap remaining)
+  - `/v1/policy/:ticker` (effective policy, band, phase, stale / staleAt), `/v1/market/:ticker`, `/v1/market/:ticker/swaps`
+  - `GET /health`
+- **Response format.** Prices are USDC per 1,000-share lot and points (100 = 1.00), rounded to 0.01 point. Amounts are human USDC / shares, with exact raw values under `raw`. Response types are exported from `services/api/src/types.ts`.
+- **Swaps** go through the Universal Router (`V4_SWAP`: `SWAP_EXACT_IN_SINGLE`, `SETTLE_ALL`, `TAKE_ALL`) with Permit2 to the router. `minOut` comes from a V4Quoter quote minus `slippageBps`, and the quote's own revert gives the "would revert: outside band" pre-check of §9.
+- **Exits** walk the CCA checkpoint list to pick `exitBid` vs `exitPartiallyFilledBid` and its two hints.
+- **Privacy trade-off (EF Anon-RPC).** Reads through the proxy are private from the RPC provider but **not from the proxy operator**, who sees the wallet addresses the app asks about. The Anon-RPC pitch therefore needs either the proxy's own RPC traffic routed over Anon-RPC, or the app keeping a direct Anon-RPC viem path for the screens judged on it. The proxy's types document the exact contract calls for that path.
+- **Tests.** Unit tests (price math, revert decoding, config, calldata, HTTP validation / CORS without an RPC) and an integration test that forks Sepolia at `SEPOLIA_FORK_BLOCK` in anvil, runs the full demo rehearsal plus a second listing with a live auction, and hits every endpoint. Prepared bids and swaps are sent from impersonated wallets and read back. CI: `.github/workflows/backend.yml` jobs `api` and `api-integration`.
 
 ### Contract sketches (design only)
 
@@ -311,6 +335,8 @@ Confirm exact function signatures against `ensdomains/contracts-v2` at tag **`v2
 
 ## 8. World ID eligibility
 
+> **Dropped (v5 owner decision).** Listings are open: `AuctionValidationHook` + `AllowAllModule` (per-wallet cap) for every listing, and ENS `listingday.eligibility = open`. Nothing below was built; it stays as the design. The proxy keeps an `eligibility` endpoint whose shape could carry a `human` mode later.
+
 **Owner decision:** investor eligibility is **only** "this wallet belongs to a unique real person", proven with World ID. Nothing else about the investor is checked, stored or revealed.
 
 **Phase 1 (MetaMask e2e first):** `AllowAllModule`, a per-wallet budget cap only. Everything works with plain MetaMask.
@@ -385,8 +411,7 @@ flowchart LR
     ANON[Anon-RPC worker\nNox mixnet; tor-js fallback]
     API[Mock exchange API]
     CRE[CRE workflow\nsimulate --broadcast]
-    VB[Verify backend\nWorld ID verify → short-lived EIP-712 pass\nwallet + auction + nullifier]
-    WID[World ID\nIDKit / Agent Pass IdP]
+    PX[Backend proxy services/api\nlive eth_call + getLogs, no cache\nprepare calldata + simulate]
   end
   subgraph Sepolia
     FWD[MockKeystoneForwarder]
@@ -396,15 +421,13 @@ flowchart LR
     LL[LiquidityLauncher] --> LBP[LBPStrategy]
     LBP --> CCA[CCA]
     CCA -. validate .-> AVH[AuctionValidationHook]
-    AVH -- check pass on each bid --> MOD["Eligibility module\nPhase 1 AllowAll → Phase 2 WorldPass"]
+    AVH -- cap check on each bid --> MOD["AllowAllModule\nper-wallet cap"]
     LBP -- migrate --> PM[PoolManager]
     PM --> LH[ListingHook]
   end
-  UI & IC & CH -- all reads --> ANON --> UR & CCA & REC & PM
-  UI -- World ID proof --> WID
-  UI -- proof + wallet + auction --> VB <--> WID
-  VB -. signed pass .-> UI
-  UI -- bid + pass via wallet --> CCA
+  UI & IC & CH -- reads + prepare --> PX --> UR & CCA & REC & PM
+  UI & IC & CH -. direct private reads .-> ANON --> UR & CCA & REC & PM
+  UI -- bid via wallet (calldata from PX) --> CCA
   UI -- swap via wallet --> PM
   IC -- edit --> API --> CRE --> FWD --> REC
   IC -- register ticker, records --> ENS
@@ -566,6 +589,8 @@ Pre-record the auction phase: Sepolia blocks take ~12 s.
 ## 13. Build plan to Sat 09:00 IST
 
 Re-based at **Fri ~14:00 IST: about 19 h remain** (was 21.5 h from 11:30). The original Gate 0 deadline of 13:30 has passed with nothing built, so every block before the Sat 01:30 checkpoint is 2.5 h shorter. **Order: MetaMask e2e first, then ENS, then the World ID swap-in.** The total effort (~32–42 h; the faucet-token row is gone now that we use Sepolia USDC, and World ID is the only eligibility work) needs **two parallel lanes**. A solo builder should cut World, keep combo A, and describe §8 as design.
+
+**Status (Fri ~19:30 IST):** contracts, demo scripts (rehearsed end to end on an anvil Sepolia fork), CRE workflow, mock exchange and ENS scripts are built. World ID is cut (cut list item 2, now an owner decision). The backend proxy `services/api` covers W0 (config) + W1 (reads + prepare), [§6.1](#61-backend-proxy-servicesapi). Next: the app swaps `mock.ts` for proxy `fetch` calls and sends prepared steps through MetaMask, then the Sepolia broadcast.
 
 **Gate 0 (Fri 14:00–16:00 IST):** all of these must pass before anything else.
 1. Nox Anon-RPC worker → Sepolia read from a phone. Try the MetaMask in-app browser first (WebRTC inside a sandboxed iframe), then a regular mobile browser + WalletConnect.
