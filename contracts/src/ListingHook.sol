@@ -167,6 +167,7 @@ contract ListingHook is InitializerHook, IListingHook {
     ///      widens the gap to the reference beyond the surveillance band.
     function _afterSwap(address, PoolKey calldata, SwapParams calldata, BalanceDelta, bytes calldata)
         internal
+        view
         override
         returns (bytes4, int128)
     {
