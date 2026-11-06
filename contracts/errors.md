@@ -2,7 +2,7 @@
 
 Selectors come from `forge inspect <Contract> errors` on this commit. The ABIs live in `out/` after `forge build`, or
 import the interfaces `src/interfaces/IAuctionValidationHook.sol`, `src/interfaces/IEligibilityModule.sol`,
-`src/interfaces/IListingHook.sol` and `src/interfaces/IListingPolicy.sol`.
+`src/interfaces/IListingHook.sol`, `src/interfaces/IListingPolicy.sol` and `src/interfaces/IListingPolicyReceiver.sol`.
 
 ## How a rejected bid looks
 
@@ -126,6 +126,44 @@ Direct calls (not wrapped):
 | `InvalidConfig()` | `0x35be3ac8` | `ListingHook` constructor | Zero or equal token addresses, or listing-day band >= 100% |
 | `NotPoolManager()` | `0xae18210a` | `ListingHook` callbacks | A hook callback called by anything but the PoolManager |
 
+## CRE policy reports (ListingPolicyReceiver)
+
+Reports arrive as `forwarder.report(receiver, rawReport, context, sigs)`, sent by the CRE broadcaster, which calls
+`receiver.onReport(metadata, payload)`. The forwarder **swallows** receiver reverts: the transaction succeeds and emits
+`ReportProcessed(receiver, workflowExecutionId, reportId, result)`. A rejected report shows up as `result == false`,
+not as a failed transaction. The workflow turns that into a failed run, through `writeReport`'s
+`receiverContractExecutionStatus == REVERTED`. To see *why* a report was rejected, replay `onReport` with
+`eth_call` from the forwarder, with the broadcaster as `from`, and decode the revert with the `IListingPolicyReceiver`
+ABI. The console normally only needs `PolicyApplied` (success) and `ReportProcessed.result`.
+
+| Error | Selector | When | Suggested UI copy |
+|---|---|---|---|
+| `InvalidSender(address sender, address expected)` | `0xe1130dba` | `onReport` not called by the configured forwarder | Misconfiguration (wrong forwarder) |
+| `InvalidOrigin(address origin, address expected)` | `0x1cd1cae1` | The transaction wasn't sent by the configured CRE broadcaster, e.g. someone else pushed a report through the permissionless mock forwarder | "Report not from the exchange's CRE operator" |
+| `WrongChainSelector(uint64 chainSelector, uint64 expected)` | `0xf7f6c724` | `policy.chainSelector` is not Sepolia `16015286601757825753` | Misconfiguration (workflow targets another chain) |
+| `StaleReport(uint64 asOf, uint64 lastAsOf)` | `0x4287e77f` | `asOf` not strictly after the last accepted report (replay or out of order) | "Older than the policy already applied" |
+| `ReportExpired(uint64 asOf, uint64 maxAge)` | `0x7d5e7d09` | Report older than `maxAge` when it lands | "Policy update arrived too late" |
+| `ReportFromFuture(uint64 asOf, uint256 blockTimestamp)` | `0x29770bf8` | `asOf` more than 5 minutes ahead of the block time (clock skew) | "Policy timestamp is in the future" |
+| `InvalidPolicy()` | `0xd06b96b1` | A band ≥ 10000 bps, or `mode > 2` | "Invalid policy values" |
+| `InvalidStatus()` | `0xf525e320` | `status` longer than 32 bytes | "Invalid status" |
+| `Reentrancy()` | `0xab143c06` | A second report injected while one is being applied (e.g. from the ENS call) | Never seen in the app |
+
+Admin calls (direct, not wrapped):
+
+| Error | Selector | Source | When |
+|---|---|---|---|
+| `OnlyOwner()` | `0x5fc483c5` | `setForwarder`, `setBroadcaster`, `setMaxAge`, `setStatusMirror` | Caller is not the receiver owner |
+| `ZeroAddress()` | `0xd92e233d` | constructor, `setForwarder` | Zero owner or forwarder |
+| `InvalidMaxAge()` | `0x8974d2a4` | constructor, `setMaxAge` | `maxAge == 0` |
+
+ENS mirror failures never revert: they emit `StatusMirrorFailed(resolver, status, reason)`, where `reason` is the
+resolver's revert data. With `MockStatusResolver` it is `Unauthorized(address writer)` (`0x8e4a23d6`) or
+`ForcedFailure()` (`0xcf70b534`); it is empty for out-of-gas or a resolver without code. `syncStatus()` retries.
+
+A **stale** policy (older than `maxAge`) is not an error at the receiver. `policy()` reports it as `halted`, so swaps
+revert with the hook's `Halted()` until a fresh report lands. Show "Trading halted: policy feed stale" when
+`receiver.isStale()` is true.
+
 ## Migration (LBPStrategy v3.3.0)
 
 `migrate(auction)` is permissionless after `migrationBlock` (= `endBlock + 1`). It never reverts once allowed: if the
@@ -156,4 +194,13 @@ reserve to the treasury. Check for `Migrated`, or `ListingHook.listed()`, rather
 | `FundsRecovered(address indexed initializer, address indexed recipient, uint256 amount)` | `0x13e06184555481b6d2cb327155e8d2e1d0b1f0252a7fe6621e32cf9988148835` | LBPStrategy |
 | `Listed(bytes32 indexed poolId, uint160 listingSqrtPriceX96, int24 tick, bool usdcIsCurrency0, uint64 listingDayEndsAt, uint160 listingDaySqrtPriceMinX96, uint160 listingDaySqrtPriceMaxX96)` | `0x14d01e6e691277ec49cb4d9bb1620408b7cc4eed60fec2105b2e0afeda251777` | `ListingHook` (pool opened) |
 | `PolicySourceSet(address indexed policySource)` | `0x647b3a889d97f882f9ac03223a58f73a082acf2fb00c2374292e4a65f2c59e40` | `ListingHook` |
-| `PolicyUpdated(ListingPolicy policy)` | `0x8c21d95658b15b96d9a5d3cf5343785fc9503c41a3d1cbff404469c085db138c` | `MockListingPolicy` (the CRE receiver will emit its own `PolicyApplied`) |
+| `PolicyUpdated(ListingPolicy policy)` | `0x8c21d95658b15b96d9a5d3cf5343785fc9503c41a3d1cbff404469c085db138c` | `MockListingPolicy` (tests / manual demos) |
+| `PolicyApplied(uint32 indexed version, ListingPolicy policy, string status)` | `0x4a619e4f7dcb3d9c6f7a74ff80a459db28f4ba354851ff0e43c3db31ecb95e71` | `ListingPolicyReceiver`: a CRE report was accepted. `policy.version` = `version`; `status` is what gets mirrored to ENS |
+| `StatusMirrored(address indexed resolver, string status)` | `0x8e751cbe18334007be0c5d8a1866abccf020cbb4248c43d2ae9061d94119771e` | `ListingPolicyReceiver`: ENS `listingday.status` written |
+| `StatusMirrorFailed(address indexed resolver, string status, bytes reason)` | `0x3bb3b9d7cf78eb63986f81038ece4ec545ff6c4c370c05a2041a26522dead4f5` | `ListingPolicyReceiver`: ENS write failed, policy still applied |
+| `ForwarderSet(address indexed forwarder)` | `0x01e06e871b32b0b127105fbd5dbecd24273b7e1191a8940de24f4ea249e355d6` | `ListingPolicyReceiver` admin |
+| `BroadcasterSet(address indexed broadcaster)` | `0x3e0c6ca707153133edea0fdf23df07ed2417fba48db884fc6742177c3db1523f` | `ListingPolicyReceiver` admin |
+| `MaxAgeSet(uint64 maxAge)` | `0x0db3374bef1892bbc82505369a338834407fa3a76893e09b92454fce7afb2f23` | `ListingPolicyReceiver` admin |
+| `StatusMirrorSet(address indexed resolver, bytes name)` | `0x7d609c1ce694be6f7c92a6f42eed0dfcbb2fb264662a4b5dcc3fcf42c37667c0` | `ListingPolicyReceiver` admin |
+| `ReportProcessed(address indexed receiver, bytes32 indexed workflowExecutionId, bytes2 indexed reportId, bool result)` | `0x3617b009e9785c42daebadb6d3fb553243a4bf586d07ea72d65d80013ce116b5` | CRE forwarder (`MockKeystoneForwarder` / `KeystoneForwarder`): `result` is whether `onReport` succeeded |
+| `TextChanged(bytes name, string key, string value)` | `0x88ba19293265ea5dd5bc0a3ea6a066f9f5ee7bac1b949ba6c513ae90abffa0c4` | `MockStatusResolver` (stand-in for the ENS resolver) |

@@ -1,9 +1,14 @@
 # Listing Day contracts
 
 Foundry project for the Listing Day CCA + v4 IPO (design: [`../plan.md`](../plan.md)). This covers build chunks 0
-to 3: the scaffold, the price math, `MockSME`, `AuctionValidationHook` and `AllowAllModule` (chunks 0 and 1),
-`ListingHook` with a stub policy source (chunk 3), and the full launch-to-trading lifecycle on a Sepolia fork through
-the deployed Uniswap contracts (chunk 2). Nothing is deployed yet; everything runs locally or on a Sepolia fork.
+to 4:
+
+- Chunks 0 and 1: the scaffold, the price math, `MockSME`, `AuctionValidationHook` and `AllowAllModule`.
+- Chunk 2: the full launch-to-trading lifecycle on a Sepolia fork, through the deployed Uniswap contracts.
+- Chunk 3: `ListingHook`.
+- Chunk 4: the Chainlink CRE consumer `ListingPolicyReceiver`, which feeds the hook its policy. The workflow that writes to it lives in [`../cre`](../cre), and the exchange API it reads from in [`../services/mock-exchange`](../services/mock-exchange).
+
+Nothing is deployed yet; everything runs locally or on a Sepolia fork.
 
 Frontend error and selector reference: [`errors.md`](errors.md).
 
@@ -50,10 +55,13 @@ A public RPC works fine for these tests, e.g. `export SEPOLIA_RPC_URL=https://et
 | `src/modules/AllowAllModule.sol` | Phase 1 `IEligibilityModule`: per-wallet cumulative budget cap (20 USDC); only its hook may call it |
 | `src/ListingHook.sol` | v4 hook (inherits liquidity-launcher `InitializerHook`): only LBPStrategy initializes; listing-day ±5% band, then policy bands, directional mode, halt, cool-off; no liquidity flags |
 | `src/libraries/ListingBand.sol` | Share-price bands in sqrtPriceX96 space, orientation-aware |
-| `src/mocks/MockListingPolicy.sol` | Owner-settable `IListingPolicy` until the CRE receiver (chunk 4) exists |
-| `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IListingHook`, `IListingPolicy` (errors, events and reads for the frontend ABI) |
-| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, and `ListingHook` on a local PoolManager in both token orders |
-| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, and the full lifecycle (`ListingLifecycle.fork.t.sol`) |
+| `src/ListingPolicyReceiver.sol` | Chainlink CRE consumer (`IReceiver.onReport`) that stores the `ListingPolicy` and serves it to the hook as its `IListingPolicy`; best-effort ENS status mirror |
+| `src/mocks/MockListingPolicy.sol` | Owner-settable `IListingPolicy` for tests and manual demos without CRE |
+| `src/mocks/MockStatusResolver.sol` | `IStatusResolver` stand-in for the ENS resolver (can be told to revert or burn gas) until chunk 6 |
+| `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IListingHook`, `IListingPolicy`, `IListingPolicyReceiver`, `IReceiver` (Chainlink-compatible), `IStatusResolver` (errors, events and reads for the frontend ABI) |
+| `script/DeployListingPolicyReceiver.s.sol` | Deploys the receiver; optionally points a hook at it and sets the ENS mirror |
+| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), and the CRE report vectors shared with the TypeScript workflow |
+| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), and reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`) |
 
 ## Price math
 
@@ -131,9 +139,9 @@ the share price (USDC per share), so ±5% around 110 is exactly 104.5 to 115.5 p
 
 Liquidity callbacks are off, so adding and removing liquidity always works, including while halted.
 
-**Policy (`IListingPolicy.policy()`).** Read on every swap from `policySource` (owner-settable; `MockListingPolicy`
-for now, the CRE `ListingPolicyReceiver` in chunk 4). Zero fields fall back to defaults; `address(0)` source = all
-defaults:
+**Policy (`IListingPolicy.policy()`).** Read on every swap from `policySource`, which the owner sets with
+`setPolicySource`: the CRE `ListingPolicyReceiver` in the real setup, or `MockListingPolicy` in tests. Zero fields
+fall back to defaults, and an `address(0)` source means all defaults:
 
 | Field | Meaning | Default |
 |---|---|---|
@@ -156,6 +164,83 @@ normal band.
 `currentBandPointsE2()` and `currentPointsE2()` (share prices x100: `11000` = 1.10 USDC / lot), `effectivePolicy()`
 (defaults filled in), `listingSqrtPriceX96()`, `listingDayEndsAt()`, `usdcIsCurrency0()`, `poolKey()`, `poolId()`.
 Events: `Listed` once at migration, `PolicySourceSet`. Reverted swaps emit nothing.
+
+## ListingPolicyReceiver (chunk 4)
+
+The exchange's market controls reach the pool like this:
+
+1. The issuer console edits the mock exchange API.
+2. The CRE workflow ([`../cre`](../cre)) runs on a cron or HTTP trigger. It `GET`s the API, encodes the policy into a report and calls `writeReport`.
+3. The Keystone forwarder calls `ListingPolicyReceiver.onReport(metadata, report)`.
+4. `ListingHook` reads `receiver.policy()` on every swap.
+
+To plug the receiver in, the hook owner calls `hook.setPolicySource(receiver)`. Nothing else changes in the hook.
+
+**Report payload.** `abi.encode(ListingPolicy policy, string status)`, the struct above plus an optional ENS status. `metadata` (workflow id, name, owner) is ignored.
+
+**Checks, in order** (any failure reverts; the forwarder records it as `ReportProcessed(..., result = false)`):
+
+| # | Check | Error |
+|---|---|---|
+| 1 | `msg.sender == forwarder` | `InvalidSender` |
+| 2 | `tx.origin == broadcaster` (hackathon guard; `broadcaster = 0` disables it) | `InvalidOrigin` |
+| 3 | `policy.chainSelector == 16015286601757825753` (Sepolia, immutable) | `WrongChainSelector` |
+| 4 | `asOf > last accepted asOf` (strictly monotonic) | `StaleReport` |
+| 5 | `asOf <= block.timestamp + 5 min` | `ReportFromFuture` |
+| 6 | `block.timestamp - asOf <= maxAge` | `ReportExpired` |
+| 7 | bands `< 10000` bps, `mode <= 2` | `InvalidPolicy` |
+| 8 | `status` is at most 32 bytes | `InvalidStatus` |
+
+When a report passes, the receiver:
+
+- Assigns `version = previous + 1` and ignores the report's own `version`.
+- Stores the policy and the status, then emits `PolicyApplied(version, policy, status)`.
+- Then, and only then, tries the ENS mirror.
+
+The guard is two-part on purpose. Sepolia's CRE simulation forwarder `MockKeystoneForwarder`
+(`0x15fC6ae953E024d975e77382eEeC56A9101f9F88`; verified on-chain, and the address the `cre` CLI uses) checks no
+signatures, and both `report()` and `route()` are public. Anyone can make it call `onReport`, so `msg.sender` alone
+proves nothing. `tx.origin == broadcaster` pins delivery to the operator key that runs
+`cre workflow simulate --broadcast`. A transient-storage reentrancy lock stops the ENS call from pushing a second
+report through `route()` inside the same transaction. Once the workflow is deployed to a DON, point `setForwarder` at
+the signature-checking `KeystoneForwarder` (`0xF834…4482`) and clear the broadcaster.
+
+**Staleness rule (fail closed).** `policy()` returns the stored policy with `halted = true` once
+`block.timestamp > asOf + maxAge`. The hook then rejects swaps with `Halted()`, while liquidity add and remove keep
+working. The next accepted report lifts it. `latestPolicy()` returns the raw stored policy, `isStale()` says whether the
+override is active, and `staleAt()` gives the first stale timestamp (`asOf + maxAge + 1`). Before the first report,
+`policy()` is all zeros, so the hook uses its defaults and an unpublished receiver behaves like having no source.
+Choose `maxAge` with the cadence in mind: with manual `simulate --broadcast` runs, something like `1 day` is
+practical; with a DON cron every minute, minutes.
+
+**ENS status mirror (best effort).** After applying a policy, the receiver writes
+`setText(statusName, "listingday.status", status)` to `statusResolver`. The owner sets both with `setStatusMirror`;
+`statusName` is DNS-encoded and the resolver may be unset.
+
+- An empty `status` is derived from the policy: `halted` when halted or cooling off, `surveillance` when mode is not 0, otherwise `listed`. The console can send `draft`, `auction` or `listed` explicitly.
+- The write is skipped when the status equals the last mirrored one.
+- The write runs in `try/catch` with at most 1M gas (`STATUS_MIRROR_GAS`), keeping a reserve for the bookkeeping after it.
+- A resolver that reverts, burns all its gas, rejects the writer, or has no code emits `StatusMirrorFailed(resolver, status, reason)`, and the policy stays applied.
+- Anyone can call `syncStatus()` to retry. The workflow's `gasLimit` (1.8M) covers the ENS call plus the forwarder overhead.
+
+**Admin (owner only, `OnlyOwner`).** `setForwarder` (non-zero), `setBroadcaster` (`0` disables the origin check),
+`setMaxAge` (non-zero) and `setStatusMirror`. `owner` and `chainSelector` are immutable.
+
+**Reads for the frontend.** `policy()` (what the hook enforces), `latestPolicy()`, `status()`, `isStale()`,
+`staleAt()`, `maxAge()`, `forwarder()`, `broadcaster()`, `statusResolver()`, `statusName()`. Prefer
+`ListingHook.effectivePolicy()` for the defaults-filled view. Events: `PolicyApplied`, `StatusMirrored`,
+`StatusMirrorFailed`, and the forwarder's `ReportProcessed(receiver, workflowExecutionId, reportId, result)`. Topics
+are in [`errors.md`](errors.md#events).
+
+**Deploy.**
+
+```bash
+CRE_BROADCASTER=<address of CRE_ETH_PRIVATE_KEY> LISTING_HOOK=<hook, if you own it> \
+  forge script script/DeployListingPolicyReceiver.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --private-key $PK
+```
+
+The forwarder defaults to the Sepolia `MockKeystoneForwarder` and `maxAge` to 1 day; see the script header for the
+other variables. Then set `receiverAddress` in `../cre/listing-policy/config.staging.json`.
 
 ## Pinned dependencies
 
