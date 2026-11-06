@@ -6,10 +6,13 @@ import {ListingHook} from "../../src/ListingHook.sol";
 import {ListingPolicyReceiver} from "../../src/ListingPolicyReceiver.sol";
 import {MockSME} from "../../src/MockSME.sol";
 import {IListingHook} from "../../src/interfaces/IListingHook.sol";
+import {ListingPolicy} from "../../src/interfaces/IListingPolicy.sol";
+import {Sepolia} from "../../src/libraries/Constants.sol";
 import {ListingPrice} from "../../src/libraries/ListingPrice.sol";
 import {AllowAllModule} from "../../src/modules/AllowAllModule.sol";
 import {IContinuousClearingAuction} from "continuous-clearing-auction/src/interfaces/IContinuousClearingAuction.sol";
 import {Script, console2} from "forge-std/Script.sol";
+import {Vm} from "forge-std/Vm.sol";
 import {CustomRevert} from "v4-core/src/libraries/CustomRevert.sol";
 import {Hooks} from "v4-core/src/libraries/Hooks.sol";
 import {PoolSwapTest} from "v4-core/src/test/PoolSwapTest.sol";
@@ -67,6 +70,12 @@ abstract contract DemoBase is Script {
     uint256 internal constant REPORT_GAS = 1_500_000;
     /// @dev Exact-input amount large enough that swaps stop at their price limit.
     int256 internal constant SWAP_TO_LIMIT = -1e30;
+
+    /// @dev Workflow metadata the CRE simulator puts in the forwarder header (the mock forwarder checks none of it).
+    bytes32 internal constant SIM_WORKFLOW_CID = 0x1111111111111111111111111111111111111111111111111111111111111111;
+    bytes10 internal constant SIM_WORKFLOW_NAME = bytes10("bb40b1888a");
+    address internal constant SIM_WORKFLOW_OWNER = 0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa;
+    bytes2 internal constant REPORT_ID = 0x0001;
 
     string internal constant DEFAULT_DEPLOYMENTS_FILE = "deployments/sepolia.json";
     string internal constant DEFAULT_LABEL = "acme-v1";
@@ -267,6 +276,59 @@ abstract contract DemoBase is Script {
 
     function _pointsSqrt(uint256 points, bool usdcIsCurrency0) internal pure returns (uint160) {
         return ListingPrice.pointsToSqrtPriceX96(points, usdcIsCurrency0);
+    }
+
+    // ---------------------------------------------------------------- CRE reports
+
+    /// @notice Delivers `abi.encode(p, status)` to `receiver` the way `cre workflow simulate --broadcast` does: the
+    ///         109-byte forwarder header + report, `MockKeystoneForwarder.report` sent from the receiver's
+    ///         broadcaster (tx.origin). Fills `chainSelector` and a fresh `asOf`. Requires
+    ///         `ReportProcessed(result = true)`, since the forwarder swallows receiver reverts.
+    function _sendPolicyReport(
+        ListingPolicyReceiver receiver,
+        ListingPolicy memory p,
+        string memory status,
+        string memory tag
+    ) internal returns (bytes32 executionId) {
+        uint256 key = _broadcasterKey();
+        require(vm.addr(key) == receiver.broadcaster(), "CRE_BROADCASTER_KEY is not the receiver's broadcaster");
+        p.chainSelector = Sepolia.CRE_CHAIN_SELECTOR;
+        p.asOf = uint64(block.timestamp);
+        uint64 last = receiver.latestPolicy().asOf;
+        if (p.asOf <= last) p.asOf = last + 1;
+        executionId = keccak256(abi.encode(tag, address(receiver), p.asOf, p.halted));
+        bytes memory raw = abi.encodePacked(
+            uint8(1),
+            executionId,
+            uint32(block.timestamp),
+            uint32(1),
+            uint32(1),
+            abi.encodePacked(SIM_WORKFLOW_CID, SIM_WORKFLOW_NAME, SIM_WORKFLOW_OWNER, REPORT_ID),
+            abi.encode(p, status)
+        );
+
+        vm.startBroadcast(key);
+        vm.recordLogs();
+        _tx(string.concat("MockKeystoneForwarder.report(receiver, halted = ", p.halted ? "true" : "false", ")"));
+        IKeystoneForwarder(Sepolia.CRE_MOCK_FORWARDER).report{gas: REPORT_GAS}(
+            address(receiver), raw, "", new bytes[](0)
+        );
+        vm.stopBroadcast();
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bool found;
+        for (uint256 i; i < logs.length; i++) {
+            if (
+                logs[i].emitter == Sepolia.CRE_MOCK_FORWARDER
+                    && logs[i].topics[0] == IKeystoneForwarder.ReportProcessed.selector
+                    && logs[i].topics[2] == executionId
+            ) {
+                require(abi.decode(logs[i].data, (bool)), "ReportProcessed.result == false: receiver rejected it");
+                found = true;
+            }
+        }
+        require(found, "ReportProcessed not emitted");
+        console2.log("ReportProcessed.result = true, policy version", receiver.latestPolicy().version);
     }
 
     function _step(string memory name) internal view {

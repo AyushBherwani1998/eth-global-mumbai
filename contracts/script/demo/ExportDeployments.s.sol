@@ -12,7 +12,8 @@ import {VmSafe} from "forge-std/Vm.sol";
 ///   [DEPLOYMENTS_FILE=deployments/sepolia.json] forge script script/demo/ExportDeployments.s.sol
 ///
 /// Only transactions mined at or after the file's `deployBlock` are kept, so older listings' runs drop out.
-/// Funding is listing-independent and usually runs before the deploy, so all funding transactions are kept.
+/// Funding, the `listingday.eth` registration and its UserRegistry are listing-independent and usually run before
+/// the deploy, so all of their transactions are kept.
 /// Every run file is read (not only run-latest), so hashes survive idempotent re-runs.
 contract ExportDeployments is DemoBase {
     struct TxEntry {
@@ -29,7 +30,7 @@ contract ExportDeployments is DemoBase {
         }
         string memory j = _json();
         uint256 chainId = vm.parseJsonUint(j, ".chainId");
-        uint256 deployBlock = vm.parseJsonUint(j, ".deployBlock");
+        uint256 deployBlock = _jsonUint(j, ".deployBlock");
         console2.log("=== ExportDeployments", _file());
 
         (string[] memory steps, string[] memory scripts) = _steps();
@@ -46,8 +47,8 @@ contract ExportDeployments is DemoBase {
     }
 
     function _steps() internal pure returns (string[] memory steps, string[] memory scripts) {
-        steps = new string[](7);
-        scripts = new string[](7);
+        steps = new string[](12);
+        scripts = new string[](12);
         (steps[0], scripts[0]) = ("fund", "FundDemoWallets.s.sol");
         (steps[1], scripts[1]) = ("deploy", "DemoDeploy.s.sol");
         (steps[2], scripts[2]) = ("launch", "DemoLaunch.s.sol");
@@ -55,6 +56,16 @@ contract ExportDeployments is DemoBase {
         (steps[4], scripts[4]) = ("settle", "DemoSettle.s.sol");
         (steps[5], scripts[5]) = ("trade", "DemoTrade.s.sol");
         (steps[6], scripts[6]) = ("halt", "DemoHalt.s.sol");
+        (steps[7], scripts[7]) = ("ensName", "EnsName.s.sol");
+        (steps[8], scripts[8]) = ("ensRegistry", "EnsRegistry.s.sol");
+        (steps[9], scripts[9]) = ("ensTicker", "EnsTicker.s.sol");
+        (steps[10], scripts[10]) = ("ensRecords", "EnsRecords.s.sol");
+        (steps[11], scripts[11]) = ("ensStatusRole", "EnsStatusRole.s.sol");
+    }
+
+    function _listingIndependent(string memory step) internal pure returns (bool) {
+        bytes32 h = keccak256(bytes(step));
+        return h == keccak256("fund") || h == keccak256("ensName") || h == keccak256("ensRegistry");
     }
 
     function _stepJson(string memory step, string memory script, uint256 chainId, uint256 deployBlock)
@@ -62,8 +73,7 @@ contract ExportDeployments is DemoBase {
         returns (string memory)
     {
         string memory dir = string.concat(vm.projectRoot(), "/broadcast/", script, "/", vm.toString(chainId));
-        bool isFunding = keccak256(bytes(step)) == keccak256("fund");
-        TxEntry[] memory entries = collect(dir, isFunding ? 0 : deployBlock);
+        TxEntry[] memory entries = collect(dir, _listingIndependent(step) ? 0 : deployBlock);
         _print(step, entries, chainId);
         return _toJson(step, entries);
     }
