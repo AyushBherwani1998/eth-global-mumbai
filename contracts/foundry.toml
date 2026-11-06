@@ -1,0 +1,32 @@
+[profile.default]
+src = "src"
+test = "test"
+script = "script"
+out = "out"
+libs = ["lib"]
+solc = "0.8.26"
+evm_version = "cancun"
+optimizer = true
+optimizer_runs = 11111
+bytecode_hash = "none"
+# Nested submodules of the pinned deps are not checked out; use only remappings.txt.
+auto_detect_remappings = false
+
+# Same split as the CCA repo: the factory needs via-IR, everything else compiles without it.
+additional_compiler_profiles = [{ name = "via_ir", optimizer_runs = 11111, via_ir = true }]
+compilation_restrictions = [
+  { paths = "lib/continuous-clearing-auction/src/ContinuousClearingAuctionFactory.sol", via_ir = true },
+]
+
+[profile.default.fuzz]
+runs = 256
+
+[rpc_endpoints]
+sepolia = "${SEPOLIA_RPC_URL}"
+
+[fmt]
+line_length = 120
+tab_width = 4
+quote_style = "double"
+number_underscore = "thousands"
+sort_imports = true
