@@ -1,8 +1,8 @@
 # Listing Day contracts
 
-Foundry project for the Listing Day CCA + v4 IPO (design: [`../plan.md`](../plan.md)). This covers build chunks 0
-and 1: the scaffold, the price math, `MockSME`, `AuctionValidationHook` and `AllowAllModule`. Nothing is deployed
-yet; everything runs locally or on a Sepolia fork.
+Foundry project for the Listing Day CCA + v4 IPO (design: [`../plan.md`](../plan.md)). This covers build chunks 0–2:
+the scaffold, the price math, `MockSME`, `AuctionValidationHook`, `AllowAllModule`, `ListingPolicyReceiver`, and 
+`ListingHook`. Nothing is deployed yet; everything runs locally or on a Sepolia fork.
 
 Frontend error and selector reference: [`errors.md`](errors.md).
 
@@ -47,8 +47,10 @@ A public RPC works fine for these tests, e.g. `export SEPOLIA_RPC_URL=https://et
 | `src/MockSME.sol` | Fixed-supply share token, 110,000e18 minted once in the constructor, no mint function |
 | `src/AuctionValidationHook.sol` | CCA `IValidationHook`: only the bound auction, `sender == owner`, `maxPrice <= capQ96`, then the module |
 | `src/modules/AllowAllModule.sol` | Phase 1 `IEligibilityModule`: per-wallet cumulative budget cap (20 USDC); only its hook may call it |
-| `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule` (errors and events for the frontend ABI) |
-| `test/unit/` | Price math, hook + module, and the real CCA v2.1.0 code wrapping hook reverts |
+| `src/ListingPolicyReceiver.sol` | CRE policy store with tx.origin guard and best-effort ENS status mirror (plan.md §6) |
+| `src/ListingHook.sol` | Uniswap v4 hook: inherits InitializerHook, enforces bands/modes/halt, orientation-aware, LP never blocked |
+| `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IListingPolicyReceiver`, `IListingHook` (errors and events for the frontend ABI) |
+| `test/unit/` | Price math, auction validation hook + module, policy receiver, and listing hook unit tests |
 | `test/fork/` | Sepolia USDC metadata, every constant + cross-links, and a bid through the live CCA factory with USDC + Permit2 |
 
 ## Price math
