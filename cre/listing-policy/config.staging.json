@@ -1,0 +1,8 @@
+{
+  "schedule": "0 */1 * * * *",
+  "apiUrl": "http://127.0.0.1:8787/policy",
+  "chainSelectorName": "ethereum-testnet-sepolia",
+  "receiverAddress": "0x0000000000000000000000000000000000000000",
+  "usdcIsCurrency0": true,
+  "gasLimit": "1800000"
+}
