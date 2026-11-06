@@ -17,6 +17,8 @@ auto_detect_remappings = false
 # CreReportFixture.t.sol reads the report vectors pinned by the CRE workflow's tests.
 fs_permissions = [
   { access = "read", path = "../cre/listing-policy/fixtures" },
+  # WorldPassFixture.t.sol reads the EIP-712 pass vectors pinned by the verify backend's tests.
+  { access = "read", path = "../services/verify/fixtures" },
   { access = "read-write", path = "./deployments" },
   { access = "read", path = "./broadcast" },
   { access = "read", path = "./test/fixtures" },
