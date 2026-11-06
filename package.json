@@ -4,6 +4,15 @@
   "description": "Vercel project root for services/api only. The Next.js app is a separate Vercel project with Root Directory app/.",
   "type": "module",
   "engines": {
-    "node": ">=22.18"
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.6",
+    "hono": "^4.13.16",
+    "viem": "^2.57.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.9.3"
   }
 }
