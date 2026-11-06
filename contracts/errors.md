@@ -1,7 +1,8 @@
 # Listing Day contract errors (for the frontend)
 
 Selectors come from `forge inspect <Contract> errors` on this commit. The ABIs live in `out/` after `forge build`, or
-import the interfaces `src/interfaces/IAuctionValidationHook.sol` and `src/interfaces/IEligibilityModule.sol`.
+import the interfaces `src/interfaces/IAuctionValidationHook.sol`, `src/interfaces/IEligibilityModule.sol`,
+`src/interfaces/IListingHook.sol` and `src/interfaces/IListingPolicy.sol`.
 
 ## How a rejected bid looks
 
@@ -82,6 +83,64 @@ These come from the CCA itself (v2.1.0) or from the Permit2 pull that happens **
 
 The full CCA error list is in `lib/continuous-clearing-auction/src/interfaces/`.
 
+## Exits, claims and sweeps after the auction (CCA v2.1.0, direct calls)
+
+| Error | Selector | When |
+|---|---|---|
+| `AuctionIsNotOver()` | `0x00175ba8` | `exitBid` / sweeps before `endBlock` |
+| `NotClaimable()` | `0x6247a84e` | `claimTokens` before `claimBlock` (= `endBlock` in the demo) |
+| `BidNotExited()` | `0x7e138882` | `claimTokens` before `exitBid` for that bid. Order: `exitBid(id)` then `claimTokens(id)` |
+| `NotGraduated()` | `0xd66173a5` | `claimTokens` when raised < 45 USDC. Bidders only `exitBid` (full refund) |
+| `CannotExitBid()` | `0x0ba98457` | `exitBid` on a bid at or below the final clearing price; use `exitPartiallyFilledBid` |
+| `NotAuthorized(address authorized, address caller)` | `0xc55ddc97` | `sweepUnsoldTokens` from anyone but `tokensRecipient` (issuer treasury) |
+| `CannotSweepTokens()` | `0x8fd6c3f9` | `sweepUnsoldTokens` a second time |
+
+## Pool trading errors (ListingHook, arrive inside the v4 `WrappedError`)
+
+The PoolManager wraps every hook revert (ERC-7751):
+
+```
+WrappedError(address target, bytes4 selector, bytes reason, bytes details)   selector 0x90bfb865
+```
+
+`target` is the ListingHook, `selector` is the hook callback that reverted (`beforeSwap` `0x575e24b4`, `afterSwap`
+`0xb47b2fb1`, `beforeInitialize` `0xdc98354e`), `reason` is the error below and `details` is `HookCallFailed()`
+(`0xa9e35b2f`). Decode `reason` with the `IListingHook` ABI. The v4 Quoter and Universal Router revert the same way,
+so a failed quote is the trade sheet's "would revert" pre-check. Reverted swaps emit no logs.
+
+| Error | Selector | Callback | When | Suggested UI copy |
+|---|---|---|---|---|
+| `OutOfBand(uint160 sqrtPriceX96, uint160 sqrtPriceMinX96, uint160 sqrtPriceMaxX96)` | `0xbfdfc64e` | `afterSwap` | The swap would end outside the active band (listing day ±5% of the clearing price; then the policy band). Values are pool sqrtPriceX96; read `currentBandPointsE2()` for display | "Outside today's price band (104.50 to 115.50 USDC / lot)" |
+| `DirectionalWidening(uint160 preSqrtPriceX96, uint160 postSqrtPriceX96, uint160 refSqrtPriceX96)` | `0xe3e23539` | `afterSwap` | Directional mode (policy `mode = 2`, after listing day): the swap moves the price further from the reference and ends outside the surveillance band (±5%) around it | "Only trades toward the reference price are allowed right now" |
+| `Halted()` | `0x1ee9080f` | `beforeSwap` | Policy `halted = true`. Liquidity add / remove still work | "Trading halted" |
+| `CoolingOff(uint64 until)` | `0xfbf97c58` | `beforeSwap` | `block.timestamp < coolOffUntil` | "Cooling off until {until}" |
+| `InvalidInitializer(address caller, address expected)` | `0x8cbcc025` | `beforeInitialize` | Anyone but LBPStrategy initializes the pool (from liquidity-launcher `InitializerHook`) | Never seen in the app |
+| `PoolKeyMismatch()` | `0x6b8fd8f3` | `beforeInitialize` | A pool other than the hook's pinned key (USDC/MockSME, fee, tick spacing) | Never seen in the app |
+| `AlreadyListed()` | `0xa3d582ec` | `afterInitialize` | Defensive; can't happen for a pinned key | — |
+
+Direct calls (not wrapped):
+
+| Error | Selector | Source | When |
+|---|---|---|---|
+| `OnlyOwner()` | `0x5fc483c5` | `ListingHook.setPolicySource`, `MockListingPolicy` setters | Caller is not the owner |
+| `InvalidConfig()` | `0x35be3ac8` | `ListingHook` constructor | Zero or equal token addresses, or listing-day band >= 100% |
+| `NotPoolManager()` | `0xae18210a` | `ListingHook` callbacks | A hook callback called by anything but the PoolManager |
+
+## Migration (LBPStrategy v3.3.0)
+
+`migrate(auction)` is permissionless after `migrationBlock` (= `endBlock + 1`). It never reverts once allowed: if the
+pool can't be created (e.g. the auction didn't graduate) it emits `MigrationFailed` + `FundsRecovered` and sends the LP
+reserve to the treasury. Check for `Migrated`, or `ListingHook.listed()`, rather than tx status.
+
+| Error | Selector | When |
+|---|---|---|
+| `MigrationNotYetAllowed(uint256 migrationBlock, uint256 currentBlock)` | `0x2aa91e59` | Before `migrationBlock`, i.e. at or before the auction's `endBlock` |
+| `InvalidHook(address hook)` | `0xd60f2161` | Launch time: the hook isn't an `InitializerHook` for this strategy, has bad flags, or the pool already exists |
+| `PoolIdOccupied(bytes32 poolId, address initializer)` | `0x5866e5d6` | Launch time: another distribution already reserved this pool key (reused token + hook) |
+| `InvalidFundsRecipient(address actual, address expected)` | `0xa629a931` | Launch time: auction `fundsRecipient` is not the strategy |
+| `InvalidTokensRecipient(address actual)` | `0x8230db09` | Launch time: auction `tokensRecipient` is the strategy |
+| `InvalidEndBlock(uint256 endBlock, uint256 migrationBlock)` | `0x241ff33e` | Launch time: `migrationBlock <= endBlock` |
+
 ## Events
 
 | Event | Topic 0 | Source |
@@ -89,3 +148,12 @@ The full CCA error list is in `lib/continuous-clearing-auction/src/interfaces/`.
 | `AuctionSet(address indexed auction)` | `0x4da9b3b7ca08b559bc11eb42bb6961e0813372ed0b55f0e9b68b76cf0207fce8` | `AuctionValidationHook` |
 | `BudgetCommitted(address indexed owner, uint128 amount, uint256 total)` | `0xdcf8d4699e0d58f02a056a45185d9fcb9b0146943452ac620b0cd3281acb56aa` | `AllowAllModule` |
 | `BidSubmitted(uint256 indexed id, address indexed owner, uint256 priceQ96, uint128 amount)` | `0x650baad5cd8ca09b8f580be220fa04ce2ba905a041f764b6a3fe2c848eb70540` | CCA |
+| `BidExited(uint256 indexed bidId, address indexed owner, uint256 tokensFilled, uint256 currencyRefunded)` | `0x054fe6469466a0b4d2a6ae4b100e5f9c494c958f04b4000f44d470088dd97930` | CCA |
+| `TokensClaimed(uint256 indexed bidId, address indexed owner, uint256 tokensFilled)` | `0x880f2ef2613b092f1a0a819f294155c98667eb294b7e6bf7a3810278142c1a1c` | CCA |
+| `InitializerCreated(address indexed initializer, MigratorParameters migrationParams)` | `0x6d759545eb439f07e70f45431d6339af7a4f1ffef06d43e8ddf47fdb0799708c` | LBPStrategy (launch: `initializer` is the auction) |
+| `Migrated(address indexed initializer, PoolKey indexed key, uint160 initialSqrtPriceX96, bytes plan)` | `0xbcc36534419debbbf0f25857d1fef3e4bbce9527091c805e9a7da93dbfd828f4` | LBPStrategy |
+| `MigrationFailed(address indexed initializer, bytes reason)` | `0x68b0b16b3bdd5fa8045913c6519a56054f9ffabcc9d3ef1d71520fc0b61f1e15` | LBPStrategy |
+| `FundsRecovered(address indexed initializer, address indexed recipient, uint256 amount)` | `0x13e06184555481b6d2cb327155e8d2e1d0b1f0252a7fe6621e32cf9988148835` | LBPStrategy |
+| `Listed(bytes32 indexed poolId, uint160 listingSqrtPriceX96, int24 tick, bool usdcIsCurrency0, uint64 listingDayEndsAt, uint160 listingDaySqrtPriceMinX96, uint160 listingDaySqrtPriceMaxX96)` | `0x14d01e6e691277ec49cb4d9bb1620408b7cc4eed60fec2105b2e0afeda251777` | `ListingHook` (pool opened) |
+| `PolicySourceSet(address indexed policySource)` | `0x647b3a889d97f882f9ac03223a58f73a082acf2fb00c2374292e4a65f2c59e40` | `ListingHook` |
+| `PolicyUpdated(ListingPolicy policy)` | `0x8c21d95658b15b96d9a5d3cf5343785fc9503c41a3d1cbff404469c085db138c` | `MockListingPolicy` (the CRE receiver will emit its own `PolicyApplied`) |
