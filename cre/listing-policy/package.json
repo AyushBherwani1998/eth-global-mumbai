@@ -1,0 +1,23 @@
+{
+  "name": "listing-policy-workflow",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "main.ts",
+  "scripts": {
+    "postinstall": "bunx cre-setup",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "build": "cre-compile main.ts /tmp/listing-policy.wasm",
+    "fixtures": "bun scripts/gen-fixtures.ts"
+  },
+  "dependencies": {
+    "@chainlink/cre-sdk": "^1.23.0",
+    "viem": "^2.38.0",
+    "zod": "^3.25.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21",
+    "typescript": "^5.8.0"
+  }
+}

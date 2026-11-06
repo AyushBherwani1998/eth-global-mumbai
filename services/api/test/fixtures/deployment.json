@@ -1,0 +1,730 @@
+{
+  "auction": {
+    "address": "0x397568D520dA996A61d1Ea2680eD4B88A2A99d9d",
+    "bidWindowBlocks": 30,
+    "bidWindowEndBlock": 12077008,
+    "claimBlock": 12077028,
+    "clearBlocks": 20,
+    "endBlock": 12077028,
+    "floorPriceQ96": 63382530011360,
+    "fundsRecipient": "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+    "migrationBlock": 12077029,
+    "requiredCurrencyRaised": 45000000,
+    "reservedTokenAmountForLP": "20000000000000000000000",
+    "startBlock": 12076978,
+    "tickSpacingQ96": 792281625142,
+    "tokensRecipient": "0x651FdD79f613981fBE3a36534f6bE15Ed6a65e48",
+    "totalSupply": "90000000000000000000000",
+    "validationHook": "0x299D72384A38aFeE10e1813a372D0B9Fa752B44f"
+  },
+  "bids": {
+    "committedTotal": 99000000,
+    "count": 5,
+    "list": [
+      {
+        "amount": 20000000,
+        "id": 0,
+        "maxPricePoints": 190,
+        "maxPriceQ96": 150533508776980,
+        "owner": "0xAfe1E8351565E2E95618F661a380A63Bb2B7256b",
+        "startBlock": 12076979
+      },
+      {
+        "amount": 20000000,
+        "id": 1,
+        "maxPricePoints": 190,
+        "maxPriceQ96": 150533508776980,
+        "owner": "0x67a83b0b763cD77C600547DA18720e642d4bE274",
+        "startBlock": 12076979
+      },
+      {
+        "amount": 20000000,
+        "id": 2,
+        "maxPricePoints": 190,
+        "maxPriceQ96": 150533508776980,
+        "owner": "0xf5694397D66B9aAA923Ad28CF7a77408885dd31B",
+        "startBlock": 12076979
+      },
+      {
+        "amount": 20000000,
+        "id": 3,
+        "maxPricePoints": 190,
+        "maxPriceQ96": 150533508776980,
+        "owner": "0xF13554EAc5B5E7A4391e03b1DD02010B20055F97",
+        "startBlock": 12076979
+      },
+      {
+        "amount": 19000000,
+        "id": 4,
+        "maxPricePoints": 190,
+        "maxPriceQ96": 150533508776980,
+        "owner": "0x3D4D3b0d66A9F9ef89E275BD92DFA75Fd82CF140",
+        "startBlock": 12076979
+      }
+    ]
+  },
+  "chainId": 31337,
+  "contracts": {
+    "allowAllModule": "0x7d10f20e89f8d0232469DdF146A5FD3cCC8AABE1",
+    "auctionValidationHook": "0x299D72384A38aFeE10e1813a372D0B9Fa752B44f",
+    "listingHook": "0x35080Fc282034FBa0dD6D712AAbA2F380fD5f0c0",
+    "listingPolicyReceiver": "0xa3D027006b9896C67c07976A0d62B163A8fBd41f",
+    "mockSME": "0x326EC4516BE96704743a458f2FAa1ABC2027185a"
+  },
+  "creBroadcaster": "0x68864A7ADC5ddC9095e809D07403E396DcFA7126",
+  "deployBlock": 12076960,
+  "deployer": "0x7AbA2E554Bedf18CCCF891C11BF1083F5dC0a559",
+  "ens": {
+    "contractsV2Tag": "v2-mainnet-deployment-1",
+    "external": {
+      "ethRegistrar": "0xf633e7FC17e2bbE0D0965D18ec1821dcB754a3d3",
+      "ethRegistry": "0xD4eBcbBdF463C9c45784603Db0dDD499BC44A8B4",
+      "paymentToken": "0x240b0316Df57887DBBE58b586508b19e633a14aa",
+      "permissionedResolverImpl": "0x115eb53F0c60696633855F90b138178Fb40b2b2C",
+      "rootRegistry": "0xB458D6a3a77919449d03e7A6903C26827c1eC43f",
+      "universalResolver": "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe",
+      "universalResolverV2": "0x24E1D8e068620B647CA097f961A61055f4f42D72",
+      "userRegistryImpl": "0x9BD8a88719068D09ecee662f36C0E3856708366a",
+      "verifiableFactory": "0xDa70306C98E97eCe36F997a21368e53298572991"
+    },
+    "parent": {
+      "commit": {
+        "commitment": "0x7854db0f13fc032740fce60244d0f62ee2495e1e8769f427ef9a91dac70ccf75",
+        "committedAt": 0,
+        "duration": 31536000,
+        "validFrom": 0,
+        "validTo": 0
+      },
+      "dnsName": "0x0a6c697374696e676461790365746800",
+      "expiry": 1825508948,
+      "labelhash": "0x94ef5d63aeddaa73fd3a0f1ad6aa8f037df3d6a7f14064f3ec80a753b59dde00",
+      "name": "listingday.eth",
+      "node": "0x77014c455514cd279247dc21c1ca0c9324e9f5022bc363c7b33c4d3d633ed5e2",
+      "owner": "0x9F5dE1a0B0289752fa65023dF86045c4e69Bd7E1",
+      "resolver": "0x0000000000000000000000000000000000000000",
+      "subregistry": "0x9feD93D66E3d64bA35A1a4d6610F523024495B71",
+      "tokenId": "67365222588665957689032228529388482947133450022073178027034676138605367263232"
+    },
+    "records": {
+      "addr60": "0x326EC4516BE96704743a458f2FAa1ABC2027185a",
+      "avatar": "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA2NCA2NCI+PHJlY3Qgd2lkdGg9IjY0IiBoZWlnaHQ9IjY0IiByeD0iMTQiIGZpbGw9IiMwZjc2NmUiLz48dGV4dCB4PSIzMiIgeT0iMzkiIGZvbnQtZmFtaWx5PSJzYW5zLXNlcmlmIiBmb250LXNpemU9IjE2IiBmb250LXdlaWdodD0iNzAwIiBmaWxsPSIjZmZmIiB0ZXh0LWFuY2hvcj0ibWlkZGxlIj5BQ01FPC90ZXh0Pjwvc3ZnPg==",
+      "description": "Acme SME (ACME): Listing Day IPO. Continuous clearing auction in Sepolia USDC, then a Uniswap v4 pool with listing-day price bands and CRE-driven halts.",
+      "listingday.auction": "0x397568D520dA996A61d1Ea2680eD4B88A2A99d9d",
+      "listingday.eligibility": "open",
+      "listingday.hook": "0x35080Fc282034FBa0dD6D712AAbA2F380fD5f0c0",
+      "listingday.policy": "eip155:31337:0xa3D027006b9896C67c07976A0d62B163A8fBd41f",
+      "listingday.pool": "0x6f735683074d42aafd6fcc98a2711a135a643ea057c64821b877633f629d9885",
+      "listingday.status": "listed",
+      "url": "https://github.com/AyushBherwani1998/eth-global-mumbai"
+    },
+    "resolver": {
+      "address": "0xE6d7745b8Bdf60bd887cc7aa6A20DF15558aAD3b",
+      "deployed": true,
+      "owner": "0x7AbA2E554Bedf18CCCF891C11BF1083F5dC0a559",
+      "ownerHasAllRoles": true,
+      "salt": "103744221113147415825104472748937358677284796234716164053100728460042879302431"
+    },
+    "statusRole": {
+      "granted": true,
+      "key": "listingday.status",
+      "mirrorName": "0x0461636d650a6c697374696e676461790365746800",
+      "mirrorResolver": "0xE6d7745b8Bdf60bd887cc7aa6A20DF15558aAD3b",
+      "receiver": "0xa3D027006b9896C67c07976A0d62B163A8fBd41f",
+      "receiverStatus": "listed",
+      "resource": "5077635770626516542936817339719584360941511584011072274456487235029127131620"
+    },
+    "ticker": {
+      "dnsName": "0x0461636d650a6c697374696e676461790365746800",
+      "expiry": 1825508948,
+      "label": "acme",
+      "labelhash": "0xe29dae06ef4c3e336b7538b6d4f52ca1ecec009b1df6fb501320e11b223aeeaf",
+      "name": "acme.listingday.eth",
+      "node": "0x42fda8b2a317e700428cbde662bc0a8d5711828ee563cb6276bc6423c3635734",
+      "owner": "0x7AbA2E554Bedf18CCCF891C11BF1083F5dC0a559",
+      "ownerRoles": "0x0000000000000000000000000000000000000000000000000000000001010000",
+      "resolver": "0xE6d7745b8Bdf60bd887cc7aa6A20DF15558aAD3b",
+      "tokenId": "102501299859813433921418753382743742093251203822808558538243178204741087789056",
+      "transferable": false
+    },
+    "userRegistry": {
+      "address": "0x9feD93D66E3d64bA35A1a4d6610F523024495B71",
+      "deployed": true,
+      "emancipated": false,
+      "rootAccount": "0x9F5dE1a0B0289752fa65023dF86045c4e69Bd7E1",
+      "rootRoles": "0x0000000000000000000000000000000000000000000000000000000000001101",
+      "salt": "96598614843121002390809538357309988195739772444724341596796766558396588543817"
+    }
+  },
+  "external": {
+    "ccaFactory": "0x000000001F26a0044BaA66024e7b6599c61963F8",
+    "creMockForwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "create2Factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "lbpStrategy": "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+    "liquidityLauncher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "poolManager": "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543",
+    "positionManager": "0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4",
+    "quoter": "0x68aFa8b853cAa7a2D40B0F6AEE5C4DbC147C8244",
+    "stateView": "0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C",
+    "universalRouter": "0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b",
+    "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+  },
+  "halt": {
+    "halted": false,
+    "haltedSwapRevertData": "0x90bfb86500000000000000000000000035080fc282034fba0dd6d712aaba2f380fd5f0c0575e24b400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000000c000000000000000000000000000000000000000000000000000000000000000041ee9080f000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004a9e35b2f00000000000000000000000000000000000000000000000000000000",
+    "lastExecutionId": "0x16362e3825531fa286ac944ff212631e5878e836d80071104ffde40239f3dd7e",
+    "lpLiquidityBefore": 596992462264949,
+    "lpRemovedLiquidity": 59699246226494,
+    "lpTokenId": 41450,
+    "policyVersion": 2
+  },
+  "issuer": "0x7AbA2E554Bedf18CCCF891C11BF1083F5dC0a559",
+  "label": "anvil-1793972780",
+  "params": {
+    "applicantCap": 20000000,
+    "auctionSupply": "90000000000000000000000",
+    "capPoints": 190,
+    "capPriceQ96": 150533508776980,
+    "floorPoints": 80,
+    "floorPriceQ96": 63382530011360,
+    "issuePoints": 100,
+    "lpRateMps": 2000000,
+    "lpReserve": "20000000000000000000000",
+    "onePointQ96": 792281625142,
+    "requiredCurrencyRaised": 45000000,
+    "tickSpacingQ96": 792281625142,
+    "totalSupply": "110000000000000000000000"
+  },
+  "pool": {
+    "listingDayBandBps": 500,
+    "listingDaySeconds": 3600,
+    "poolId": "0x6f735683074d42aafd6fcc98a2711a135a643ea057c64821b877633f629d9885",
+    "poolKey": {
+      "currency0": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      "currency1": "0x326EC4516BE96704743a458f2FAa1ABC2027185a",
+      "fee": 3000,
+      "hooks": "0x35080Fc282034FBa0dD6D712AAbA2F380fD5f0c0",
+      "tickSpacing": 60
+    },
+    "usdcIsCurrency0": true
+  },
+  "receiverConfig": {
+    "broadcaster": "0x68864A7ADC5ddC9095e809D07403E396DcFA7126",
+    "chainSelector": "16015286601757825753",
+    "forwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "maxAge": 86400
+  },
+  "results": {
+    "clearingPoints": 110,
+    "clearingPriceQ96": 87150978765691,
+    "currencyRaised": 99000000,
+    "graduated": true,
+    "listedAt": 1793972857,
+    "listingDayEndsAt": 1793976457,
+    "listingPointsE2": 10999,
+    "listingSqrtPriceX96": "2388818980810137845276585969313655524",
+    "lpTokenId": 41450,
+    "migrated": true,
+    "poolLiquidity": 596992462264949,
+    "totalCleared": "89999999999999763878278",
+    "treasuryShares": "1999999999970801256643",
+    "treasuryUsdc": 79200000,
+    "unsoldSwept": 236121721
+  },
+  "trade": {
+    "bandHighPointsE2": 11549,
+    "bandLowPointsE2": 10449,
+    "inBandTargetPoints": 114,
+    "outOfBandCastCommand": "cast send 0x62F4EAa66C4A26bA5069Ad817f108BCA6be232bE 0x2229d0b40000000000000000000000001c7d4b196cb0c7b01d743fbc6116a902379c7238000000000000000000000000326ec4516be96704743a458f2faa1abc2027185a0000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000000000000000000000000000000000000000003c00000000000000000000000035080fc282034fba0dd6d712aaba2f380fd5f0c00000000000000000000000000000000000000000000000000000000000000001fffffffffffffffffffffffffffffffffffffff360d3632fb98b1215c00000000000000000000000000000000000000001be18434f6c4b21f5a5c7014939cccd0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000001600000000000000000000000000000000000000000000000000000000000000000 --gas-limit 600000 --private-key $TRADER_KEY --rpc-url $SEPOLIA_RPC_URL",
+    "outOfBandError": "OutOfBand(uint160,uint160,uint160)",
+    "outOfBandHookReason": "0xbfdfc64e0000000000000000000000000000000001be18434f6c4b21f5a5c7014939cccd0000000000000000000000000000000001c0fb6e511b708c7ae009d5849749460000000000000000000000000000000001d8058b3e96b78863a1f5fb633f42fe",
+    "outOfBandRevertData": "0x90bfb86500000000000000000000000035080fc282034fba0dd6d712aaba2f380fd5f0c0b47b2fb100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008000000000000000000000000000000000000000000000000000000000000001200000000000000000000000000000000000000000000000000000000000000064bfdfc64e0000000000000000000000000000000001be18434f6c4b21f5a5c7014939cccd0000000000000000000000000000000001c0fb6e511b708c7ae009d5849749460000000000000000000000000000000001d8058b3e96b78863a1f5fb633f42fe000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000004a9e35b2f00000000000000000000000000000000000000000000000000000000",
+    "outOfBandTargetPoints": 117,
+    "pointsE2AfterInBandBuy": 11399,
+    "swapRouter": "0x62F4EAa66C4A26bA5069Ad817f108BCA6be232bE",
+    "trader": "0xb90e43Ef8dBB7C481F5B40fCf4Bb9F4f227550A0"
+  },
+  "treasury": "0x651FdD79f613981fBE3a36534f6bE15Ed6a65e48",
+  "txs": {
+    "bids": [
+      {
+        "block": 12076981,
+        "hash": "0x181c0fb57cb457469d0b86ce39566b886e4c57d50ba944a31943952db8d1ff1d",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076982,
+        "hash": "0xbbf10dde269ccf62ab7d9fb8ec69c93d46c545b53e45c42b7761e539f3c84766",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12076983,
+        "hash": "0xb448225ecec429c0b9806ed411723ba2e6d515741fc22636027fd3e4ffbb3691",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12076984,
+        "hash": "0x7de50b2f882e94f3a9d515cf8227dd8138ad4be0d03784eb90d3992dcd929c09",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076985,
+        "hash": "0xdba3f8c93c80822f9c0d8c1e715c1602590a57761ec87952ed3691b1e695a329",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12076986,
+        "hash": "0xfad0d9a8df366e9c352186641a98bc169f8adc4a88a199fa1fce37548b0eeffc",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12076987,
+        "hash": "0x302c3b1ff2f9f34c9ff4a3d78ded89228225d67fd133300bda4c00e43333dec4",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076988,
+        "hash": "0x5197b83dc933504938b731e5a608302b9432d6f960c7508b936e4f7defd5f7b8",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12076989,
+        "hash": "0x2973206722629880c7855ded27285181bf5be58de8e2383bfc2e394098f71e10",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12076990,
+        "hash": "0xc5fe140d51a22d7936166c19e7eadd6df57b96b2a54b341cb128d86c0ec5c350",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076991,
+        "hash": "0xcbb1b03b74d6dc03596512cfc0a4e4973c55ac6709a54de55223ba83fcd29262",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12076992,
+        "hash": "0xe7480b8176289e66ee5946ea66a2e7242eb1ea3764c4e4daf1c49ddc5dee8795",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12076993,
+        "hash": "0x1008362a2054898e6002bb67fcdf803220d0f62083502840391e2fe2b5f2d163",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076994,
+        "hash": "0x811efbfe49bc41841dce75f96a5ced8affd1ba5c9092105269dd83ed9b4aed22",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12076995,
+        "hash": "0x1ca72577a21cfb36f75f021fa6220a24e4bddc353562156c208fbc4895315bf7",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      }
+    ],
+    "deploy": [
+      {
+        "block": 12076963,
+        "hash": "0x670bdb3cd63848517db8ed6ed08ed04620afa888d066d7a79e9768e7741cda9d",
+        "label": "create MockSME",
+        "status": 1
+      },
+      {
+        "block": 12076964,
+        "hash": "0x814ec180966dc0b80c1b4ee577c90494831d53bf9db7e86fcdde88107439a224",
+        "label": "create AllowAllModule",
+        "status": 1
+      },
+      {
+        "block": 12076965,
+        "hash": "0x83302e55b811dd7d0d5f85d750449288690c646248a13709758a4505d5dcddfd",
+        "label": "create AuctionValidationHook",
+        "status": 1
+      },
+      {
+        "block": 12076966,
+        "hash": "0x89f805d2397f96a4971d4da7f7e1f3245efecc358335afb1a55710f0c2aafdb9",
+        "label": "create ListingHook",
+        "status": 1
+      },
+      {
+        "block": 12076967,
+        "hash": "0x725ec394f6be4df483dc4e633f543def53438a9185e5670faf9eb69495e7cd04",
+        "label": "create ListingPolicyReceiver",
+        "status": 1
+      },
+      {
+        "block": 12076968,
+        "hash": "0x4cd98fb574b7646f34636904c7fb2485952ac61f48f07fc76e794332d29f5b32",
+        "label": "ListingHook.setPolicySource(address)",
+        "status": 1
+      }
+    ],
+    "ensName": [
+      {
+        "block": 12077059,
+        "hash": "0x41c2dcea64524b75f921730d69d15c9f6c367f6badd192d0cc4f06742f4378e3",
+        "label": "mint(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077060,
+        "hash": "0x24790668ed2ea0cfcb13115a637cdc4679e0644c2cc42ce66f4efbd80f9d203d",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077061,
+        "hash": "0xf2ce02a88b8e91e3d24fbac67793c3b022610ce3f9a1053b9f398621900e5645",
+        "label": "commit(bytes32)",
+        "status": 1
+      },
+      {
+        "block": 12077063,
+        "hash": "0x6b192e4eef87d68df156590945dc300562d702482010ffaf4f0622039bf03dd7",
+        "label": "register(string,address,bytes32,address,address,uint64,address,bytes32)",
+        "status": 1
+      }
+    ],
+    "ensRecords": [
+      {
+        "block": 12077075,
+        "hash": "0x6186b4d31faf2aaf0c71896e17f8a337307496bdfbc81f12007886717896c6c4",
+        "label": "multicall(bytes[])",
+        "status": 1
+      }
+    ],
+    "ensRegistry": [
+      {
+        "block": 12077066,
+        "hash": "0x8c0313d842b810e15963eec6271843a6f3359c1bd8f01808c56b5f2271bff216",
+        "label": "deployProxy(address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12077067,
+        "hash": "0xf44c5de1da462a1260f9a7d76de7fdf9431524680d6657d8b4790394bd817f93",
+        "label": "setParent(address,string)",
+        "status": 1
+      },
+      {
+        "block": 12077068,
+        "hash": "0x49e5df108f1bbc9416514f9d7dcaf5f3883427bf41274f9668f738c9191a28ed",
+        "label": "setSubregistry(uint256,address)",
+        "status": 1
+      }
+    ],
+    "ensStatusRole": [
+      {
+        "block": 12077078,
+        "hash": "0xa875edab76ec29aae784db3eeb98a199bc586c6b60163fbfcc08e51a42030875",
+        "label": "grantSetterRoles(bytes,address)",
+        "status": 1
+      },
+      {
+        "block": 12077079,
+        "hash": "0xc4c2057b05fc8e3b50dbe3549696b158b127f766cee4858061adfca35de5fde0",
+        "label": "setStatusMirror(address,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12077080,
+        "hash": "0x0025bd8939d697de3fa071b9aa70d145dc8bd662bc5335f113711b645b07efe6",
+        "label": "syncStatus()",
+        "status": 1
+      }
+    ],
+    "ensTicker": [
+      {
+        "block": 12077071,
+        "hash": "0x8a7103f62c0a99697bbd1cae4be503ff66a604aff75b2a8fe2b4a2e08b72d46b",
+        "label": "deployProxy(address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12077072,
+        "hash": "0xa36b5e3a690c2568b287b9232824c96528a30c06166198dccb8dd998da9fd84a",
+        "label": "register(string,address,address,address,uint256,uint64)",
+        "status": 1
+      }
+    ],
+    "fund": [
+      {
+        "block": 12076942,
+        "hash": "0x4617ab71feca04b737dc1f6c929c56d08c7822896377b63e463e93acc9363a3c",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076943,
+        "hash": "0xee8507c66a60534316775519a8a376387df96dc549cfbced67c82df35c156645",
+        "label": "call 0xafe1e8351565e2e95618f661a380a63bb2b7256b",
+        "status": 1
+      },
+      {
+        "block": 12076944,
+        "hash": "0xcef7576e77d2c66a1bcb727345be8f2c9ad980819092bb41f66aae69edcba524",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076945,
+        "hash": "0xf58718ca450e3b20725535cb9ea673a6f0f67b7c50bf1308b981e3b7b34ea312",
+        "label": "call 0x67a83b0b763cd77c600547da18720e642d4be274",
+        "status": 1
+      },
+      {
+        "block": 12076946,
+        "hash": "0xd9432f2f46c06fd5cb1a4a20f679e3f683964b2bbaa957be8d7a258a796fb852",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076947,
+        "hash": "0x34ac24b4f6bbea40f3be8ac85fe8749e62118a1b9db3529dc9cf867d7355f265",
+        "label": "call 0xf5694397d66b9aaa923ad28cf7a77408885dd31b",
+        "status": 1
+      },
+      {
+        "block": 12076948,
+        "hash": "0x3c1ed71a974cacfa9fe07618ad5e16f1554dd465b563299d836bbdbcd3b09707",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076949,
+        "hash": "0x0bf1377c56667d320e71aeacc8e84976b1fd18cb522d7bfe259b8d2e9808f286",
+        "label": "call 0xf13554eac5b5e7a4391e03b1dd02010b20055f97",
+        "status": 1
+      },
+      {
+        "block": 12076950,
+        "hash": "0x6513f2759526bdb12ee088e7bc7961417b5c6f7fea47af33ece0808c7277bf30",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076951,
+        "hash": "0x74811b9e4e2999e46d2ddf7bd09079d6e6a68cd1aada852a7b054d2e8138f969",
+        "label": "call 0x3d4d3b0d66a9f9ef89e275bd92dfa75fd82cf140",
+        "status": 1
+      },
+      {
+        "block": 12076952,
+        "hash": "0x37d82013b5425d11ef9aaf3672cb66c35581952c24494b7ed8056c8004431c70",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076953,
+        "hash": "0xef285f26d4e1ddb69d9f0bfb0fb0c2cb4ae00bd7da48e107145bbe6408981439",
+        "label": "call 0xb90e43ef8dbb7c481f5b40fcf4bb9f4f227550a0",
+        "status": 1
+      },
+      {
+        "block": 12076954,
+        "hash": "0x0466ca5d5013ab4ffd2127d5d10028720b635f71fe054e8bff7a4a3180513457",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076955,
+        "hash": "0x20af99b9bdc58db48a6b8313202ed41e8f0f70a01ce98648884b5e17824b45d6",
+        "label": "call 0x837b408258a6d9e5415c2af6acc35f4df2c3e1f3",
+        "status": 1
+      },
+      {
+        "block": 12076956,
+        "hash": "0x99a00fb016f4f5bbbdfe00e2c53364a25c96804ff1d5ab1021ffd6a95b17dbd3",
+        "label": "transfer(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076957,
+        "hash": "0xd5886ed984bdf18eb44e1debf7b96b0b278cbb76e68705c9ea26b367b22e8e97",
+        "label": "call 0x56794fd8054b4a60f9252fd58e144f8e91cf2ed1",
+        "status": 1
+      },
+      {
+        "block": 12076958,
+        "hash": "0x51f5b462dc58f934a6fce327e4dcb1543a0af8c99450e1ae4a496a60a32f8de2",
+        "label": "call 0x651fdd79f613981fbe3a36534f6be15ed6a65e48",
+        "status": 1
+      },
+      {
+        "block": 12076959,
+        "hash": "0xfcb6df31209ab8ee86d8c7cb0a49f5cfd25a4be2b0a7ad0b1abaad97b1b21237",
+        "label": "call 0x68864a7adc5ddc9095e809d07403e396dcfa7126",
+        "status": 1
+      }
+    ],
+    "halt": [
+      {
+        "block": 12077054,
+        "hash": "0xbfc457f569abb31a9ab9ef5960e037c253fe0bca41106fb77e8f3bc81e47772c",
+        "label": "report(address,bytes,bytes,bytes[])",
+        "status": 1
+      },
+      {
+        "block": 12077055,
+        "hash": "0x64bffbb74fb12b8b46c36f0ffd4ba68bf94f58471ed1b39b45151712380ed5b6",
+        "label": "modifyLiquidities(bytes,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077057,
+        "hash": "0xd843427a023df2e019bd41e00c1573dd12822d64a9fc013fb0c1ee1570c2b75b",
+        "label": "report(address,bytes,bytes,bytes[])",
+        "status": 1
+      }
+    ],
+    "launch": [
+      {
+        "block": 12076971,
+        "hash": "0x169b821b0b31544687328ee16c993fa562105a53c1e88d6303cf3ba5ce7b9ef5",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12076972,
+        "hash": "0xa8965ae2ee7f12065584be6c7246479c00bd43dbbfef3f432eddab21da596d74",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12076973,
+        "hash": "0x3ecbd13e79c309aa077c13ff08460f58f5bc6e1c35336aaa41401dc317d97049",
+        "label": "multicall(bytes[])",
+        "status": 1
+      },
+      {
+        "block": 12076974,
+        "hash": "0x4bea59d3b0574700313437c5c72532ca2342c1b380512c6f78eefe1a193ba22f",
+        "label": "setAuction(address)",
+        "status": 1
+      }
+    ],
+    "settle": [
+      {
+        "block": 12077033,
+        "hash": "0x36ea02d05bd0e64216a2152222803057b4fbe12129993350cb69134a50edab1c",
+        "label": "checkpoint()",
+        "status": 1
+      },
+      {
+        "block": 12077034,
+        "hash": "0x453903a3ae466acbb0c109b1d726bdbcb463f01ab4b07ef9f9e4324f5c403768",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077035,
+        "hash": "0xe93c613d6a0dee6ab5b976340eedd006036ea6ac686aedf816162d7d5e5cdd64",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077036,
+        "hash": "0xd61ebb450ed4eebef85501dffa9fa7d62b59f896203fe8b4b2894b7a1fa84f89",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077037,
+        "hash": "0xe538c78f33231b2f4ea192fb9c9ada89376d1adfb00525f4363b3c5949c92fa0",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077038,
+        "hash": "0xdc4cedfec5bf79d6a2df466dad9f0d00d5d0f930a91c8aec7732f0147a32f69c",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077039,
+        "hash": "0x459b8caf41d0bafeb1d2c79a8b72f61a4cc5f9b2e6c00425c7066d3ce940efb6",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077040,
+        "hash": "0xfea29cb84ef64da8574056bc7b4a0bbecd63018163355d4605fb813352e88fe3",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077041,
+        "hash": "0x5a928dd15da84c370e50e972ac1dae3a6b71d63d18ca6c20f4edd602ce0f3d2b",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077042,
+        "hash": "0x8de833d31e030248be1b4d554256d4482e064d68e4d3ea41fdc05001e734fa24",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077043,
+        "hash": "0x52ae834a2b430279d33b1aacae4016629dc6668fe50e44ff8157075b54e8ac8c",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077044,
+        "hash": "0x7703e405851be5ece87badf7dc5574ec6214fef763f7761bf4dea8cb3f79d0dc",
+        "label": "sweepUnsoldTokens()",
+        "status": 1
+      },
+      {
+        "block": 12077045,
+        "hash": "0x3190f261ee718d33ddc916af40433dc1c19e07925d93b0a148737d99dcbaf433",
+        "label": "migrate(address)",
+        "status": 1
+      }
+    ],
+    "trade": [
+      {
+        "block": 12077048,
+        "hash": "0xf7f40422d40543a776ddad61d110ac11dabde26452f1196caefce5e7bc52d22e",
+        "label": "create PoolSwapTest",
+        "status": 1
+      },
+      {
+        "block": 12077049,
+        "hash": "0xb7f666a707b597ee61255278777d45499a10ad6591c1fd249bc8a895ce6c13f3",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077050,
+        "hash": "0x035568a9a80299400aba0ca0930e95723357da855fbb52d7fb24b769366f8c70",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12077051,
+        "hash": "0xe6beb1b28ce7434c4c195b874ce92f5fe8d6f680b0e47e9967ff6c837540efc6",
+        "label": "PoolSwapTest.swap((address,address,uint24,int24,address),(bool,int256,uint160),(bool,bool),bytes)",
+        "status": 1
+      }
+    ]
+  }
+}
