@@ -12,7 +12,7 @@ import { TickerMark } from "@/components/company/logos";
 import { AmountField, Button, Details, KV, Segmented, Sheet, Stepper, TextLink, TickerLogo, cx } from "@/components/ui";
 import { lotFixed, shares, timeIST, usdc } from "@/lib/format";
 import { PORTFOLIO, type Ipo, type Market, type Rejected } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText, quote } from "@/lib/policy";
+import { band, bandDigits, quote } from "@/lib/policy";
 
 export type TradeSide = "buy" | "sell";
 
@@ -34,11 +34,11 @@ function ruleCheck(market: Market, priceAfter: number, ok: boolean, reason?: str
   if (ok) return { ok: true as const, text: `Allowed · within today's limits ${lotFixed(lo, d)} to ${lotFixed(hi, d)}`, fix: "" };
   if (reason === "Halted")
     return { ok: false as const, text: `Not allowed: trading is halted since ${timeIST(p.since)}.`, fix: "Try again after the exchange lifts the pause." };
-  if (reason === "DirectionalWidening")
+  if (reason === "WrongDirection")
     return {
       ok: false as const,
-      text: `Not allowed: this trade would push the price to ${priceAfter.toFixed(3)}, further from ${lotFixed(p.referencePrice)} than the ${bandText(p.referencePrice, SURVEILLANCE_BAND_BPS)} allowed today.`,
-      fix: "Try a smaller amount or the other side.",
+      text: `Not allowed: today only trades toward ${lotFixed(p.referencePrice)} are allowed.`,
+      fix: "Try the other side or wait for the rule to change.",
     };
   const above = priceAfter > hi;
   return {

@@ -40,7 +40,6 @@ import {
   NOW,
   OFFER,
   PORTFOLIO,
-  bidKey,
   bidsFor,
   ensName,
   getClearing,
@@ -49,7 +48,7 @@ import {
   type Policy,
   type Rejected,
 } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
+import { band, bandDigits } from "@/lib/policy";
 import { useApplyForm, ApplySheet } from "./bid-sheet";
 import { TradeSheet, useTradeForm, type TradeSide } from "./trade-sheet";
 import { WorldSheet, type WorldState } from "./world-sheet";
@@ -109,7 +108,8 @@ function UnitLine() {
 
 function EnsRows({ ipo }: { ipo: Ipo }) {
   const rows: [string, string | null][] = [
-    ["Share token", ipo.records.addr],
+    ["Company account", ipo.records.addr],
+    ["Share token", ipo.records.token],
     ["IPO auction", ipo.records.auction],
     ["Trading rule hook", ipo.records.hook],
     ["Policy contract", ipo.records.policy],
@@ -147,8 +147,7 @@ function rejectSentence(r: Rejected, policy: Policy) {
   if (r.reason === "Halted") return "Trading was halted at the time.";
   const d = bandDigits(policy.referencePrice, policy.bandBps);
   const { lo, hi } = band(policy.referencePrice, policy.bandBps);
-  if (r.reason === "DirectionalWidening")
-    return `Would have moved the price to ${r.priceAfter.toFixed(3)}, further from ${lotFixed(policy.referencePrice)} than ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)}.`;
+  if (r.reason === "WrongDirection") return `Would have moved the price away from ${lotFixed(policy.referencePrice)}.`;
   const above = r.priceAfter > hi;
   return `Would have moved the price to ${r.priceAfter.toFixed(3)}, ${above ? "above" : "below"} today's limit of ${lotFixed(above ? hi : lo, d)}.`;
 }
@@ -642,7 +641,7 @@ function IpoCompany({ ipo }: { ipo: Ipo }) {
               ) : (
                 <ul className="divide-y divide-line">
                   {myBids.map((b) => (
-                    <li key={bidKey(b)} className="flex min-h-16 items-center justify-between gap-4 py-3">
+                    <li key={b.id} className="flex min-h-16 items-center justify-between gap-4 py-3">
                       <span>
                         <span className="t-list-title block text-text">
                           {usdc(b.budget)} USDC up to {lotFixed(b.maxPrice)}

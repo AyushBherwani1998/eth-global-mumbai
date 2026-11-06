@@ -14,10 +14,9 @@ export type EnsStatus = "draft" | "auction" | "listed" | "surveillance" | "halte
 export type Phase = "draft" | "live" | "refunding" | "listed";
 export type Mode = "listing" | "normal" | "surveillance" | "directional" | "halted";
 
-// ENS records on <ticker>.<parent>. `addr` (coin type 60) is the share token
-// contract, not the issuer's wallet: the issuer owns the name, not the record.
 export type Records = {
   addr: string;
+  token: string | null;
   auction: string | null;
   hook: string | null;
   policy: string | null;
@@ -92,11 +91,8 @@ export type Market = {
 
 export type BidState = "active" | "outbid" | "partial" | "filled" | "exited" | "claimed" | "refundable";
 export type Bid = {
-  /** The CCA's own bid id. Every auction counts from zero, so it is unique only together with `auction`. */
   id: number;
   ticker: string;
-  /** The auction this bid was placed in (the ticker's `listingday.auction` record). */
-  auction: string;
   budget: number;
   maxPrice: number;
   submittedBlock: number;
@@ -116,21 +112,13 @@ export const FAUCET_URL = "https://faucet.circle.com/";
 
 export const IPOS = iposJson.ipos as Ipo[];
 export const WALLET = walletJson;
-export const BIDS: Bid[] = bidsJson.bids.map((b) => ({
-  ...(b as Omit<Bid, "auction">),
-  auction: IPOS.find((i) => i.ticker === b.ticker)?.records.auction ?? "",
-}));
+export const BIDS = bidsJson.bids as Bid[];
 export const COMMITTED = bidsJson.committed as Record<string, number>;
 export const PORTFOLIO = portfolioJson;
 export const CONSOLE = consoleJson;
 
 export const TICKERS = IPOS.map((i) => i.ticker);
 export const LISTED_TICKERS = Object.keys(marketSeriesJson);
-
-/** Stable identity for a bid across auctions: auction address plus bid id. */
-export function bidKey(b: Pick<Bid, "auction" | "id">) {
-  return `${b.auction.toLowerCase()}:${b.id}`;
-}
 
 export function getIpo(ticker: string): Ipo | undefined {
   return IPOS.find((i) => i.ticker === ticker);

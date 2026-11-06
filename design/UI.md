@@ -478,8 +478,7 @@ Layers, bottom to top:
    fill `--loss-fill`. Edges sharp, no border.
 2. Band: the allowed range `ref * (1 +- bandBps/10000)` over time, drawn as a shaded step polygon,
    fill `--band-fill`, no outline. Surveillance narrows the band (smaller bps), so it simply gets
-   tighter; directional mode draws where a swap may land: no further from the reference than now,
-   or within 5% of it, and always inside the 20% band (ListingHook `DirectionalWidening`);
+   tighter; directional mode draws only the half toward the reference (upper or lower part);
    halted draws no band for that span.
 3. Reference: dotted step line, 1px, colour `--text-2` (not blue).
 4. Issue price baseline: dotted horizontal line, 1px, `--line-strong`, across the full width.
@@ -813,7 +812,7 @@ Balance row: "Available to spend  1,234.00 USDC". Network and privacy details li
 Approval stepper (each step one sentence, shown under the step title):
 1. "Allow this app to use your USDC. One-time, you can turn it off later."
 2. "Allow this auction to take up to 5.00 USDC from you."
-3. "Place your bid. It can't be cancelled: your USDC stays with the auction until it ends."
+3. "Place your bid. You can take it back any time before the auction ends."
 Trading: 1. "Allow this app to sell your ACME shares." 2. "Confirm the sale."
 Button labels: "Allow USDC", "Allow 5.00 USDC", "Place bid", "Buy for 5.00 USDC", "Sell 1,000 shares".
 Busy label: "Check your wallet app". Done toast: "Bid placed", "Bought 980 ACME shares".
@@ -824,12 +823,12 @@ in the main text (the code goes in a "Details" text link):
 - Over cap: "You can put at most 20.00 USDC into this IPO. You have 4.00 USDC left."
 - Not enough money: "You need 5.00 USDC but have 2.00. Add USDC or lower the amount."
 - Outside band: "This price is outside today's allowed range of 0.95 to 1.05. Try a smaller amount."
-- Directional widening (`DirectionalWidening`): "This trade would push the price further from 1.00 than the 0.95–1.05 allowed today. Try a smaller amount or the other side."
+- Wrong direction: "Right now only trades toward 1.00 are allowed. Try the other side or wait."
 - Halted: "Trading is paused. You can still withdraw liquidity. Try again when the pause lifts."
 - Pass expired: "Your one-person check has expired. Verify again, it takes a minute."
 Halt strip: "Trading paused. Buying and selling are off until the regulator lifts it. Details".
 Surveillance strip: "Extra checks today. Prices can move at most 2% from 1.00. Details".
-Directional strip: "One-way day. Trades that move the price further from 1.00 can go at most 5% from it. Trades toward 1.00 go through within 20%. Details".
+Directional strip: "One-way day. Only trades that move the price toward 1.00 go through. Details".
 
 ### 7.8 Charts for older eyes
 

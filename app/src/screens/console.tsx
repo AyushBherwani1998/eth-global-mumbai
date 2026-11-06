@@ -16,9 +16,9 @@ import { CircuitBanner } from "@/components/circuit-banner";
 import { PriceChart } from "@/components/time-chart";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
-import { blockNo, dateTimeIST, lotFixed, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
+import { blockNo, dateTimeIST, lotFixed, shares, shortAddr, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
 import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo, type Mode, type Policy } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
+import { band, bandDigits } from "@/lib/policy";
 
 // ---------------------------------------------------------------------------
 // Lifecycle steps. Ids match mock/console.json; the titles are plain English.
@@ -85,7 +85,7 @@ export function ConsoleScreen({ ticker }: { ticker: string }) {
       <ConsoleShell>
         <h1 className="t-page-title mt-6">{ipo.name}</h1>
         <p className="t-body mt-2 text-text-2">
-          This console is for the owner of {ensName(ticker)}. Sign out and connect the wallet that owns that name to manage this listing.
+          This console is for the owner of {ensName(ticker)}. Sign out and connect the wallet {shortAddr(ipo.records.addr)} to manage this listing.
         </p>
       </ConsoleShell>
     );
@@ -346,7 +346,8 @@ function CreateStep({ ipo }: { ipo: Ipo }) {
 }
 
 const RECORD_LABEL: Record<string, string> = {
-  addr: "Share token",
+  addr: "Owner wallet",
+  token: "Shares",
   auction: "IPO contract",
   pool: "Market",
   hook: "Rule enforcer",
@@ -602,7 +603,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
   const ruleNow = policy.halted
     ? "Trading is halted."
     : policy.mode === "directional"
-      ? `Trades toward ${lotFixed(policy.referencePrice)} go through between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}; moves away from it stop at ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)}.`
+      ? `Only trades toward ${lotFixed(policy.referencePrice)} go through.`
       : `Trades allowed between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}.`;
 
   const controls: {
@@ -624,7 +625,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
     },
     {
       label: "One-way day",
-      consequence: "Trades that push the price further from the reference stop at 5% from it. Trades toward it go through within 20%.",
+      consequence: "Only trades that move the price toward the reference go through.",
       onClick: () => setMode("directional"),
     },
     {

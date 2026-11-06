@@ -86,7 +86,7 @@
     },
     "liquidity": { "usdc": 21.1, "shares": 17460 },
     "rejected": [
-      { "time": "2026-11-05T13:40:00+05:30", "side": "sell", "usdc": 2.0, "priceAfter": 1.188, "reason": "DirectionalWidening", "detail": "Widens the gap from reference 1.30 past the 5% band", "tx": "0xe7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6" },
+      { "time": "2026-11-05T13:40:00+05:30", "side": "sell", "usdc": 2.0, "priceAfter": 1.188, "reason": "WrongDirection", "detail": "Widens the gap from reference 1.30", "tx": "0xe7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6" },
       { "time": "2026-11-06T14:41:00+05:30", "side": "buy", "usdc": 1.5, "priceAfter": 1.226, "reason": "Halted", "detail": "Trading halted. Swaps revert.", "tx": "0xf8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7" }
     ],
     "events": [
