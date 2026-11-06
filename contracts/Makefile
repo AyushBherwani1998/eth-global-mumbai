@@ -39,8 +39,11 @@ ABI_CONTRACTS = MockSME AllowAllModule WorldPassModule AuctionValidationHook Lis
 	ens-fork ens-sepolia check-ens-env ens-name ens-registry ens-ticker ens-records ens-status-role ens-read \
 	abis-ensv2
 
+# SEPOLIA_FORK_BLOCK (optional) pins the fork, as for the fork tests.
+FORK = --fork-url $(SEPOLIA_RPC_URL) $(if $(SEPOLIA_FORK_BLOCK),--fork-block-number $(SEPOLIA_FORK_BLOCK),)
+
 demo-fork:
-	forge script script/demo/DemoFork.s.sol --fork-url $(SEPOLIA_RPC_URL) --skip-simulation
+	forge script script/demo/DemoFork.s.sol $(FORK) --skip-simulation
 
 demo-anvil:
 	bash script/demo/anvil-rehearsal.sh
@@ -113,7 +116,7 @@ verify-listings:
 # to PRIVATE_KEY, which must stay the ListingPolicyReceiver owner (setStatusMirror).
 
 ens-fork:
-	forge script script/ens/EnsFork.s.sol --fork-url $(SEPOLIA_RPC_URL) --skip-simulation
+	forge script script/ens/EnsFork.s.sol $(FORK) --skip-simulation
 
 ens-sepolia: check-ens-env ens-name ens-registry ens-ticker ens-records ens-status-role ens-read
 	@echo "ens-sepolia done: $(DEPLOYMENTS_FILE) (.ens)"

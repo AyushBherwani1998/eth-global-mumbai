@@ -28,6 +28,11 @@ jobs:
       - name: Build
         run: forge build
 
+      # A few blocks behind the head, so every node behind a load-balanced public RPC already has the fork block
+      # (otherwise forks fail with "block not found"). Every fork test and script below uses it.
+      - name: Pin the Sepolia fork block
+        run: echo "SEPOLIA_FORK_BLOCK=$(( $(cast block-number --rpc-url "$SEPOLIA_RPC_URL") - 5 ))" >> "$GITHUB_ENV"
+
       - name: Format
         run: forge fmt --check
 
