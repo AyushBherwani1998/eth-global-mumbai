@@ -128,7 +128,7 @@ function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
 }
 
 export function PortfolioScreen() {
-  const { connected, connect, usdcBalance, ethBalance, address, ensName, portfolio } = useApp();
+  const { connected, usdcBalance, ethBalance, address, ensName, portfolio } = useApp();
 
   const listings = useListings();
   const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
