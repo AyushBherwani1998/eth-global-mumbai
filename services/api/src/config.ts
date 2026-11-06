@@ -144,7 +144,7 @@ function envAddress(env: NodeJS.ProcessEnv, key: string): Address | undefined {
 }
 
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
-  const files = envList(env.DEPLOYMENTS_FILES ?? env.DEPLOYMENTS_FILE);
+  const files = envList(env.DEPLOYMENTS_FILES || env.DEPLOYMENTS_FILE);
   const deployments = (files.length ? files : ["../../contracts/deployments/sepolia.json"]).map((entry) => {
     const [p = "", ticker] = entry.split("#");
     return { path: isAbsolute(p) ? p : resolve(SERVICE_ROOT, p), ticker: ticker?.trim().toLowerCase() || null };
@@ -157,15 +157,15 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     chainId = Number.isInteger(fileChain) ? fileChain : SEPOLIA.chainId;
   }
 
-  const logsMaxRange = BigInt(env.LOGS_MAX_RANGE ?? "50000");
+  const logsMaxRange = BigInt(env.LOGS_MAX_RANGE || "50000");
   if (logsMaxRange <= 0n) throw new ConfigError("LOGS_MAX_RANGE must be positive");
 
   return {
-    port: Number(env.PORT ?? 8788),
-    host: env.HOST ?? "127.0.0.1",
+    port: Number(env.PORT || 8788),
+    host: env.HOST || "127.0.0.1",
     rpcUrl: env.RPC_URL || env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     chainId,
-    corsOrigins: envList(env.CORS_ORIGINS ?? "http://localhost:3000,http://127.0.0.1:3000"),
+    corsOrigins: envList(env.CORS_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000"),
     deployments,
     parentName: env.ENS_PARENT_NAME?.trim() || "listingday.eth",
     logsMaxRange,

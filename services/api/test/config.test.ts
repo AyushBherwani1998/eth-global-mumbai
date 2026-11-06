@@ -19,6 +19,11 @@ test("loadConfig defaults to Sepolia and the committed deployments file", () => 
   assert.deepEqual(c.corsOrigins, ["http://localhost:3000", "http://127.0.0.1:3000"]);
 });
 
+test("loadConfig treats empty values (a sourced .env.example) as unset", () => {
+  const empty = { DEPLOYMENTS_FILES: "", RPC_URL: "", SEPOLIA_RPC_URL: "", CHAIN_ID: "", PORT: "", HOST: "", CORS_ORIGINS: "", LOGS_MAX_RANGE: "", USDC_ADDRESS: "" };
+  assert.deepEqual(loadConfig(empty), loadConfig({}));
+});
+
 test("loadConfig reads DEPLOYMENTS_FILES with #ticker suffixes and the chain id from the first file", () => {
   const c = loadConfig({
     DEPLOYMENTS_FILES: `${FIXTURE}, ./missing.json#Kesar`,

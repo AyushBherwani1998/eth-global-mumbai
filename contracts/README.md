@@ -308,6 +308,9 @@ schedule (a USDC `approve` there is ~128k, as on live Sepolia). Either way well 
 
 ### Frontend read guide
 
+The backend proxy [`services/api`](../services/api/README.md) serves these records (`GET /v1/ens/:ticker`) together
+with the auction, policy and market reads. The direct viem path below stays for screens that read over Anon-RPC.
+
 The UI hard-codes only the parent name. viem's `sepolia` chain already has `ensUniversalResolver =
 0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe`. All records are onchain, so turn CCIP-Read off: no gateway call can leak
 around Anon-RPC. `getEnsText` / `getEnsAddress` call `resolveWithGateways(dnsName, data, ["x-batch-gateway:true"])`,
