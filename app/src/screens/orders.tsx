@@ -328,7 +328,7 @@ export function OrdersScreen() {
                 </div>
               </>
             )}
-            <p className="t-caption mt-6">Rejected orders cost you nothing. The exchange turned them away before they reached the market.</p>
+            <p className="t-caption mt-6">A rejected trade was sent and reverted by the trading rule. No shares or USDC changed hands, but the sender still paid the network fee.</p>
           </>
         )}
         <BottomSpacer />

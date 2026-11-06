@@ -263,7 +263,7 @@ Opens from "Apply". Bottom sheet on phone, right panel on desktop. Title "Apply 
 2. Price, a two-option control (radio rows, 56px):
    - "Pay the final price (recommended)", selected by default. Helper: "You pay whatever price the IPO closes at, never more than 1.90."
    - "Set a maximum price". Reveals a slider from 0.80 to 1.90 (the cap is the end; no over-cap drag), the current price marked on the track, value shown as "up to 1.40". Helper: "If the final price ends above your maximum, your money is refunded."
-3. Estimate rows (16px): "Shares at today's price: about 6,451" · "Money reserved: 8 USDC".
+3. Estimate rows (16px): "Shares at today's price: about 6,451" · "Money paid in: 8 USDC" (moves to the auction contract on submit; the unused part comes back on Settle after close).
 4. One-person status (when required): "Verified ✓ · valid 6:52" or an outlined "Verify you're one person" (opens 3.5a). Primary is disabled until verified.
 5. Warnings, one sentence each, with the fix. Amber (non-blocking): "Your maximum is below today's price. Raise it or you may be refunded." Red (blocking): "That's more than your 7 USDC remaining. Enter 7 or less." / "That's more than your balance. Get free test USDC."
 6. Footer: a step row and the primary button.

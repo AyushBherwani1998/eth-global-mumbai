@@ -62,7 +62,7 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
   const steps = [
     { title: "Allow USDC", sub: "Allow this app to use your USDC. One-time, you can turn it off later." },
     { title: `Allow ${usdc(a)}`, sub: `Allow this IPO to take up to ${usdc(a)} USDC from you.` },
-    { title: "Apply", sub: "Place your application. You can take it back any time before the IPO closes." },
+    { title: "Apply", sub: "Place your application. It can't be cancelled: your USDC stays with the IPO until it closes." },
   ];
 
   const run = async () => {
@@ -128,7 +128,7 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
           selected={mode === "limit"}
           onSelect={() => setMode("limit")}
           title="Set my own limit"
-          helper="If the final price ends above your limit, your money is refunded."
+          helper="If the price ends above your limit, you get no shares and can take your money back after the IPO closes."
         />
         {mode === "limit" && (
           <div className="mt-2">
@@ -148,7 +148,7 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
 
       <div className="mt-4 divide-y divide-line">
         <KV k="Shares at today's price" v={`about ${shares((a / price) * 1000)}`} sub={`Today's price ${lotFixed(price)} per 1,000 shares`} />
-        <KV k="Money reserved" v={`${usdc(a)} USDC`} sub="Taken only if your application is allotted" />
+        <KV k="Money paid in" v={`${usdc(a)} USDC`} sub="Moves to the IPO now. After it closes, settle to get back whatever didn't buy shares." />
       </div>
 
       {needsPerson && (
