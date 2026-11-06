@@ -1,4 +1,4 @@
-import { parseAbi, type Abi } from "viem";
+import { parseAbi, toFunctionSelector, type Abi, type Hex } from "viem";
 
 import {
   allowAllModuleAbi,
@@ -60,11 +60,34 @@ export const libraryErrorsAbi = parseAbi([
   "error PriceLimitAlreadyExceeded(uint160 sqrtPriceCurrentX96, uint160 sqrtPriceLimitX96)",
   "error PriceLimitOutOfBounds(uint160 sqrtPriceLimitX96)",
   "error InvalidInitializer(address caller, address expected)",
+  "error TickSpacingTooSmall(uint256)",
+  "error NotPoolManager()",
+  "error InvalidHook(address hook)",
+]);
+
+/** ENSv2 registry / registrar / resolver errors (contracts/errors.md, "ENSv2 ticker namespace"). */
+export const ensErrorsAbi = parseAbi([
+  "error ResolverNotFound(bytes name)",
+  "error ResolverError(bytes errorData)",
+  "error CommitmentTooNew(bytes32 commitment, uint64 validFrom, uint64 blockTimestamp)",
+  "error CommitmentTooOld(bytes32 commitment, uint64 validTo, uint64 blockTimestamp)",
+  "error UnexpiredCommitmentExists(bytes32 commitment)",
+  "error NameNotAvailable(string label)",
+  "error DurationTooShort(uint64 duration, uint64 minDuration)",
+  "error PaymentTokenNotSupported(address paymentToken)",
+  "error TransferDisallowed(uint256 tokenId, address from)",
+  "error TransferUnsafeUntilRegistryIsEmancipated()",
+  "error EACUnauthorizedAccountRoles(uint256 resource, uint256 roleBitmap, address account)",
+  "error EACCannotGrantRoles(uint256 resource, uint256 roleBitmap, address account)",
+  "error LabelAlreadyRegistered(string label)",
+  "error LabelExpired(uint256 tokenId)",
+  "error InvalidName(string name)",
 ]);
 
 /** Every error the Listing Day flows can hit, for revert decoding (duplicates by selector are harmless). */
 export const allErrorsAbi: Abi = dedupeErrors([
   ...libraryErrorsAbi,
+  ...ensErrorsAbi,
   ...universalRouterAbi,
   ...listingHookAbi,
   ...validationHookAbi,
@@ -77,6 +100,17 @@ export const allErrorsAbi: Abi = dedupeErrors([
   ...lbpStrategyAbi,
   ...mockSmeAbi,
 ] as Abi);
+
+/** `GET /v1/errors`: name, selector and signature of every decodable error, sorted by name. */
+export function errorCatalog(): { name: string; selector: Hex; signature: string }[] {
+  return allErrorsAbi
+    .flatMap((item) => {
+      if (item.type !== "error") return [];
+      const signature = `${item.name}(${item.inputs.map((i) => i.type).join(",")})`;
+      return [{ name: item.name, selector: toFunctionSelector(signature), signature }];
+    })
+    .sort((a, b) => a.name.localeCompare(b.name) || a.signature.localeCompare(b.signature));
+}
 
 function dedupeErrors(abi: Abi): Abi {
   const seen = new Set<string>();

@@ -147,6 +147,10 @@ function message(name: string, a: readonly unknown[], ctx: DecodeContext): strin
       return "Not enough pool liquidity for this trade";
     case "PoolNotInitialized":
       return "The pool is not open yet";
+    case "NotPoolManager":
+      return "Only the v4 PoolManager may call the listing hook";
+    case "ResolverNotFound":
+      return "This ticker name is not registered (or was delisted)";
     case "ERC20InsufficientBalance":
       return "Insufficient token balance";
     case "ERC20InsufficientAllowance":
