@@ -17,10 +17,11 @@
 | Claimed at submission | **Up to 3 partner prizes.** Several tracks from the same partner count as **one** pick (official rule). See the [Pitch matrix](#2-pitch-matrix); decide after the MetaMask e2e checkpoint. |
 | Chain | Ethereum Sepolia (11155111) |
 | Client | Mobile-first Next.js PWA, wagmi + viem, MetaMask / WalletConnect |
+| Quote currency | Circle **Sepolia USDC** `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (6 dec); test funds from the [Circle faucet](https://faucet.circle.com/) |
 | Scope | Design only; nothing has been built or deployed |
 | Disclaimer | Every exchange rule is an **NSE-inspired mock**: not a regulated product, no regulatory claims. Jurisdiction gates are an extra privacy layer, **not KYC** |
 
-Last updated Fri Nov 6 2026, ~14:00 IST (v3: validated against primary sources, country restrictions added; see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history. v2 referred to a `plan.v1.md`, but no such file is in the repo. If it exists locally, commit it: ETHGlobal's spec-driven rule requires "all spec files, prompts, and planning artifacts".
+Last updated Fri Nov 6 2026, ~14:00 IST (v3: validated against primary sources, country restrictions added; see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history. The original v1 plan is kept unchanged as [`plan.v1.md`](plan.v1.md), because ETHGlobal's spec-driven rule requires "all spec files, prompts, and planning artifacts".
 
 ---
 
@@ -109,13 +110,14 @@ Default lean is **A**, switching to **B** if World lands cleanly by Sat 05:00 IS
 |---|---|---|
 | Fixed supply | **110,000 shares** (MockSME, 18 dec), no mint after launch | LiquidityLauncher `createToken` with fixed supply, or a pre-minted deposit |
 | Split | 90,000 to auction / 20,000 reserved for LP | CCA `totalSupply`; `MigratorParameters.reservedTokenAmountForLP` |
-| Issue price | 100 mUSDC | Policy v1; anchors range math |
-| Discovery range | 80–190% of issue (80 → 190) | CCA `floorPrice` = 80 (Q96); `AuctionValidationHook` rejects `maxPrice` > 190 |
-| Per-applicant cap | e.g. 200,000 mUSDC budget per wallet (Phase 1) or per human (Phase 2), a mock application limit | Eligibility module keeps a cumulative committed budget per key |
+| Quote currency | **Sepolia USDC** (Circle, 6 dec) `0x1c7D…7238` | CCA `AuctionParameters.currency` = `MigratorParameters.currency` (LBPStrategy reverts `CurrencyMismatch` otherwise); see [Quote currency](#quote-currency-sepolia-usdc) |
+| Issue price | **0.001 USDC per share = 1.00 USDC per 1,000-share lot**. Price tables use points: issue = 100 = 1.00 USDC per lot | Policy v1; anchors range math. Sized so one faucet request (20 USDC) covers a full application |
+| Discovery range | 80–190% of issue (80 → 190 points = 0.80–1.90 USDC per lot) | CCA `floorPrice` = 0.0008 USDC/share in raw-unit Q96; `AuctionValidationHook` rejects `maxPrice` > 190 points |
+| Per-applicant cap | **20 USDC** budget per wallet (Phase 1) or per human (Phase 2), a mock application limit. That is one faucet request | Eligibility module keeps a cumulative committed budget per key |
 | % of raise to LP | e.g. 20% | `lpAllocationSchedule` brackets in MigratorParameters |
-| Graduation threshold | e.g. 50% of the target raise | CCA `requiredCurrencyRaised` |
+| Graduation threshold | 50% of the target raise: 45 USDC (target = 90,000 × 0.001 = 90 USDC) | CCA `requiredCurrencyRaised` = 45e6 |
 
-**Bids.** Each bid is a **budget** (`amount` in mUSDC) plus a **max price** (`maxPriceQ96`). The bid sheet converts "I'll pay up to ₹X per share with ₹Y" into those two fields. Bids can name an `owner` and carry `hookData`, which is where the World voucher rides.
+**Bids.** Each bid is a **budget** (`amount` in USDC raw units, 6 dec) plus a **max price** (`maxPriceQ96`). The bid sheet converts "I'll pay up to X USDC per lot with Y USDC" into those two fields. The mock is NSE-inspired, but the currency is USDC, not ₹. Bids can name an `owner` and carry `hookData`, which is where the World voucher rides.
 
 **Uniform clearing.** Everyone filled pays the same clearing price.
 - Bids above clearing are filled.
@@ -132,6 +134,55 @@ Default lean is **A**, switching to **B** if World lands cleanly by Sat 05:00 IS
 Show "unsold → issuer treasury" in the console and still walk the path once in the Gate 0 fork test.
 
 **Per-applicant caps.** `IValidationHook.validate` is **non-view**, so the module can add `amount` to a running total per key (wallet, or human key) and revert past the cap. Exits don't reduce the total; that is deliberately simple. Require `sender == owner`, as Uniswap's own `GatedERC1155ValidationHook` does. Otherwise anyone who copies a voucher from the mempool can spend the victim's cap with their own funds.
+
+
+### Quote currency: Sepolia USDC
+
+**Owner decision:** bids, the pool and the per-applicant cap use Circle's official **Ethereum Sepolia USDC**, not a faucet mock.
+- **Address:** `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238`, from [Circle's USDC addresses page](https://developers.circle.com/stablecoins/usdc-contract-addresses).
+- **Onchain:** `FiatTokenProxy` → `FiatTokenV2_2` implementation `0xda31…9068`; `decimals()` = 6; `symbol()` = `USDC`.
+- **EIP-2612 `permit` is live.** The EIP-712 domain name is **`"USDC"`, version `"2"`**. Mainnet uses `"USD Coin"`, so mainnet signing code won't work here.
+- **Admin powers:** Circle can pause or blacklist. It is not fee-on-transfer, which the CCA forbids, so it is compatible.
+
+**Getting USDC (bidders, judges, demo):**
+- **Faucet:** [Circle faucet](https://faucet.circle.com/) gives **20 USDC per request, one request per address per chain every 2 hours**. It is public and needs no account. Over the limit it returns "Limit Exceeded". For more, Circle points to its Discord.
+- **Bot protection:** the page may also apply captcha or IP throttling (unverified). Budget for manual clicks.
+- **In the app:** the PWA shows a "Get test USDC" link to the faucet when a wallet's balance is below the cap. A judge can make one faucet request and place a full 20 USDC application.
+- **Demo pre-funding (Gate 0, then every 2 h):** about 6 bidder wallets × 20 USDC, plus 2 trader wallets × ~10 USDC, plus a spare run, comes to **≈ 260 USDC**.
+  - From 14:00 IST to the Sat 01:30 checkpoint is about 5 faucet rounds. Eight addresses × 20 USDC × 2 rounds already covers it.
+  - Consolidate into a funder wallet, then distribute by script.
+  - Sepolia ETH for gas is a separate faucet and must also be pre-funded.
+
+**Knock-on effects:**
+- **CCA and LBPStrategy config.**
+  - `AuctionParameters.currency` and `MigratorParameters.currency` must both be USDC; LBPStrategy reverts `CurrencyMismatch` otherwise.
+  - Leftover USDC after the LP bracket goes to `MigratorParameters.recipient` (issuer treasury).
+  - The CCA forbids low-decimal (< 6) currencies; USDC's 6 decimals are at the limit, so they're allowed.
+- **Price math (6-decimal quote vs 18-decimal share).** CCA prices are *raw currency per raw token* in Q96:
+  - `priceQ96 = P_usdcPerShare × 10^6 / 10^18 × 2^96`.
+  - Issue: 0.001 × 10⁻¹² × 2⁹⁶ ≈ 7.9 × 10¹³. That is above the CCA minimum floor of 2³²+1. `tickSpacing` ≈ 1% of the floor.
+  - The bid sheet, cap check (190 points), charts and Quoter display all convert with these decimals. The 190% cap is computed on the raw Q96 value.
+- **v4 pool currency ordering.** `currency0` is the lower address.
+  - USDC `0x1c7D…` sits at ~11% of the address space, so a CREATE2 MockSME is almost always higher. USDC is then **`currency0`**, and the v4 price is *MockSME per USDC* (inverted).
+  - LBPStrategy already inverts (`TokenPricing`, `currency < token`).
+  - `ListingHook` must be orientation-aware. Store `usdcIsCurrency0` in `afterInitialize`. A "buy MockSME" swap is then `zeroForOne`, and "price up" means `sqrtPriceX96` goes **down**. Upper and lower band bounds swap.
+  - Either support both orders or assert the order at deploy (pick the `createToken` salt so MockSME > USDC).
+  - Sanity: sqrtPriceX96 ≈ √10¹⁵ × 2⁹⁶ ≈ 2.5 × 10³⁶ (tick ≈ +345,400), within v4 limits.
+- **Approvals: the CCA pulls ERC-20 bids through Permit2**, via `SafeTransferLib.permit2TransferFrom` → `Permit2.transferFrom` (AllowanceTransfer).
+  - A first-time bidder needs `USDC.approve(Permit2)` once, then `Permit2.approve(USDC, auction, amount, expiration)`, then `submitBid`. That is 3 txs.
+  - The CCA has no permit or multicall entry point. A helper "bid router" is ruled out because the validation hook requires `sender == owner`.
+  - EIP-2612 `permit` could replace the first `approve`, but only if a contract submits it in the same tx, so in practice the bidder approves.
+  - Optional: batch the 3 calls with EIP-5792 `wallet_sendCalls` where MetaMask supports it.
+  - Swaps through the Universal Router reuse the Permit2 approval plus a signed `PERMIT2_PERMIT` command, so each swap is one tx.
+  - The LiquidityLauncher's Permit2 path only matters for depositing pre-minted MockSME. `createToken` needs no transfer.
+- **The ENS registration token is a different token.** `listingday.eth` is paid in ENS's own test **MockUSDC** `0x240b…14aa` (public `mint`), not Circle USDC. Label it "ENS test USDC" in scripts and the console so the two aren't confused.
+- **Issuer console and PWA show USDC everywhere:**
+  - balances with 6-decimal formatting;
+  - prices per 1,000-share lot (e.g. "1.10 USDC / lot"), with per-share values to 5 decimals;
+  - the cap as "20 USDC per applicant";
+  - a raise progress bar against `requiredCurrencyRaised`;
+  - a USDC faucet link;
+  - an approve-Permit2 step on the bid sheet.
 
 ## 5. Lifecycle
 
@@ -151,7 +202,6 @@ Show "unsold → issuer treasury" in the console and still walk the path once in
 | Component | Purpose | Inputs → outputs | Prize | Est. h |
 |---|---|---|---|---|
 | `MockSME` ERC-20 | Fixed-supply share token (110,000) | Launcher `createToken` or a deposit | Uni | 0.5 |
-| `mUSDC` (6 dec) | Faucet quote token | `mint(to, amt)` | Uni | 0.5 |
 | `ListingPolicyReceiver` | CRE policy store: version, `maxAge`, chain selector, monotonic `asOf`; best-effort ENS status mirror (try/catch). Emits its own `PolicyApplied` event. Hackathon guard: the mock forwarder is permissionless, so also require `tx.origin ==` our CRE broadcaster key | `onReport` → `policy()`; `setText(dnsEncode("acme.listingday.eth"), "listingday.status", …)` | CRE, ENS | 2 |
 | `AuctionValidationHook` | 190% cap + delegates to a pluggable `IEligibilityModule` | `validate(maxPrice, amount, owner, sender, hookData)` | Uni, World | 1.5 |
 | `AllowAllModule` (Phase 1) | Per-wallet cumulative cap only | owner, amount → ok / `CapExceeded` | Uni | 0.5 |
@@ -167,7 +217,7 @@ Show "unsold → issuer treasury" in the console and still walk the path once in
 | Mobile PWA (Next.js + wagmi/viem) | 7 screens incl. the issuer console | Reads via Anon-RPC; writes via the wallet | All | 7–9 |
 | Anon-RPC layer | `@anon-rpc/browser-harness` `AnonRpcWorker` on the **Nox** specifier (Sepolia, ~1.8 MB bundle); `worker.fetch` as the viem `custom`/`http({ fetchFn })` transport; badge and counter; no fallback to direct RPC | All `eth_call` / `eth_getLogs` / ENS reads (CCIP-Read off or routed through `worker.fetch`) | EF | 2–4 |
 | Charts (Lightweight Charts v5) | Pool vs reference, bands, markers, clearing per block | Logs + receipts → series | All | 2 |
-| Demo wallets + scripts | 4–6 wallets; bids, swaps, failure paths | Foundry scripts | All | 1.5 |
+| Demo wallets + scripts | ~8 wallets pre-funded with Sepolia USDC (Circle faucet, 20 USDC / 2 h / address) + Sepolia ETH; funder → distribute script; bids, swaps, failure paths | Foundry scripts | All | 1.5 (+ faucet rounds every 2 h) |
 
 ### Contract sketches (design only)
 
@@ -565,7 +615,8 @@ stateDiagram-v2
 ## 13. Mock and demo plan
 
 **Example numbers (example data):**
-- 110,000 shares (90,000 auctioned), issue 100, range 80–190.
+- 110,000 shares (90,000 auctioned), issue 100, range 80–190. Prices are in points: 100 = 1.00 USDC per 1,000-share lot = 0.001 USDC per share.
+- Raise at a 110 clearing price: 90,000 × 0.0011 = 99 USDC from about 6 bidders at the 20 USDC cap.
 - Clears around 110, so the listing band is 104.5–115.5.
 - The CRE reference then shifts from 110 to 90 with directional mode on.
 
@@ -597,19 +648,20 @@ Pre-record the auction phase: Sepolia blocks take ~12 s.
 
 ## 14. Build plan to Sat 09:00 IST
 
-Re-based at **Fri ~14:00 IST: about 19 h remain** (was 21.5 h from 11:30). The original Gate 0 deadline of 13:30 has passed with nothing built, so every block before the Sat 01:30 checkpoint is 2.5 h shorter. **Order: MetaMask e2e first, then ENS, then the World ID swap-in, then the country module.** The total effort (~37–48 h with country) needs **two parallel lanes**. A solo builder should cut World and the country module, keep combo A, and describe §9 as design.
+Re-based at **Fri ~14:00 IST: about 19 h remain** (was 21.5 h from 11:30). The original Gate 0 deadline of 13:30 has passed with nothing built, so every block before the Sat 01:30 checkpoint is 2.5 h shorter. **Order: MetaMask e2e first, then ENS, then the World ID swap-in, then the country module.** The total effort (~36.5–47.5 h with country; the faucet-token row is gone now that we use Sepolia USDC) needs **two parallel lanes**. A solo builder should cut World and the country module, keep combo A, and describe §9 as design.
 
 **Gate 0 (Fri 14:00–16:00 IST):** all of these must pass before anything else.
 1. Nox Anon-RPC worker → Sepolia read from a phone. Try the MetaMask in-app browser first (WebRTC inside a sandboxed iframe), then a regular mobile browser + WalletConnect.
 2. CRE `simulate --broadcast` → `onReport` on a stub receiver. Check `ReportProcessed.result == true` and the receiver event, not just tx status.
 3. Fork test: Launcher multicall → CCA → `setAuction` → bids → `migrate()` into a pool with a mined InitializerHook-derived hook. Confirm `sweepUnsoldTokens` to the issuer `tokensRecipient`.
-4. Register `listingday.eth` on Sepolia ENSv2: mint + approve MockUSDC, commit, wait 60 s, register.
+4. Register `listingday.eth` on Sepolia ENSv2: mint + approve ENS's test MockUSDC (not Circle USDC), commit, wait 60 s, register.
+6. **Start USDC pre-funding:** first Circle faucet round for ~8 demo addresses (20 USDC each), repeated every 2 h until ≈ 260 USDC is in place by the Sat 01:30 checkpoint. Check that a bid runs end to end with real USDC: `approve(Permit2)` → `Permit2.approve(USDC, auction, …)` → `submitBid`.
 5. (Lane B, 20 min) zkPassport dev mode: a mock-passport proof verifies on our backend with `devMode: true`. Note which nationality the mocks carry.
 
 | Time (IST) | Lane A: contracts, CRE, ENS | Lane B: app, Anon-RPC, World |
 |---|---|---|
-| Fri 14:00–16:00 | Gate 0 (fork test, CRE stub, ENS name) | Gate 0 (Nox spike on a phone, zkPassport dev-mode spike) |
-| 16:00–18:00 | Tokens, receiver (+ hackathon `tx.origin` guard), validation hook + `setAuction` + `AllowAllModule` + tests | PWA shell, wagmi, Nox transport + badge |
+| Fri 14:00–16:00 | Gate 0 (fork test with Sepolia USDC, CRE stub, ENS name) | Gate 0 (Nox spike on a phone, zkPassport dev-mode spike, first USDC faucet round) |
+| 16:00–18:00 | MockSME token (salt so MockSME > USDC), receiver (+ hackathon `tx.origin` guard), validation hook + `setAuction` + `AllowAllModule` + tests (6-dec USDC price math) | PWA shell, wagmi, Nox transport + badge |
 | 18:00–21:30 | `ListingHook` (`afterInitialize` bands) + HookMiner + fork tests | IPO list, detail + bid sheet, My bids |
 | 21:30–23:30 | Launch script on Sepolia (params, bids, migrate) | Chart (Lightweight Charts) + trade sheet + circuit banner |
 | 23:30–Sat 01:00 | CRE workflow + console runner | Issuer console (create, launch, monitor, demo buttons) |
@@ -645,6 +697,11 @@ See [`VALIDATION.md`](VALIDATION.md#3-top-risks) for the ranked top risks.
 | LBPStrategy rejects the hook (`InvalidHook`, `PoolIdOccupied`) | Inherit InitializerHook, mine the address; `PoolIdOccupied` only bites if a token is reused (a new token per run gives a new pool id); keep `beforeInitialize` `view` and write state in `afterInitialize` |
 | Auction address is circular with the validation hook (verified: CREATE2 init code includes `validationHook`) | Deployer-only one-time `setAuction` before `startBlock`, checking `a.validationHook() == this`; never lazy-bind |
 | LBPStrategy recipient rules (`InvalidFundsRecipient` / `InvalidTokensRecipient`) | `fundsRecipient` = strategy, `tokensRecipient` = issuer treasury; issuer calls `sweepUnsoldTokens` |
+| Demo wallets short of USDC at judging (faucet: 20 USDC / 2 h / address; possible captcha or IP throttling) | Faucet rounds start in Gate 0 and repeat every 2 h; ≈ 260 USDC across ~8 addresses by Sat 01:30; funder → distribute script; ask on Circle's Discord early; prices and cap sized to faucet amounts |
+| USDC price math: 6-dec quote vs 18-dec share; USDC is likely `currency0`, so the v4 price is inverted | Single conversion helper shared by bid sheet, hook constants and charts; fork test asserts the pool opens at 1.10 USDC/lot; `ListingHook` stores `usdcIsCurrency0`; pick the salt so MockSME > USDC |
+| Bid UX: CCA pulls via Permit2, so 3 txs on first bid; no bid router possible (`sender == owner`) | Approve Permit2 once at onboarding; EIP-5792 batch where available; clear stepper on the bid sheet |
+| Mixing up Circle USDC and ENS MockUSDC | Separate named constants; console labels "ENS test USDC" |
+| Circle can pause or blacklist Sepolia USDC | Low likelihood; noted in README; no mitigation needed tonight |
 | Migration failure is terminal (one-shot; reserves recovered to `recipient`) | Fork-test first; keep a spare run; `migrationBlock` > `endBlock` |
 | Routers may skip or denylist hooks that revert often | Own UI + Universal Router; frame reverts as rule enforcement |
 | Anon-RPC on mobile: WebRTC inside a sandboxed iframe in MetaMask's in-app browser is untested; CSP `'unsafe-inline'` for `srcdoc` | Gate 0 on a real phone; **Nox first** (Sepolia specifier, ~1.8 MB). tor-js fallback needs a mainnet bootstrap read + demo gateway (~6.9 MB). Nym ~18 MB is out |
@@ -677,6 +734,7 @@ Pick 3 at submission; prepare all 5 so the choice stays open.
 - [ ] Form at https://developers.uniswap.org/hackathon-feedback linking FEEDBACK.md
 - [ ] README line pointers: `ListingHook.sol` afterSwap, `AuctionValidationHook.sol` validate + `setAuction`, eligibility modules, launch script
 - [ ] CCA + LBPStrategy + v4 hook on Sepolia, with tx links
+- [ ] Real Sepolia USDC as CCA currency + pool currency; README shows the address and how to get USDC (faucet link)
 
 **Chainlink CRE ($1.5k)**
 - [ ] External API + Sepolia write
@@ -714,6 +772,7 @@ Pick 3 at submission; prepare all 5 so the choice stays open.
 - [ ] Demo video 2–4 min, ≥720p, not recorded on a phone, not sped up, real voice; live demo link; submitted before Sat 09:00 IST
 - [ ] README: AI-tool attribution (which files and assets); spec files kept (`plan.md`, `VALIDATION.md`, prompts)
 - [ ] Steady commit history (no single giant commit)
+- [ ] Demo wallets funded with USDC + Sepolia ETH before recording and again before judging
 - [ ] Country module (if built): README "limitations" section (transfers, nationality ≠ residency, VPN, not KYC)
 
 ## 17. Validation notes
@@ -737,7 +796,7 @@ Round 1 was checked Fri Nov 6 ~10:20 IST at Sepolia block 12,074,309. Round 2 wa
 14. Mark Toda: default inclusion + a denylist for failing hooks, not blanket exclusion.
 15. *(corrected)* The deadline is confirmed on the official details page: Sat Nov 7 09:00 IST. Up to 3 partner prizes; several tracks from one partner count as one.
 16. LiquidityLauncher v3.2.0 is current.
-17. Circle Sepolia USDC is 6 dec; we use a mintable mock.
+17. Circle Sepolia USDC is 6 dec. *(changed by owner decision)* We now use **real Sepolia USDC** `0x1c7D…7238` (code present, FiatTokenV2_2, EIP-712 name `"USDC"` v`"2"`, `permit` live), not a mintable mock. See [Quote currency](#quote-currency-sepolia-usdc).
 
 **Round 2 (new facts):**
 
@@ -785,7 +844,8 @@ Round 1 was checked Fri Nov 6 ~10:20 IST at Sepolia block 12,074,309. Round 2 wa
 | Universal Router | `0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b` (2.1.2: `0x7E4f6c5e954Da5c61B3423D81E2277431Ac043f3`) |
 | StateView | `0xe1dd9c3fa50edb962e442f60dfbc432e24537e4c` |
 | Quoter | `0x68aFa8b853cAa7a2D40B0F6AEE5C4DbC147C8244` |
-| Permit2 | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
+| Permit2 (CCA bids pull USDC through it) | `0x000000000022D473030F116dDEE9F6B43aC78BA3` |
+| **USDC (Circle, quote currency, 6 dec)** | `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (impl `FiatTokenV2_2` `0xda317c1d3e835dd5f1be459006471acaa1289068`) |
 | CCA factory v2.1.0 | `0x000000001F26a0044BaA66024e7b6599c61963F8` |
 | LiquidityLauncher v3.2.0 | `0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0` |
 | LBPStrategy v3.3.0 | `0x95434E898Af471945Cab33D5064d2aC1A6Ba2000` |
@@ -809,7 +869,7 @@ Reference CCA validation hooks (source only, not deployed by us): `GatedERC1155V
 | VerifiableFactory | `0xda70306c98e97ece36f997a21368e53298572991` |
 | UserRegistryImpl | `0x9bd8a88719068d09ecee662f36c0e3856708366a` |
 | PermissionedResolverImpl | `0x115eb53f0c60696633855f90b138178fb40b2b2c` |
-| MockUSDC (registration payment, 6 dec, public `mint`) | `0x240b0316df57887dbbe58b586508b19e633a14aa` |
+| ENS MockUSDC (registration payment only, **not** Circle USDC; 6 dec, public `mint`) | `0x240b0316df57887dbbe58b586508b19e633a14aa` |
 | MockDAI (alt payment) | `0xf6fac8a58a0be13b9197f27c41b73162fe32572b` |
 
 ABIs: `ensdomains/contracts-v2` tag `v2-mainnet-deployment-1`, `contracts/deployments/sepolia/*.json`.
