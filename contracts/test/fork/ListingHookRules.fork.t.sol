@@ -210,7 +210,7 @@ abstract contract ListingHookRulesForkBase is ListingForkFixture {
         params[1] = abi.encode(key.currency0, key.currency1, treasury);
         uint256 treasuryUsdc = usdc.balanceOf(treasury);
         vm.prank(treasury);
-        posm.modifyLiquidities(abi.encode(actions, params), block.timestamp);
+        posm.modifyLiquidities(abi.encode(actions, params), vm.getBlockTimestamp());
         assertEq(posm.getPositionLiquidity(lpTokenId), liquidity - liquidity / 10, "treasury LP decreased");
         assertGt(usdc.balanceOf(treasury), treasuryUsdc, "treasury got USDC back");
 
