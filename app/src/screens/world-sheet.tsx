@@ -1,30 +1,44 @@
 "use client";
 
+// One-person verification (UX.md 3.5a). Plain states only: the investor sees
+// the state they are actually in. The state switcher is a demo tool and lives
+// inside a collapsed "Demo" row at the bottom, never in the flow.
+
 import { useEffect, useState } from "react";
-import { CircleSlash, Clock, Loader2, ScanFace, ShieldCheck, UserX } from "lucide-react";
-import { Button, KV, Segmented, Sheet } from "@/components/ui";
+import { Loader2 } from "lucide-react";
+import { Button, Details, KV, Segmented, Sheet } from "@/components/ui";
 import { useApp } from "@/components/providers";
 import { secondsToDuration, shortAddr } from "@/lib/format";
 import { WALLET } from "@/lib/mock";
 
 export type WorldState = "unverified" | "verifying" | "verified" | "denied" | "cancelled" | "expired";
 
-/** World verify sheet (screens.md §2a). States are switchable for review. */
+const DEMO_STATES: { id: WorldState; label: string }[] = [
+  { id: "unverified", label: "Not verified" },
+  { id: "verifying", label: "Waiting" },
+  { id: "verified", label: "Verified" },
+  { id: "denied", label: "Already applied" },
+  { id: "cancelled", label: "Cancelled" },
+  { id: "expired", label: "Expired" },
+];
+
 export function WorldSheet({
   open,
   onClose,
   state,
   setState,
-  symbol,
+  company,
 }: {
   open: boolean;
   onClose: () => void;
   state: WorldState;
   setState: (s: WorldState) => void;
-  symbol: string;
+  /** Company name, used in the verified line. */
+  company: string;
 }) {
   const { address } = useApp();
   const [left, setLeft] = useState(WALLET.worldId.voucherExpiresInSec);
+
   useEffect(() => {
     if (state !== "verified") return;
     const id = setInterval(() => setLeft((l) => Math.max(0, l - 1)), 1000);
@@ -39,85 +53,70 @@ export function WorldSheet({
     }, 1800);
   };
 
+  const copy: Record<WorldState, { title: string; body: string; action?: { label: string; onClick: () => void } }> = {
+    unverified: {
+      title: "Not verified yet",
+      body: "Takes about 10 seconds in the World App.",
+      action: { label: "Verify with World ID", onClick: verify },
+    },
+    verifying: { title: "Waiting for the World App", body: "Approve the check in the World App, then come back here." },
+    verified: {
+      title: `Verified for this IPO · valid ${secondsToDuration(left)}`,
+      body: `You can apply for ${company}. Each person gets one application.`,
+      action: { label: "Done", onClick: onClose },
+    },
+    denied: {
+      title: "Already applied",
+      body: "This person already applied for this IPO from another account. A second application isn't possible.",
+      action: { label: "Close", onClick: onClose },
+    },
+    cancelled: {
+      title: "Verification was cancelled",
+      body: "You can apply after verifying.",
+      action: { label: "Try again", onClick: verify },
+    },
+    expired: {
+      title: "Your verification expired",
+      body: "Verify again to apply.",
+      action: { label: "Verify again", onClick: verify },
+    },
+  };
+  const c = copy[state];
+
   return (
-    <Sheet open={open} onClose={onClose} title="One applicant check">
-      <p className="text-[14px] text-text-2">
-        Each person can apply once per IPO. World ID proves you&apos;re a unique human. Only your uniqueness is checked;
-        this is not KYC.
+    <Sheet open={open} onClose={onClose} title="One application per person">
+      <p className="t-body text-text-2">
+        Each person can apply once per IPO. World ID checks that you&apos;re a real, unique person. It does not identify you and it is
+        not KYC.
       </p>
 
       <div className="mt-4 rounded-[10px] border border-line p-4">
-        {state === "unverified" && (
-          <Body icon={<ScanFace className="size-6 text-gain-text" />} title="Not verified yet" body="Takes about 10 seconds in World App.">
-            <Button tone="neutral" className="mt-3 w-full" onClick={verify}>
-              Verify with World ID
-            </Button>
-          </Body>
-        )}
-        {state === "verifying" && (
-          <Body icon={<Loader2 className="size-6 animate-spin text-gain-text" />} title="Waiting for World…" body="Approve the request in World App, then come back here." />
-        )}
-        {state === "verified" && (
-          <Body
-            icon={<ShieldCheck className="size-6 text-gain-text" />}
-            title={`Verified · pass expires in ${secondsToDuration(left)}`}
-            body={`Verified: one application per person for ${symbol}.`}
-          >
-            <div className="mt-2 divide-y divide-line">
-              <KV k="Human key" v={WALLET.worldId.humanKey} />
-              <KV k="Bound wallet" v={shortAddr(address)} />
-            </div>
-          </Body>
-        )}
-        {state === "denied" && (
-          <Body
-            icon={<UserX className="size-6 text-loss-text" />}
-            title="Already applied"
-            body={`This person already applied with 0xAB…CD for ${symbol}. No pass was issued, so bidding stays off.`}
-          />
-        )}
-        {state === "cancelled" && (
-          <Body icon={<CircleSlash className="size-6 text-text-2" />} title="Verification cancelled" body="Bidding stays off until you verify.">
-            <Button tone="neutral" variant="outline" className="mt-3 w-full" onClick={verify}>
-              Retry
-            </Button>
-          </Body>
-        )}
-        {state === "expired" && (
-          <Body icon={<Clock className="size-6 text-warn" />} title="Pass expired" body="Passes last 10 minutes. Verify again to bid.">
-            <Button tone="neutral" variant="outline" className="mt-3 w-full" onClick={verify}>
-              Re-verify
-            </Button>
-          </Body>
+        <p className="t-list-title flex items-center gap-2 text-text">
+          {state === "verifying" && <Loader2 className="size-4 animate-spin text-text-2" aria-hidden />}
+          {c.title}
+        </p>
+        <p className="t-body mt-1 text-text-2">{c.body}</p>
+        {c.action && (
+          <Button variant={state === "verified" ? "secondary" : "buy"} size="bar" className="mt-4 w-full" onClick={c.action.onClick}>
+            {c.action.label}
+          </Button>
         )}
       </div>
 
-      <div className="mt-4 rounded-[10px] bg-surface-2 p-3">
-        <p className="mb-2 text-[13px] font-medium tracking-wide text-text-2 uppercase">Preview state (mock)</p>
+      <Details className="mt-4">
+        <div className="divide-y divide-line">
+          <KV k="Uniqueness key" v={WALLET.worldId.humanKey} mono />
+          <KV k="Bound account" v={shortAddr(address)} mono />
+          <KV k="Sent with" v="The application itself (hookData pass)" />
+        </div>
+      </Details>
+
+      <Details title="Demo" className="mt-0">
+        <p className="t-caption mb-2">For the demo: jump to any state of this check.</p>
         <div className="no-scrollbar overflow-x-auto">
-          <Segmented
-            size="sm"
-            value={state}
-            onChange={setState}
-            options={(["unverified", "verifying", "verified", "denied", "cancelled", "expired"] as WorldState[]).map((s) => ({ id: s, label: s }))}
-          />
+          <Segmented value={state} onChange={setState} label="Demo state" options={DEMO_STATES} />
         </div>
-      </div>
+      </Details>
     </Sheet>
-  );
-}
-
-function Body({ icon, title, body, children }: { icon: React.ReactNode; title: string; body: string; children?: React.ReactNode }) {
-  return (
-    <div>
-      <div className="flex items-start gap-3">
-        {icon}
-        <div>
-          <p className="font-medium text-text">{title}</p>
-          <p className="text-[13px] text-text-2">{body}</p>
-        </div>
-      </div>
-      {children}
-    </div>
   );
 }

@@ -11,7 +11,7 @@ export function generateStaticParams() {
 
 export async function generateMetadata({ params }: PageProps<"/console/[ticker]">): Promise<Metadata> {
   const { ticker } = await params;
-  return { title: `Console · ${getIpo(ticker)?.symbol ?? ticker}` };
+  return { title: `${getIpo(ticker)?.name ?? ticker} · Issuer console` };
 }
 
 export default async function ConsolePage({ params }: PageProps<"/console/[ticker]">) {

@@ -25,8 +25,21 @@ function rng(seed) {
 
 const ist = (s) => Math.floor(new Date(`${s}+05:30`).getTime() / 1000);
 const r4 = (n) => Math.round(n * 10000) / 10000;
-const STEP = 5 * 60; // 5-minute candles
+const STEP = 5 * 60; // coarse candles, for days before today
 const NOW = ist("2026-11-06T15:40:00");
+const SESSION_START = ist("2026-11-06T09:15:00");
+
+/**
+ * Resolution by age, so the intraday ranges (5m to 1H) have something to draw:
+ * 15s for the last hour, 30s for the last three, 1m for the rest of today,
+ * 5m for older days.
+ */
+function stepAt(t) {
+  if (t >= NOW - 3600) return 15;
+  if (t >= NOW - 3 * 3600) return 30;
+  if (t >= SESSION_START) return 60;
+  return STEP;
+}
 
 /**
  * Mean-reverting walk through a list of segments. Each segment pulls the
@@ -38,15 +51,21 @@ function walk({ seed, start, segments, vol }) {
   const points = [];
   let p = start;
   for (const seg of segments) {
-    for (let t = seg.from; t < seg.to && t <= NOW; t += STEP) {
+    let t = seg.from;
+    while (t < seg.to && t <= NOW) {
+      const step = stepAt(t);
       if (seg.halted) {
         points.push({ time: t, value: r4(p), halted: true });
+        t += step;
         continue;
       }
-      const shock = (rand() - 0.5) * 2 * vol * p;
-      const pull = (seg.target - p) * (seg.pull ?? 0.06);
+      // Scale the walk to the step so a 15s point is not as jumpy as a 5m one.
+      const scale = step / STEP;
+      const shock = (rand() - 0.5) * 2 * vol * p * Math.sqrt(scale);
+      const pull = (seg.target - p) * (seg.pull ?? 0.06) * scale;
       p = Math.min(seg.hi * 0.998, Math.max(seg.lo * 1.002, p + shock + pull));
       points.push({ time: t, value: r4(p) });
+      t += step;
     }
   }
   return points;
@@ -61,7 +80,7 @@ function trades(points, seed, count) {
     const side = live[i].value >= live[i - 1].value ? "buy" : "sell";
     const usdc = r4(0.4 + rand() * 6.5);
     out.push({
-      time: live[i].time - Math.floor(rand() * STEP),
+      time: live[i].time - Math.floor(rand() * 300),
       side,
       usdc,
       shares: Math.round((usdc / live[i].value) * 1000),

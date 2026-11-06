@@ -1,179 +1,278 @@
 "use client";
 
+// Portfolio (UX.md 3.8): what I own, what it's worth, how it did today.
+// Summary 2x2 is the Groww mutual-fund dashboard card (design/reference/
+// groww-mf-dashboard.png): Total value / Today, Invested / Since you bought.
+
 import Link from "next/link";
 import { useState } from "react";
-import { ChevronRight, Droplets } from "lucide-react";
+
 import { AppBar } from "@/components/shell";
-import { Button, Card, Change, Empty, KV, SectionTitle, TickerAvatar, cx } from "@/components/ui";
 import { useApp } from "@/components/providers";
-import { changeVs, lotFixed, shares, usdc } from "@/lib/format";
-import { FAUCET_URL, OFFER, PORTFOLIO, getIpo, getMarket, lastPrice } from "@/lib/mock";
+import { OfflineStrip } from "@/components/states";
 import { Sparkline } from "@/components/sparkline";
+import {
+  Button,
+  Card,
+  Change,
+  Details,
+  EmptyState,
+  KV,
+  ListRow,
+  SectionTitle,
+  SummaryCard,
+  Table,
+  TextLink,
+  TickerLogo,
+  type Column,
+} from "@/components/ui";
+import { changeVs, lotFixed, pct, shares, shortAddr, signed, usdc } from "@/lib/format";
+import { FAUCET_URL, OFFER, PORTFOLIO, dayOpen, getIpo, getMarket, lastPrice, type Ipo } from "@/lib/mock";
 import { BottomSpacer } from "./common";
 
+type Holding = {
+  ipo: Ipo;
+  qty: number;
+  waiting: number;
+  avgCost: number;
+  last: number;
+  value: number;
+  cost: number;
+  today: { abs: number; rel: number };
+};
+
+const changeText = (abs: number, rel: number) => `${signed(abs)} (${pct(rel).replace("+", "").replace("-", "")})`;
+
 export function PortfolioScreen() {
-  const { connected, connect, usdcBalance, sendTx } = useApp();
+  const { connected, connect, usdcBalance, ethBalance, address, ensName, isIssuerFor, sendTx } = useApp();
   const [removed, setRemoved] = useState<number[]>([]);
-  const [basis, setBasis] = useState<"clearing" | "issue">("clearing");
+  const [busy, setBusy] = useState(false);
 
   if (!connected)
     return (
       <>
         <AppBar title="Portfolio" />
-        <Empty title="Sign in to see your shares" body="Your holdings, returns and liquidity show up here." action={<Button variant="secondary" onClick={connect}>Sign in</Button>} />
+        <main>
+          <EmptyState title="Sign in to see your shares" body="What you own, what it is worth and how it did today." />
+          <Button className="mt-1" onClick={connect}>
+            Sign in
+          </Button>
+          <BottomSpacer />
+        </main>
       </>
     );
 
-  const rows = PORTFOLIO.holdings.map((h) => {
+  const rows: Holding[] = PORTFOLIO.holdings.map((h) => {
     const ipo = getIpo(h.ticker)!;
     const qty = h.shares + h.unclaimedShares;
     const last = lastPrice(h.ticker)!;
-    const value = (qty * last) / 1000;
-    const costPrice = basis === "clearing" ? h.avgCost : OFFER.issuePrice;
-    const cost = (qty * costPrice) / 1000;
-    return { h, ipo, qty, last, value, cost, pnl: value - cost };
+    const open = dayOpen(h.ticker) ?? last;
+    return {
+      ipo,
+      qty,
+      waiting: h.unclaimedShares,
+      avgCost: h.avgCost,
+      last,
+      value: (qty * last) / 1000,
+      cost: (qty * h.avgCost) / 1000,
+      today: {
+        abs: (qty * (last - open)) / 1000,
+        rel: ((last - open) / open) * 100,
+      },
+    };
   });
+
+  const totalValue = rows.reduce((s, r) => s + r.value, 0);
   const invested = rows.reduce((s, r) => s + r.cost, 0);
-  const current = rows.reduce((s, r) => s + r.value, 0);
-  const total = changeVs(current, invested);
-  const unclaimed = rows.filter((r) => r.h.unclaimedShares > 0);
+  const todayAbs = rows.reduce((s, r) => s + r.today.abs, 0);
+  const todayRel = totalValue - todayAbs > 0 ? (todayAbs / (totalValue - todayAbs)) * 100 : 0;
+  const since = changeVs(totalValue, invested);
+  const waiting = rows.reduce((s, r) => s + r.waiting, 0);
+  const lowCash = usdcBalance < OFFER.perApplicantCap;
+
+  // Only the wallet that owns the position sees it (UX.md 3.8 item 6).
+  const myLp = PORTFOLIO.lpPositions.filter((lp) => lp.owner === "wallet" || (lp.owner === "issuer" && isIssuerFor.includes(lp.ticker)));
 
   if (rows.length === 0)
     return (
       <>
         <AppBar title="Portfolio" />
-        <Empty title="No holdings yet" body="Shares you're allotted in an IPO show up here after you claim them." />
+        <main>
+          <EmptyState
+            title="Nothing here yet"
+            body="Shares you buy, or get from an IPO, show up here."
+            action={{ label: "See companies", href: "/" }}
+          />
+          <BottomSpacer />
+        </main>
       </>
     );
+
+  const holdingColumns: Column<Holding>[] = [
+    {
+      key: "company",
+      label: "Company",
+      render: (r) => (
+        <span className="flex items-center gap-3">
+          <TickerLogo ipo={r.ipo} size={28} />
+          <span className="min-w-0">
+            <span className="block truncate text-text">{r.ipo.name}</span>
+            <span className="num t-label block">
+              {shares(r.qty)} shares · bought at {lotFixed(r.avgCost)}
+            </span>
+          </span>
+        </span>
+      ),
+    },
+    {
+      key: "price",
+      label: "Price",
+      align: "right",
+      render: (r) => lotFixed(r.last),
+    },
+    {
+      key: "value",
+      label: "Value",
+      align: "right",
+      render: (r) => usdc(r.value),
+    },
+    {
+      key: "today",
+      label: "Today",
+      align: "right",
+      render: (r) => <Change abs={r.today.abs} rel={r.today.rel} />,
+    },
+    {
+      key: "since",
+      label: "Since you bought",
+      align: "right",
+      render: (r) => <Change abs={r.value - r.cost} rel={((r.value - r.cost) / r.cost) * 100} />,
+    },
+  ];
 
   return (
     <>
       <AppBar title="Portfolio" />
+      <OfflineStrip className="-mx-5" />
       <main>
-        <Card className="p-4">
-          <p className="text-[13px] text-text-2">Current value</p>
-          <p className="num text-[28px] font-medium  text-text">
-            {usdc(current)} <span className="text-[14px] font-medium text-text-2">USDC</span>
-          </p>
-          <div className="mt-1 flex items-center justify-between">
-            <span className="text-[13px]">
-              <Change abs={total.abs} rel={total.rel} /> <span className="text-text-2">total returns</span>
-            </span>
-          </div>
-          <div className="mt-3 flex items-center gap-1 rounded-full bg-surface-2 p-1 text-[13px]">
-            {(
-              [
-                ["clearing", "vs clearing (your cost)"],
-                ["issue", "vs issue 1.00"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                onClick={() => setBasis(id)}
-                className={cx("flex-1 rounded-full py-2 font-medium", basis === id ? "border border-chip-on-line bg-chip-on-bg text-text" : "border border-transparent text-text-2")}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3">
-            <div>
-              <p className="text-[13px] text-text-2">Invested</p>
-              <p className="num font-medium text-text">{usdc(invested)} USDC</p>
-            </div>
-            <div>
-              <p className="text-[13px] text-text-2">USDC balance</p>
-              <p className="num font-medium text-text">{usdc(usdcBalance)} USDC</p>
-              {usdcBalance < OFFER.perApplicantCap && (
-                <a href={FAUCET_URL} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-gain-text">
-                  Get test USDC
-                </a>
-              )}
-            </div>
-          </div>
-        </Card>
+        <SectionTitle>Your investments ({rows.length})</SectionTitle>
+        <SummaryCard
+          cells={[
+            { label: "Total value", value: `${usdc(totalValue)} USDC` },
+            {
+              label: "Today",
+              value: changeText(todayAbs, todayRel),
+              tone: todayAbs >= 0 ? "gain" : "loss",
+            },
+            { label: "Invested", value: `${usdc(invested)} USDC` },
+            {
+              label: "Since you bought",
+              value: changeText(since.abs, since.rel),
+              tone: since.abs >= 0 ? "gain" : "loss",
+            },
+          ]}
+          footer={{ left: "Prices in USDC per 1,000 shares" }}
+          className="lg:max-w-[776px]"
+        />
 
-        {unclaimed.length > 0 && (
-          <Link href="/orders" className="mt-3 block">
-            <Card className="flex items-center gap-3 border-line bg-surface-2 p-3">
-              <p className="flex-1 text-[13px] text-warn">
-                <b>{shares(unclaimed.reduce((s, r) => s + r.h.unclaimedShares, 0))} shares unclaimed</b> across{" "}
-                {unclaimed.map((r) => r.ipo.symbol).join(", ")}. Claim them in My bids.
+        {waiting > 0 && (
+          <Link href="/orders" className="mt-3 block lg:max-w-[776px]">
+            <Card className="flex min-h-14 items-center gap-3 p-4" interactive>
+              <p className="t-body flex-1 text-text">
+                <span className="text-warn">{shares(waiting)} shares waiting.</span> Collect them in Orders.
               </p>
-              <ChevronRight className="size-4 text-warn" />
+              <span className="t-change-sm shrink-0 text-gain-text">Open Orders</span>
             </Card>
           </Link>
         )}
 
-        <SectionTitle>Holdings ({rows.length})</SectionTitle>
-        <Card className="divide-y divide-line">
-          {rows.map((r) => {
-            const pnl = changeVs(r.value, r.cost);
-            return (
-              <Link key={r.h.ticker} href={`/stock/${r.h.ticker}`} className="flex items-center gap-3 p-3">
-                <TickerAvatar ipo={r.ipo} size={36} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-text">{r.ipo.name}</p>
-                  <p className="num text-[13px] text-text-2">
-                    {shares(r.qty)} sh · avg {lotFixed(basis === "clearing" ? r.h.avgCost : OFFER.issuePrice)}
-                    {r.h.unclaimedShares > 0 && ` · ${shares(r.h.unclaimedShares)} unclaimed`}
-                  </p>
-                </div>
-                <Sparkline points={getMarket(r.h.ticker)!.prices} width={56} height={26} up={pnl.abs >= 0} />
-                <div className="w-[88px] text-right">
-                  <p className="num text-[15px] font-medium text-text">{usdc(r.value)}</p>
-                  <Change abs={pnl.abs} rel={pnl.rel} className="block text-[13px]" />
-                </div>
-              </Link>
-            );
-          })}
-        </Card>
+        <div className="lg:grid lg:grid-cols-[776px_400px] lg:items-start lg:gap-6">
+          <div className="min-w-0">
+            <SectionTitle>Your shares ({rows.length})</SectionTitle>
+            <div className="divide-y divide-line lg:hidden">
+              {rows.map((r) => (
+                <ListRow
+                  key={r.ipo.ticker}
+                  href={`/stock/${r.ipo.ticker}`}
+                  logo={<TickerLogo ipo={r.ipo} size={40} />}
+                  title={r.ipo.name}
+                  sub={`${shares(r.qty)} shares · bought at ${lotFixed(r.avgCost)}`}
+                  sparkline={<Sparkline points={getMarket(r.ipo.ticker)?.prices ?? []} width={56} height={26} up={r.today.abs >= 0} />}
+                  right={usdc(r.value)}
+                  rightSub={<Change abs={r.today.abs} rel={r.today.rel} />}
+                />
+              ))}
+            </div>
+            <div className="hidden lg:block">
+              <Table columns={holdingColumns} rows={rows} rowKey={(r) => r.ipo.ticker} href={(r) => `/stock/${r.ipo.ticker}`} />
+            </div>
+          </div>
 
-        {PORTFOLIO.lpPositions.length > 0 && (
-          <>
-            <SectionTitle>LP positions</SectionTitle>
-            {PORTFOLIO.lpPositions.map((lp) => {
-              const ipo = getIpo(lp.ticker)!;
-              const gone = removed.includes(lp.id);
-              return (
-                <Card key={lp.id} className="p-4">
-                  <div className="flex items-center gap-3">
-                    <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-gain-text">
-                      <Droplets className="size-5" />
-                    </span>
-                    <div className="flex-1">
-                      <p className="font-medium text-text">
-                        {ipo.symbol} / USDC <span className="text-[13px] text-text-2">#{lp.id}</span>
+          <div className="min-w-0">
+            <SectionTitle>Cash</SectionTitle>
+            <Card className="p-4">
+              <div className="flex items-baseline justify-between gap-4">
+                <p className="t-body text-text">USDC available</p>
+                <p className="num t-list-title text-text">{usdc(usdcBalance)}</p>
+              </div>
+              <p className="t-label mt-1">This is what you can spend on shares and IPO applications.</p>
+              {lowCash && (
+                <p className="mt-1">
+                  <TextLink href={FAUCET_URL}>Get free test USDC</TextLink>
+                </p>
+              )}
+              <Details className="mt-3">
+                <div className="divide-y divide-line">
+                  <KV k="ETH for network fees" v={ethBalance.toFixed(4)} />
+                  <KV k="Signed in as" v={ensName ?? shortAddr(address)} />
+                </div>
+              </Details>
+            </Card>
+
+            {myLp.length > 0 && (
+              <>
+                <SectionTitle>Liquidity you provide</SectionTitle>
+                {myLp.map((lp) => {
+                  const ipo = getIpo(lp.ticker)!;
+                  const gone = removed.includes(lp.id);
+                  return (
+                    <Card key={lp.id} className="p-4">
+                      <p className="t-list-title text-text">{ipo.name}</p>
+                      <p className="num t-label mt-0.5">
+                        {gone ? "Nothing left in the market" : `${usdc(lp.liquidityUsdc)} USDC + ${shares(lp.liquidityShares)} shares`} · earned{" "}
+                        {usdc(lp.feesUsdc)}
                       </p>
-                      <p className="text-[13px] text-text-2">Liquidity you provide to the market</p>
-                    </div>
-                  </div>
-                  <div className="mt-2 divide-y divide-line">
-                    <KV k="Range" v={`${lotFixed(lp.rangeLo)}–${lotFixed(lp.rangeHi)} USDC / lot`} />
-                    <KV k="Liquidity" v={gone ? "0" : `${usdc(lp.liquidityUsdc)} USDC`} sub={gone ? undefined : `${shares(lp.liquidityShares)} ${ipo.symbol}`} />
-                    <KV k="Fees earned" v={`${usdc(lp.feesUsdc)} USDC`} />
-                  </div>
-                  <Button
-                    tone="neutral"
-                    variant="outline"
-                    className="mt-2 w-full"
-                    disabled={gone}
-                    onClick={async () => {
-                      const r = await sendTx({ title: `Remove ${ipo.symbol}/USDC liquidity`, success: "Liquidity removed. LP exits work even when halted." });
-                      if (r.ok) setRemoved((x) => [...x, lp.id]);
-                    }}
-                  >
-                    {gone ? "Removed" : "Remove liquidity"}
-                  </Button>
-                </Card>
-              );
-            })}
-          </>
-        )}
-        <p className="mt-4 text-[13px] text-text-2">Value uses the last v4 pool price, including unclaimed shares. Cost basis for IPO fills is the clearing price.</p>
+                      <Button
+                        variant="secondary"
+                        className="mt-3 w-full"
+                        disabled={gone || busy}
+                        busy={busy}
+                        onClick={async () => {
+                          setBusy(true);
+                          const r = await sendTx({
+                            title: `Withdrawing your liquidity from ${ipo.name}`,
+                            success: "Liquidity withdrawn",
+                          });
+                          setBusy(false);
+                          if (r.ok) setRemoved((x) => [...x, lp.id]);
+                        }}
+                      >
+                        {gone ? "Withdrawn" : busy ? "Check your wallet app" : "Withdraw liquidity"}
+                      </Button>
+                      <p className="t-label mt-2">Works even while trading is halted.</p>
+                    </Card>
+                  );
+                })}
+              </>
+            )}
+
+            <p className="t-caption mt-6">
+              Value uses the last traded price and includes shares waiting to be collected. NSE-inspired mock, not a regulated product.
+            </p>
+          </div>
+        </div>
         <BottomSpacer />
       </main>
     </>
   );
 }
-

@@ -77,6 +77,20 @@ export function blocksToDuration(blocks: number): string {
   return secondsToDuration(s);
 }
 
+/** Plain-English countdown for copy: "6h 4m", "17 min", "under a minute". */
+export function countdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m} min`;
+  return "under a minute";
+}
+
+export function blocksToCountdown(blocks: number): string {
+  return countdown(Math.max(0, blocks) * BLOCK_SECONDS);
+}
+
 export function secondsToDuration(total: number): string {
   const s = Math.max(0, Math.round(total));
   const h = Math.floor(s / 3600);

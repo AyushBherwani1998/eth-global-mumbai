@@ -275,6 +275,40 @@ h3 {
   outline-offset: 2px;
 }
 
+/*
+ * Text controls show focus on their wrapper (.field below), never on
+ * themselves. The ring above is offset outward, so an input that fills its
+ * field would paint its ring outside the field's rounded border.
+ * This rule is unlayered on purpose: so is the ring it cancels, and a
+ * Tailwind `outline-none` utility sits in a layer and loses to both.
+ */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+/*
+ * Field wrapper. The focused state is drawn with an inset shadow rather than
+ * a thicker border, so nothing overflows and the content never shifts by the
+ * half pixel a 1px to 1.5px border change would cost.
+ */
+.field {
+  border: 1px solid var(--line-strong);
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+.field:focus-within {
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+.field-error {
+  border-color: var(--loss);
+}
+.field-error:focus-within {
+  border-color: var(--loss);
+  box-shadow: inset 0 0 0 1px var(--loss);
+}
+
 /* Links inside running text get a comfortable hit area (UI.md 7.2). */
 .prose-link {
   display: inline-block;
@@ -325,7 +359,7 @@ input[type="range"].slider:focus-visible {
 }
 input[type="range"].slider:focus-visible::-webkit-slider-thumb {
   outline: 2px solid var(--text);
-  outline-offset: 2px;
+  outline-offset: 0;
 }
 
 /* Motion (UI.md section 5). Everything collapses to 1ms under reduced motion. */

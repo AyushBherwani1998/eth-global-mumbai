@@ -82,11 +82,13 @@ export function Change({
   size?: "sm" | "lg";
   className?: string;
 }) {
-  const up = abs >= 0;
-  const a = Math.abs(abs).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  // Round first, so a sub-cent fall never prints as "-0.00".
+  const rounded = Number(abs.toFixed(digits));
+  const up = rounded >= 0;
+  const a = Math.abs(rounded).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits });
   return (
     <span className={cx("num", size === "lg" ? "t-change-lg" : "t-change-sm", up ? "text-gain-text" : "text-loss-text", className)}>
-      {up ? "+" : "-"}
+      {rounded === 0 ? "" : up ? "+" : "-"}
       {a} ({Math.abs(rel).toFixed(2)}%)
     </span>
   );
@@ -585,8 +587,8 @@ export function AmountField({
       <label
         htmlFor={id}
         className={cx(
-          "flex h-[72px] flex-col justify-center rounded-[10px] border px-4 py-3 transition-colors duration-120 focus-within:border-[1.5px] focus-within:border-text",
-          error ? "border-loss" : "border-line-strong",
+          "field flex h-[72px] flex-col justify-center rounded-[10px] px-4 py-3",
+          error && "field-error",
         )}
       >
         <span className="t-label">{label}</span>
@@ -674,7 +676,7 @@ export function SearchField({
   className?: string;
 }) {
   return (
-    <label className={cx("flex h-12 items-center gap-2 rounded-[10px] border border-line bg-surface px-3 focus-within:border-text", className)}>
+    <label className={cx("field flex h-12 items-center gap-2 rounded-[10px] bg-surface px-3", className)}>
       <SearchIcon />
       <input
         value={value}

@@ -5,15 +5,15 @@
 // layout containers and the fixed action bar.
 
 import Link from "next/link";
+import { createPortal } from "react-dom";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
-import { ArrowLeft, Briefcase, ListOrdered, Search, Share2, SlidersHorizontal, TrendingUp, type LucideIcon } from "lucide-react";
+import { ArrowLeft, Briefcase, ListOrdered, Search, Share2, TrendingUp, type LucideIcon } from "lucide-react";
 import { useApp } from "./providers";
 import { useTheme, type ThemeSetting } from "./theme";
-import { Button, KV, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
-import { dateTimeIST, shortAddr, usdc } from "@/lib/format";
-import { FAUCET_URL, IPOS, OFFER, WALLET, type Ipo } from "@/lib/mock";
-import { statusLabel } from "./ui";
+import { Button, Change, KV, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
+import { blocksToCountdown, changeVs, dateTimeIST, lotFixed, shortAddr, usdc } from "@/lib/format";
+import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, WALLET, dayOpen, getMarket, type Ipo } from "@/lib/mock";
 
 // ---------------------------------------------------------------------------
 // Logo: flat brand circle, white step-up glyph. No gradient.
@@ -63,7 +63,6 @@ const NAV: NavItem[] = [
   { href: "/orders", label: "Orders", icon: ListOrdered, match: (p) => p.startsWith("/orders") },
   { href: "/portfolio", label: "Portfolio", icon: Briefcase, match: (p) => p.startsWith("/portfolio") },
 ];
-const CONSOLE_NAV: NavItem = { href: "/console", label: "Console", icon: SlidersHorizontal, match: (p) => p.startsWith("/console") };
 
 function useScrolled() {
   const [scrolled, setScrolled] = useState(false);
@@ -180,9 +179,9 @@ export function TabHeader({ title, actions }: { title: string; actions?: ReactNo
 
 export function TopNav() {
   const path = usePathname();
-  const { isIssuerFor } = useApp();
   const [searchOpen, setSearchOpen] = useState(false);
-  const items = isIssuerFor.length ? [...NAV, CONSOLE_NAV] : NAV;
+  // The issuer console is a separate app with its own shell (components/console).
+  if (path.startsWith("/console")) return null;
   return (
     <nav className="sticky top-0 z-30 hidden h-14 border-b border-line bg-bg lg:block" aria-label="Main">
       <Container className="flex h-full items-center gap-8">
@@ -191,7 +190,7 @@ export function TopNav() {
           <span className="text-[20px] leading-7 font-medium">Listing Day</span>
         </Link>
         <ul className="flex h-full items-stretch gap-6">
-          {items.map((it) => {
+          {NAV.map((it) => {
             const active = it.match(path);
             return (
               <li key={it.href} className="flex">
@@ -296,6 +295,22 @@ export function ActionBar({ children, className }: { children: ReactNode; classN
 }
 
 // ---------------------------------------------------------------------------
+// Sheets. The app bar is sticky and z-indexed, so a sheet rendered from inside
+// it would sit under the bottom nav; every sheet below goes to document.body.
+// ---------------------------------------------------------------------------
+
+const noSubscribe = () => () => {};
+const alwaysTrue = () => true;
+const alwaysFalse = () => false;
+
+/** Renders a sheet into document.body once mounted on the client. */
+function SheetPortal({ children }: { children: ReactNode }) {
+  const mounted = useSyncExternalStore(noSubscribe, alwaysTrue, alwaysFalse);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
+
+// ---------------------------------------------------------------------------
 // Search (UX.md 2 "Header"): sheet with a real field, rows reuse ListRow.
 // ---------------------------------------------------------------------------
 
@@ -309,16 +324,77 @@ export function SearchButton() {
   );
 }
 
-function rowSub(ipo: Ipo) {
-  if (ipo.phase === "listed") return ipo.sector;
-  if (ipo.phase === "live") return "IPO open";
-  if (ipo.phase === "draft") return "IPO upcoming";
-  return "Not listed · refunds open";
+/**
+ * One company row in three shapes (UX.md section 2): listed (price and today's
+ * change, with a Watch / Halted word), IPO open or upcoming, and closed but not
+ * listed. Search results use these; list screens can reuse them.
+ */
+export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: boolean }) {
+  const href = `/stock/${ipo.ticker}`;
+  const logo = <TickerLogo ipo={ipo} size={40} />;
+
+  if (ipo.phase === "listed") {
+    const m = getMarket(ipo.ticker);
+    const last = m ? m.prices[m.prices.length - 1].value : (ipo.clearingPrice ?? 0);
+    const open = dayOpen(ipo.ticker) ?? last;
+    const ch = changeVs(last, open);
+    const halted = m?.policy.halted || m?.policy.mode === "halted";
+    const watch = !halted && (m?.policy.mode === "surveillance" || m?.policy.mode === "directional");
+    return (
+      <ListRow
+        href={href}
+        logo={logo}
+        title={ipo.name}
+        sub={ipo.sector}
+        flag={halted ? { text: "Halted", tone: "loss" } : watch ? { text: "Watch", tone: "warn" } : undefined}
+        right={lotFixed(last)}
+        rightSub={<Change abs={ch.abs} rel={ch.rel} />}
+      />
+    );
+  }
+
+  if (ipo.phase === "live")
+    return (
+      <ListRow
+        href={href}
+        logo={logo}
+        title={ipo.name}
+        sub={`IPO open · closes in ${blocksToCountdown((ipo.endBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}`}
+        right={<span className="text-[16px] leading-[22px] font-semibold text-brand-text">Apply</span>}
+      />
+    );
+
+  if (ipo.phase === "draft")
+    return (
+      <ListRow
+        href={href}
+        logo={logo}
+        title={ipo.name}
+        sub={`IPO opens in ${blocksToCountdown((ipo.startBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}`}
+        right={<span className="t-body text-text-2">{`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`}</span>}
+      />
+    );
+
+  return (
+    <ListRow
+      href={href}
+      logo={logo}
+      title={ipo.name}
+      sub="Not listed · refunds open"
+      right={
+        hasMoneyIn ? (
+          <span className="text-[16px] leading-[22px] font-semibold text-brand-text">Refund</span>
+        ) : (
+          <span className="t-body text-text-2">Closed</span>
+        )
+      }
+    />
+  );
 }
 
 export function SearchSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
-  const { countRead } = useApp();
+  const { countRead, connected } = useApp();
   const hits = useMemo(() => {
     const s = q.trim().toLowerCase().replace(/\.listingday\.eth$/, "");
     if (!s) return IPOS;
@@ -327,24 +403,21 @@ export function SearchSheet({ open, onClose }: { open: boolean; onClose: () => v
   useEffect(() => {
     if (q.trim()) countRead(1);
   }, [q, countRead]);
+  const moneyIn = (ticker: string) => connected && BIDS.some((b) => b.ticker === ticker && b.refund > 0 && b.state !== "exited");
+  if (!open) return null;
   return (
-    <Sheet open={open} onClose={onClose} title="Search">
-      <SearchField value={q} onChange={setQ} autoFocus />
-      <div className="mt-2 divide-y divide-line">
-        {hits.map((i) => (
-          <ListRow
-            key={i.ticker}
-            href={`/stock/${i.ticker}`}
-            onClick={undefined}
-            logo={<TickerLogo ipo={i} size={40} />}
-            title={i.name}
-            sub={rowSub(i)}
-            right={statusLabel(i)}
-          />
-        ))}
-        {hits.length === 0 && <p className="t-body py-6 text-text-2">No company matches &ldquo;{q}&rdquo;.</p>}
-      </div>
-    </Sheet>
+    <SheetPortal>
+      <Sheet open={open} onClose={onClose} title="Search">
+        <SearchField value={q} onChange={setQ} autoFocus />
+        <div className="mt-2 divide-y divide-line" onClick={onClose} role="presentation">
+          {hits.map((i) => (
+            <CompanyResultRow key={i.ticker} ipo={i} hasMoneyIn={moneyIn(i.ticker)} />
+          ))}
+          {hits.length === 0 && <p className="t-body py-6 text-text-2">No company matches &ldquo;{q}&rdquo;.</p>}
+        </div>
+        <p className="t-caption mt-4">Prices in USDC per 1,000 shares.</p>
+      </Sheet>
+    </SheetPortal>
   );
 }
 
@@ -352,7 +425,22 @@ export function SearchSheet({ open, onClose }: { open: boolean; onClose: () => v
 // Account sheet (UX.md section 2 "Account screen").
 // ---------------------------------------------------------------------------
 
-function AccountRow({ title, sub, right, href, onClick }: { title: ReactNode; sub?: ReactNode; right?: ReactNode; href?: string; onClick?: () => void }) {
+function AccountRow({
+  title,
+  sub,
+  right,
+  href,
+  external,
+  onClick,
+}: {
+  title: ReactNode;
+  sub?: ReactNode;
+  right?: ReactNode;
+  href?: string;
+  /** Opens in a new tab (the test-USDC faucet). */
+  external?: boolean;
+  onClick?: () => void;
+}) {
   const body = (
     <>
       <span className="min-w-0 flex-1">
@@ -368,6 +456,12 @@ function AccountRow({ title, sub, right, href, onClick }: { title: ReactNode; su
     </>
   );
   const cls = "flex min-h-14 w-full items-center gap-3 py-2 text-left";
+  if (href && external)
+    return (
+      <a href={href} target="_blank" rel="noreferrer" className={cls}>
+        {body}
+      </a>
+    );
   if (href)
     return (
       <Link href={href} className={cls}>
@@ -393,9 +487,12 @@ function subscribeDisplayMode(cb: () => void) {
 const isStandalone = () =>
   window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
 
+const isIosDevice = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+
 function useInstallPrompt() {
   const [evt, setEvt] = useState<InstallPromptEvent | null>(null);
   const standalone = useSyncExternalStore(subscribeDisplayMode, isStandalone, () => true);
+  const ios = useSyncExternalStore(noSubscribe, isIosDevice, alwaysFalse);
   useEffect(() => {
     const on = (e: Event) => {
       e.preventDefault();
@@ -404,7 +501,28 @@ function useInstallPrompt() {
     window.addEventListener("beforeinstallprompt", on);
     return () => window.removeEventListener("beforeinstallprompt", on);
   }, []);
-  return { canInstall: !!evt && !standalone, install: () => evt?.prompt().catch(() => {}) };
+  return {
+    canInstall: (!!evt || ios) && !standalone,
+    /** iOS has no prompt API: the row opens a two-step instruction sheet. */
+    needsSteps: !evt && ios,
+    install: () => evt?.prompt().catch(() => {}),
+  };
+}
+
+/** iOS "Add to home screen" instructions (UX.md section 5: never a pop-up). */
+function InstallSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  if (!open) return null;
+  return (
+    <SheetPortal>
+      <Sheet open={open} onClose={onClose} title="Add to home screen">
+        <p className="t-body text-text-2">Two steps in Safari, and Listing Day opens like any other app.</p>
+        <ol className="t-body mt-3 list-decimal space-y-2 pl-5 text-text">
+          <li>Tap the Share button at the bottom of Safari.</li>
+          <li>Scroll down and tap &ldquo;Add to Home Screen&rdquo;, then tap Add.</li>
+        </ol>
+      </Sheet>
+    </SheetPortal>
+  );
 }
 
 const THEME_OPTIONS: { id: ThemeSetting; label: string }[] = [
@@ -417,65 +535,65 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   const app = useApp();
   const { theme, setTheme } = useTheme();
   const [privacyOpen, setPrivacyOpen] = useState(false);
-  const { canInstall, install } = useInstallPrompt();
+  const [installOpen, setInstallOpen] = useState(false);
+  const { canInstall, needsSteps, install } = useInstallPrompt();
+
+  if (!open) return null;
 
   if (!app.connected)
     return (
-      <Sheet open={open} onClose={onClose} title="Sign in">
-        <p className="t-body text-text-2">Sign in with MetaMask or WalletConnect. We never move your money without asking.</p>
-        <div className="mt-4 space-y-3">
-          {["MetaMask", "WalletConnect"].map((w) => (
-            <Button
-              key={w}
-              variant="secondary"
-              size="bar"
-              className="w-full"
-              onClick={() => {
-                app.connect();
-                onClose();
-              }}
-            >
-              Sign in with {w}
-            </Button>
-          ))}
-        </div>
-        <p className="t-caption mt-3">Signing in uses a crypto wallet on the Sepolia test network. Nothing is charged.</p>
-        <div className="mt-4 border-t border-line">
-          <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
-          <AccountRow title="About Listing Day" href="/about" />
-        </div>
-      </Sheet>
+      <SheetPortal>
+        <Sheet open={open} onClose={onClose} title="Sign in">
+          <p className="t-body text-text-2">Sign in with MetaMask or WalletConnect. We never move your money without asking.</p>
+          <div className="mt-4 space-y-3">
+            {["MetaMask", "WalletConnect"].map((w) => (
+              <Button
+                key={w}
+                variant="secondary"
+                size="bar"
+                className="w-full"
+                onClick={() => {
+                  app.connect();
+                  onClose();
+                }}
+              >
+                Sign in with {w}
+              </Button>
+            ))}
+          </div>
+          <p className="t-caption mt-3">Signing in uses a crypto wallet on the {app.network.name} test network. Nothing is charged.</p>
+          <div className="mt-4 border-t border-line">
+            <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
+            <AccountRow title="About Listing Day" href="/about" />
+          </div>
+        </Sheet>
+      </SheetPortal>
     );
 
   const low = app.usdcBalance < OFFER.perApplicantCap;
   return (
-    <>
+    <SheetPortal>
       <Sheet open={open} onClose={onClose} title="Account">
         <div className="divide-y divide-line">
-          <div className="py-3">
-            <div className="flex items-center gap-3">
-              <Avatar size={40} />
-              <div className="min-w-0 flex-1">
-                <p className="t-body text-text">Signed in as {app.ensName ?? shortAddr(app.address)}</p>
-                <p className="num t-label">Available to spend {usdc(app.usdcBalance)} USDC</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  app.disconnect();
-                  onClose();
-                }}
-                className="t-change-sm h-12 shrink-0 px-2 text-gain-text"
-              >
-                Sign out
-              </button>
+          <div className="flex min-h-14 items-center gap-3 py-3">
+            <Avatar size={40} />
+            <div className="min-w-0 flex-1">
+              <p className="t-body text-text">Signed in as {app.ensName ?? shortAddr(app.address)}</p>
+              <p className="num t-label">Available to spend {usdc(app.usdcBalance)} USDC</p>
             </div>
-            {low && (
-              <a href={FAUCET_URL} target="_blank" rel="noreferrer" className="prose-link t-change-sm text-gain-text">
-                Get free test USDC
-              </a>
-            )}
+            <button
+              type="button"
+              onClick={() => {
+                app.disconnect();
+                onClose();
+              }}
+              className="t-change-sm h-12 shrink-0 px-2 text-gain-text"
+            >
+              Sign out
+            </button>
           </div>
+
+          {low && <AccountRow title="Get free test USDC" sub="Opens the Circle faucet in a new tab" href={FAUCET_URL} external />}
 
           {app.network.ok ? (
             <AccountRow
@@ -485,6 +603,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
                   {app.network.name} test network
                 </span>
               }
+              sub="Everything here is test money."
             />
           ) : (
             <div className="py-3">
@@ -496,27 +615,30 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           )}
 
-          <AccountRow title="Private browsing" sub={`On · ${app.anon.reads.toLocaleString("en-US")} private lookups`} onClick={() => setPrivacyOpen(true)} />
+          <AccountRow title="Private browsing" sub="On · your lookups are private" onClick={() => setPrivacyOpen(true)} />
 
           <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
 
-          {app.isIssuerFor.length > 0 && <AccountRow title="Issuer console" sub={`You manage ${app.isIssuerFor.map((t) => t.toUpperCase()).join(", ")}`} href="/console" />}
+          {canInstall && (
+            <AccountRow title="Add to home screen" sub="Opens like an app, works offline" onClick={() => (needsSteps ? setInstallOpen(true) : install())} />
+          )}
 
-          {canInstall && <AccountRow title="Add to home screen" onClick={install} />}
-
-          <AccountRow title="About Listing Day" href="/about" />
+          <AccountRow title="About Listing Day" sub="What this is, the mock disclaimer, credits" href="/about" />
         </div>
       </Sheet>
       <PrivacySheet open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
-    </>
+      <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
+    </SheetPortal>
   );
 }
 
 /** Private reads explainer (content from the old PrivacyBadge, UX.md 3.10). */
 export function PrivacySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { anon } = useApp();
+  if (!open) return null;
   return (
-    <Sheet open={open} onClose={onClose} title="Private browsing">
+    <SheetPortal>
+      <Sheet open={open} onClose={onClose} title="Private browsing">
       <p className="t-body text-text-2">
         Every lookup this app makes goes through a private relay, so the data provider can&apos;t link your internet address to the companies you look at.
       </p>
@@ -532,7 +654,8 @@ export function PrivacySheet({ open, onClose }: { open: boolean; onClose: () => 
         <li>The provider still sees which companies are looked up, just not by whom.</li>
         <li>The first connection isn&apos;t private.</li>
         <li>Buying, selling and applying go through your own wallet.</li>
-      </ul>
-    </Sheet>
+        </ul>
+      </Sheet>
+    </SheetPortal>
   );
 }

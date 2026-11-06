@@ -34,7 +34,7 @@ import {
 import { Maximize2 } from "lucide-react";
 import { useOnThemeChange } from "./theme";
 import { Chip, cx } from "./ui";
-import { dateTimeIST, timeIST } from "@/lib/format";
+import { dateIST, dateTimeIST, timeIST } from "@/lib/format";
 import type { Mode } from "@/lib/mock";
 
 // ---------------------------------------------------------------------------
@@ -45,10 +45,41 @@ export type ChartPoint = { time: number; value: number; halted?: boolean };
 export type ChartRef = { time: number; value: number; mode: Mode; bandBps: number };
 export type ChartLine = { price: number; label?: string };
 export type HoverPoint = { time: number; value: number } | null;
-export type ChartRange = "1D" | "1W" | "ALL";
+export type ChartRange = "5m" | "15m" | "30m" | "1H" | "1D" | "1W" | "ALL";
 
-export const RANGE_SECONDS: Record<ChartRange, number> = { "1D": 86400, "1W": 7 * 86400, ALL: Infinity };
-export const RANGE_LABELS: Record<ChartRange, string> = { "1D": "1D", "1W": "1W", ALL: "All" };
+/** Stable empty defaults: a fresh array each render would re-run the data effect. */
+const NO_LINES: ChartLine[] = [];
+const NO_REJECTS: number[] = [];
+
+export const RANGE_SECONDS: Record<ChartRange, number> = {
+  "5m": 300,
+  "15m": 900,
+  "30m": 1800,
+  "1H": 3600,
+  "1D": 86400,
+  "1W": 7 * 86400,
+  ALL: Infinity,
+};
+export const RANGE_LABELS: Record<ChartRange, string> = {
+  "5m": "5m",
+  "15m": "15m",
+  "30m": "30m",
+  "1H": "1H",
+  "1D": "1D",
+  "1W": "1W",
+  ALL: "All",
+};
+export const RANGES: ChartRange[] = ["5m", "15m", "30m", "1H", "1D", "1W", "ALL"];
+/** Plain words for the header, next to the change ("Today", "Last 15 minutes"). */
+export const RANGE_WORDS: Record<ChartRange, string> = {
+  "5m": "Last 5 minutes",
+  "15m": "Last 15 minutes",
+  "30m": "Last 30 minutes",
+  "1H": "Last hour",
+  "1D": "Today",
+  "1W": "This week",
+  ALL: "Since listing",
+};
 
 /** Points within the range ending at `nowSec`; always at least two points. */
 export function sliceRange<T extends { time: number }>(points: T[], range: ChartRange, nowSec: number): T[] {
@@ -133,8 +164,11 @@ class OverlayRenderer implements IPrimitivePaneRenderer {
           if (x1 === null || x2 === null) continue;
           ctx.fillRect(Math.min(x1, x2), 0, Math.max(1, Math.abs(x2 - x1)), mediaSize.height);
         }
-        // Band polygons, one per contiguous run
+        // Band polygons, one per contiguous run. The fill stays faint (UI.md 3.4)
+        // and the edges carry the limits, so the band never reads as a grey block.
+        ctx.save();
         ctx.fillStyle = t.bandFill;
+        ctx.globalAlpha = 0.55;
         const band = p.data.band;
         let i = 0;
         while (i < band.length) {
@@ -175,8 +209,36 @@ class OverlayRenderer implements IPrimitivePaneRenderer {
             ctx.closePath();
             ctx.fill();
           }
+          // Hairline edges at the limits.
+          ctx.save();
+          ctx.globalAlpha = 1;
+          ctx.strokeStyle = t.lineStrong;
+          ctx.lineWidth = 1;
+          ctx.setLineDash([2, 3]);
+          for (const edge of ["hi", "lo"] as const) {
+            ctx.beginPath();
+            let drawn = false;
+            for (let k = i; k <= j; k += 1) {
+              const b = band[k]!;
+              const xk = x(k);
+              const yk = y(b[edge]);
+              if (xk === null || yk === null) continue;
+              if (!drawn) {
+                ctx.moveTo(xk, yk);
+                drawn = true;
+              } else ctx.lineTo(xk, yk);
+              if (k < j) {
+                const xn = x(k + 1);
+                if (xn !== null) ctx.lineTo(xn, yk);
+              }
+            }
+            if (drawn) ctx.stroke();
+          }
+          ctx.setLineDash([]);
+          ctx.restore();
           i = j + 1;
         }
+        ctx.restore();
       } else {
         // Reverted swaps: 9px x marks, 1.5px stroke
         ctx.strokeStyle = t.loss;
@@ -247,7 +309,7 @@ class OverlayPrimitive implements ISeriesPrimitive<Time> {
 // PriceChart
 // ---------------------------------------------------------------------------
 
-type Label = { x: number; y: number; text: string; anchor: "above" | "below" | "right" };
+type Label = { x: number; y: number; text: string; anchor: "above" | "below" | "right"; box?: boolean };
 
 export function PriceChart({
   data,
@@ -255,14 +317,15 @@ export function PriceChart({
   baseline,
   reference,
   showBand,
-  lines = [],
-  rejects = [],
+  lines = NO_LINES,
+  rejects = NO_REJECTS,
   height = 280,
   digits = 2,
   onHover,
   readout = true,
   labels = true,
   axes = false,
+  timeTicks = true,
   onExpand,
   className,
 }: {
@@ -286,8 +349,10 @@ export function PriceChart({
   readout?: boolean;
   /** H / L / last labels. */
   labels?: boolean;
-  /** Show the time axis (Expand view only). */
+  /** Show the chart library's own time axis (Expand view only). */
   axes?: boolean;
+  /** Thin HTML axis under the chart: four time ticks for the window shown. */
+  timeTicks?: boolean;
   /** Renders the labelled "Expand" button bottom-right (mobile only). */
   onExpand?: () => void;
   className?: string;
@@ -304,6 +369,7 @@ export function PriceChart({
   const [themeTick, setThemeTick] = useState(0);
   const [hover, setHover] = useState<HoverPoint>(null);
   const [placed, setPlaced] = useState<Label[]>([]);
+  const placedKeyRef = useRef("[]");
   // Bumped after (re)creation so the data effect runs against the new chart.
   const [dataTick, setDataTick] = useState(0);
 
@@ -311,10 +377,35 @@ export function PriceChart({
     hoverRef.current = onHover;
   }, [onHover]);
 
+  useEffect(() => {
+    placedKeyRef.current = JSON.stringify(placed);
+  }, [placed]);
+
   const onTheme = useCallback(() => setThemeTick((t) => t + 1), []);
   useOnThemeChange(onTheme);
 
   const up = data.length > 1 ? data[data.length - 1].value >= data[0].value : true;
+  // Change in the readout is measured from the baseline (day open) when there
+  // is one, else from the first point of the window shown.
+  const windowBase = baseline ?? (data.length > 0 ? data[0].value : 0);
+  const hoverAbs = hover && windowBase ? hover.value - windowBase : 0;
+  const hoverRel = hover && windowBase ? (hoverAbs / windowBase) * 100 : 0;
+
+  // Four evenly spaced time ticks. Bars are evenly spaced after fitContent,
+  // so an index fraction is also the x fraction.
+  const ticks = useMemo(() => {
+    if (!timeTicks || data.length < 2) return [];
+    const n = data.length - 1;
+    const span = data[n].time - data[0].time;
+    const long = span > 2 * 86400;
+    return [0, Math.round(n / 3), Math.round((2 * n) / 3), n].map((i) => ({
+      i,
+      pct: (i / n) * 100,
+      label: long ? dateIST(data[i].time) : timeIST(data[i].time).replace(" IST", ""),
+    }));
+  }, [data, timeTicks]);
+  // Boolean, not the callback: an inline onExpand would re-run the data effect every render.
+  const hasExpand = Boolean(onExpand);
 
   // 1. Create the chart once per theme / kind / height / axes.
   useEffect(() => {
@@ -442,7 +533,19 @@ export function PriceChart({
       const bh = r.value * (1 + r.bandBps / 10000);
       return bl <= hi && bh >= lo;
     });
-    const drawBand = showBand ?? (anyNonNormal || bandOnScreen);
+    // On a short window the limits can be twenty times wider than the move
+    // being shown; drawing them then floods the chart with one flat fill.
+    let bandLo = Infinity;
+    let bandHi = -Infinity;
+    for (const d of data) {
+      const r = refAt(d.time);
+      if (!r || d.halted || r.mode === "halted") continue;
+      bandLo = Math.min(bandLo, r.value * (1 - r.bandBps / 10000));
+      bandHi = Math.max(bandHi, r.value * (1 + r.bandBps / 10000));
+    }
+    const dataSpan = hi - lo;
+    const bandTooWide = dataSpan > 0 && bandHi > bandLo && bandHi - bandLo > dataSpan * 4;
+    const drawBand = (showBand ?? (anyNonNormal || bandOnScreen)) && !bandTooWide;
     const band: Overlay["band"] = data.map((d) => {
       const r = refAt(d.time);
       if (!drawBand || !r || d.halted || r.mode === "halted") return null;
@@ -467,7 +570,16 @@ export function PriceChart({
       return { index: i, value: data[i]?.value ?? 0 };
     });
     const bandVals = band.flatMap((b) => (b ? [b.lo, b.hi] : []));
-    const extra = [...lines.map((l) => l.price), ...(baseline !== undefined ? [baseline] : []), ...bandVals, ...refValues.filter((v): v is number => v !== null)];
+    // Keep lines, baselines and band edges out of the scale when they sit far
+    // outside the window: the price line should still fill the chart.
+    const pad = (dataSpan || hi * 0.004) * 1.5;
+    const near = (v: number) => v >= lo - pad && v <= hi + pad;
+    const extra = [
+      ...lines.map((l) => l.price),
+      ...(baseline !== undefined ? [baseline] : []),
+      ...bandVals,
+      ...refValues.filter((v): v is number => v !== null),
+    ].filter(near);
     return {
       times,
       refValues,
@@ -515,7 +627,7 @@ export function PriceChart({
     const place = () => {
       const w = el.current?.clientWidth ?? 0;
       const h = el.current?.clientHeight ?? height;
-      const out: Label[] = [];
+      let out: Label[] = [];
       const x = (i: number) => chart.timeScale().logicalToCoordinate(i as Logical);
       const y = (v: number) => series.priceToCoordinate(v);
       if (labels && data.length > 1) {
@@ -533,31 +645,69 @@ export function PriceChart({
           // Keep the label inside the chart; a low label near the bottom-left would sit on the attribution logo.
           const half = text.length * 4 + 4;
           const cx0 = Math.min(Math.max(px, half), Math.max(half, w - half));
-          const flip = anchor === "below" && cx0 < 90 && py > h - 64;
-          // Flipped labels near the bottom-left also nudge right, clear of the attribution logo.
-          out.push({ x: flip ? Math.max(cx0, 80) : cx0, y: py, text, anchor: flip ? "above" : anchor });
+          // Flip a low label above the line when it would land on the
+          // attribution logo (bottom left) or the Expand button (bottom right).
+          const onLogo = cx0 < 90 && py > h - 64;
+          const onExpandButton = hasExpand && cx0 > w - 170 && py > h - 72;
+          const flip = anchor === "below" && (onLogo || onExpandButton);
+          // Over the Expand button, lift the label clear of it as well.
+          const ly = flip && onExpandButton ? Math.min(py, h - 76) : py;
+          out.push({ x: flip && onLogo ? Math.max(cx0, 80) : cx0, y: ly, text, anchor: flip ? "above" : anchor });
         };
         // The last point already carries the right-edge value label.
         if (hiI !== data.length - 1) push(hiI, "above", "H ");
         if (loI !== data.length - 1) push(loI, "below", "L ");
         const lastY = y(data[data.length - 1].value);
-        if (lastY !== null) out.push({ x: w, y: lastY, text: data[data.length - 1].value.toFixed(digits), anchor: "right" });
+        // The last price sits on the line, so it gets a filled box and the
+        // right-edge labels below are nudged clear of it.
+        if (lastY !== null) out.push({ x: w, y: lastY, text: data[data.length - 1].value.toFixed(digits), anchor: "right", box: true });
       }
+      const inScale = (v: number) => v >= derived.min - 1e-9 && v <= derived.max + 1e-9;
       for (const l of lines) {
         const py = y(l.price);
-        if (l.label && py !== null) out.push({ x: w, y: py, text: l.label, anchor: "right" });
+        if (l.label && py !== null && inScale(l.price)) out.push({ x: w, y: py, text: l.label, anchor: "right" });
       }
       if (derived.lastBand) {
         const yh = y(derived.lastBand.hi);
         const yl = y(derived.lastBand.lo);
-        if (yh !== null) out.push({ x: w, y: yh, text: derived.lastBand.hi.toFixed(Math.max(digits, 3)), anchor: "right" });
-        if (yl !== null) out.push({ x: w, y: yl, text: derived.lastBand.lo.toFixed(Math.max(digits, 3)), anchor: "right" });
+        if (yh !== null && inScale(derived.lastBand.hi))
+          out.push({ x: w, y: yh, text: derived.lastBand.hi.toFixed(Math.max(digits, 3)), anchor: "right" });
+        if (yl !== null && inScale(derived.lastBand.lo))
+          out.push({ x: w, y: yl, text: derived.lastBand.lo.toFixed(Math.max(digits, 3)), anchor: "right" });
       }
-      const key = JSON.stringify(out);
-      if (key !== lastKey) {
-        lastKey = key;
-        setPlaced(out);
+      // Keep every right-edge label inside the chart and 16px clear of each other.
+      const taken: { y: number; text: string }[] = [];
+      // The Expand button sits bottom-right; keep right-edge labels off it.
+      const bottomGuard = hasExpand ? 64 : 12;
+      const drop = new Set<Label>();
+      for (const l of out) {
+        if (l.anchor !== "right") continue;
+        const limit = Math.max(12, h - bottomGuard);
+        let yy = Math.min(Math.max(l.y, 12), limit);
+        let dropped = false;
+        for (let guard = 0; guard < 8; guard += 1) {
+          const hit = taken.find((p) => Math.abs(p.y - yy) < 16);
+          if (hit === undefined) break;
+          // A limit that lands on the live price says nothing extra: drop it.
+          if (hit.text === l.text) {
+            drop.add(l);
+            dropped = true;
+            break;
+          }
+          let next = yy >= hit.y ? hit.y + 16 : hit.y - 16;
+          // Bounce off the edges instead of stacking two labels on the clamp.
+          if (next > limit) next = hit.y - 16;
+          else if (next < 12) next = hit.y + 16;
+          yy = next;
+        }
+        if (dropped) continue;
+        l.y = yy;
+        taken.push({ y: yy, text: l.text });
       }
+      if (drop.size > 0) out = out.filter((l) => !drop.has(l));
+      // Compare against what is on screen, not a local copy: if an update is
+      // dropped (layout still settling), the next tick sends it again.
+      if (JSON.stringify(out) !== placedKeyRef.current) setPlaced(out);
       // Complete when every label that can exist has resolved to a coordinate.
       const expected =
         (labels && data.length > 1 ? 1 + (hiIdx() !== data.length - 1 ? 1 : 0) + (loIdx() !== data.length - 1 ? 1 : 0) : 0) +
@@ -567,13 +717,19 @@ export function PriceChart({
     };
     const hiIdx = () => data.reduce((b, d, i) => (d.value > data[b].value ? i : b), 0);
     const loIdx = () => data.reduce((b, d, i) => (d.value < data[b].value ? i : b), 0);
-    let lastKey = "";
-    // The chart sizes itself asynchronously (autoSize); poll until every coordinate resolves (max ~2s).
+    // The chart sizes itself asynchronously (autoSize); poll until every
+    // coordinate resolves (max ~2s), then settle.
     let tries = 0;
     const attempt = () => {
       if (!place() && tries++ < 120) raf = requestAnimationFrame(attempt);
     };
     raf = requestAnimationFrame(attempt);
+    let ticks = 0;
+    const slow = setInterval(() => {
+      const ok = place();
+      ticks += 1;
+      if ((ok && ticks >= 6) || ticks > 20) clearInterval(slow);
+    }, 200);
     const onLayout = () => {
       cancelAnimationFrame(raf);
       tries = 0;
@@ -583,30 +739,48 @@ export function PriceChart({
     chart.timeScale().subscribeVisibleLogicalRangeChange(onLayout);
     return () => {
       cancelAnimationFrame(raf);
+      clearInterval(slow);
       chart.timeScale().unsubscribeSizeChange(onLayout);
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onLayout);
     };
-  }, [data, derived, baseline, lines, kind, up, digits, labels, height, dataTick]);
+  }, [data, derived, baseline, lines, kind, up, digits, labels, height, dataTick, hasExpand]);
 
   return (
     <div className={cx("relative", className)}>
       {readout && (
-        <div className="flex h-6 items-center justify-between" aria-live="polite">
+        <div className="flex h-6 items-center justify-between gap-3" aria-live="polite">
           {hover ? (
             <>
-              <span className="t-caption num">{dateTimeIST(hover.time)}</span>
-              <span className="t-readout num text-text">{hover.value.toFixed(digits)}</span>
+              <span className="t-caption num truncate">{dateTimeIST(hover.time)}</span>
+              <span className="flex shrink-0 items-baseline gap-2">
+                <span className="t-readout num text-text">{hover.value.toFixed(digits)}</span>
+                <span className={cx("num t-change-sm", hoverAbs >= 0 ? "text-gain-text" : "text-loss-text")}>
+                  {hoverAbs >= 0 ? "+" : "-"}
+                  {Math.abs(hoverAbs).toFixed(digits)} ({Math.abs(hoverRel).toFixed(2)}%)
+                </span>
+              </span>
             </>
           ) : null}
         </div>
       )}
       <div className="relative" style={{ height, touchAction: "pan-y" }}>
-        <div ref={el} className="absolute inset-0" onMouseLeave={() => setHover(null)} />
+        <div
+          ref={el}
+          className="absolute inset-0"
+          onMouseLeave={() => {
+            setHover(null);
+            hoverRef.current?.(null);
+          }}
+        />
         {placed.map((l, i) => (
           <span
             key={i}
             aria-hidden
-            className="num pointer-events-none absolute text-[13px] leading-[18px] font-medium whitespace-nowrap text-text-2"
+            className={cx(
+              // Every label gets a ground-coloured box so the line never runs through it.
+              "num pointer-events-none absolute z-10 rounded-[4px] bg-bg px-1 text-[13px] leading-[18px] font-medium whitespace-nowrap text-text-2",
+              l.box && "text-text",
+            )}
             style={
               l.anchor === "right"
                 ? { right: 0, top: l.y, transform: "translateY(-50%)" }
@@ -626,6 +800,25 @@ export function PriceChart({
           </button>
         )}
       </div>
+      {ticks.length > 0 && (
+        <div className="relative mt-1 h-5 border-t border-line" aria-hidden>
+          {ticks.map((t) => (
+            <span
+              key={t.i}
+              className="num t-caption absolute top-0.5 whitespace-nowrap"
+              style={
+                t.pct === 0
+                  ? { left: 0 }
+                  : t.pct === 100
+                    ? { right: 0 }
+                    : { left: `${t.pct}%`, transform: "translateX(-50%)" }
+              }
+            >
+              {t.label}
+            </span>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -646,9 +839,9 @@ export function RangeChips<T extends string = ChartRange>({
   options?: { id: T; label: string }[];
   className?: string;
 }) {
-  const opts = options ?? ((["1D", "1W", "ALL"] as ChartRange[]).map((r) => ({ id: r, label: RANGE_LABELS[r] })) as unknown as { id: T; label: string }[]);
+  const opts = options ?? (RANGES.map((r) => ({ id: r, label: RANGE_LABELS[r] })) as unknown as { id: T; label: string }[]);
   return (
-    <div role="radiogroup" aria-label="Chart range" className={cx("flex gap-2", className)}>
+    <div role="radiogroup" aria-label="Chart range" className={cx("no-scrollbar -mx-5 flex gap-2 overflow-x-auto px-5", className)}>
       {opts.map((o) => (
         <Chip key={o.id} variant="range" selected={value === o.id} onClick={() => onChange(o.id)}>
           {o.label}
