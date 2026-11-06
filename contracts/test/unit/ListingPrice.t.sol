@@ -1,9 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {ListingBand} from "../../src/libraries/ListingBand.sol";
 import {ListingPrice} from "../../src/libraries/ListingPrice.sol";
 import {ConstantsLib} from "continuous-clearing-auction/src/libraries/ConstantsLib.sol";
 import {Test} from "forge-std/Test.sol";
+import {TokenPricing} from "liquidity-launcher/src/libraries/TokenPricing.sol";
+import {TickMath} from "v4-core/src/libraries/TickMath.sol";
 
 contract ListingPriceTest is Test {
     /// @dev floor(2^96 / 1e17)
@@ -78,5 +81,80 @@ contract ListingPriceTest is Test {
         uint256 priceQ96 = ListingPrice.pointsToQ96(points);
         assertEq(ListingPrice.q96ToPoints(priceQ96), points);
         assertTrue(ListingPrice.isTickAligned(priceQ96, ListingPrice.TICK_SPACING_Q96));
+    }
+
+    // ---------------------------------------------------------------- v4 pool prices
+
+    /// The helper reproduces LBPStrategy's opening price (TokenPricing) in both token orders.
+    function test_priceQ96ToSqrtPriceX96_matchesLbpStrategyTokenPricing() public pure {
+        uint256 clearing = ListingPrice.pointsToQ96(110);
+        for (uint256 i; i < 2; i++) {
+            bool usdc0 = i == 0;
+            uint160 expected = TokenPricing.convertToSqrtPriceX96(TokenPricing.convertToPriceX192(clearing, usdc0));
+            assertEq(ListingPrice.priceQ96ToSqrtPriceX96(clearing, usdc0), expected);
+            assertEq(ListingPrice.pointsToSqrtPriceX96(110, usdc0), expected);
+        }
+    }
+
+    /// plan.md sanity: with USDC as currency0 the issue price is sqrtPriceX96 ~ 2.5e36, tick ~ +345,400.
+    function test_issuePrice_usdcCurrency0_sqrtAndTick() public pure {
+        uint160 sqrtIssue = ListingPrice.pointsToSqrtPriceX96(100, true);
+        assertApproxEqRel(sqrtIssue, 2.505e36, 0.001e18);
+        int24 tick = TickMath.getTickAtSqrtPrice(sqrtIssue);
+        assertGt(tick, 345_000);
+        assertLt(tick, 345_500);
+        // Higher share price = lower sqrt price when USDC is currency0, higher when it is currency1.
+        assertLt(ListingPrice.pointsToSqrtPriceX96(110, true), sqrtIssue);
+        assertGt(ListingPrice.pointsToSqrtPriceX96(110, false), ListingPrice.pointsToSqrtPriceX96(100, false));
+    }
+
+    function testFuzz_sqrtPricePointsRoundTrip(uint256 pointsE2, bool usdc0) public pure {
+        pointsE2 = bound(pointsE2, 100, 1e7); // 1.00 to 100,000 points
+        uint160 sqrtPrice = ListingPrice.pointsE2ToSqrtPriceX96(pointsE2, usdc0);
+        assertApproxEqAbs(ListingPrice.sqrtPriceX96ToPointsE2(sqrtPrice, usdc0), pointsE2, 1);
+    }
+
+    /// Whole-point prices use the tick-truncated ONE_POINT_Q96, so they differ by < 1e-12 relative.
+    function test_pointsE2_matchesWholePoints() public pure {
+        assertApproxEqRel(
+            ListingPrice.pointsE2ToSqrtPriceX96(11_000, true), ListingPrice.pointsToSqrtPriceX96(110, true), 1e6
+        );
+        assertApproxEqRel(
+            ListingPrice.pointsE2ToSqrtPriceX96(11_000, false), ListingPrice.pointsToSqrtPriceX96(110, false), 1e6
+        );
+    }
+
+    // ---------------------------------------------------------------- ListingBand
+
+    /// ±5% around 110 is 104.5 to 115.5 points in both token orders.
+    function test_band_listingDay5Percent_bothOrders() public pure {
+        for (uint256 i; i < 2; i++) {
+            bool usdc0 = i == 0;
+            (uint160 lo, uint160 hi) = ListingBand.bounds(ListingPrice.pointsToSqrtPriceX96(110, usdc0), 500, usdc0);
+            (uint256 lowE2, uint256 highE2) = usdc0
+                ? (ListingPrice.sqrtPriceX96ToPointsE2(hi, true), ListingPrice.sqrtPriceX96ToPointsE2(lo, true))
+                : (ListingPrice.sqrtPriceX96ToPointsE2(lo, false), ListingPrice.sqrtPriceX96ToPointsE2(hi, false));
+            assertApproxEqAbs(lowE2, 10_450, 1);
+            assertApproxEqAbs(highE2, 11_550, 1);
+        }
+    }
+
+    function testFuzz_band_containsReference(uint160 ref, uint256 bps, bool usdc0) public pure {
+        ref = uint160(bound(ref, TickMath.MIN_SQRT_PRICE, TickMath.MAX_SQRT_PRICE));
+        bps = bound(bps, 0, 9999);
+        (uint160 lo, uint160 hi) = ListingBand.bounds(ref, bps, usdc0);
+        assertLe(lo, ref);
+        assertGe(hi, ref);
+        assertGe(lo, TickMath.MIN_SQRT_PRICE);
+        assertLe(hi, TickMath.MAX_SQRT_PRICE);
+    }
+
+    function test_gapQ96_symmetricUnderInversion() public pure {
+        uint160 ref = ListingPrice.pointsToSqrtPriceX96(90, true);
+        uint160 refInv = ListingPrice.pointsToSqrtPriceX96(90, false);
+        uint256 gap = ListingBand.gapQ96(ListingPrice.pointsToSqrtPriceX96(108, true), ref);
+        uint256 gapInv = ListingBand.gapQ96(ListingPrice.pointsToSqrtPriceX96(108, false), refInv);
+        assertApproxEqRel(gap, gapInv, 1e6);
+        assertEq(ListingBand.gapQ96(ref, ref), 1 << 96);
     }
 }
