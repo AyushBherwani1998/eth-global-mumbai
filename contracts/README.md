@@ -1,14 +1,16 @@
 # Listing Day contracts
 
 Foundry project for the Listing Day CCA + v4 IPO (design: [`../plan.md`](../plan.md)). This covers build chunks 0
-to 4:
+to 5:
 
 - Chunks 0 and 1: the scaffold, the price math, `MockSME`, `AuctionValidationHook` and `AllowAllModule`.
 - Chunk 2: the full launch-to-trading lifecycle on a Sepolia fork, through the deployed Uniswap contracts.
 - Chunk 3: `ListingHook`.
 - Chunk 4: the Chainlink CRE consumer `ListingPolicyReceiver`, which feeds the hook its policy. The workflow that writes to it lives in [`../cre`](../cre), and the exchange API it reads from in [`../services/mock-exchange`](../services/mock-exchange).
+- Chunk 5: the Sepolia demo scripts (`script/demo/`, `make demo-fork` / `make demo-sepolia`): fund the demo wallets, deploy, launch, bid, settle, trade, halt. They write `deployments/sepolia.json` and the frontend ABIs live in `abis/`. See [`DEPLOY.md`](DEPLOY.md).
 
-Nothing is deployed yet; everything runs locally or on a Sepolia fork.
+Nothing is deployed yet: the scripts run on a Sepolia fork in CI, and the real broadcast is a manual step
+([`DEPLOY.md`](DEPLOY.md)).
 
 Frontend error and selector reference: [`errors.md`](errors.md).
 
@@ -60,8 +62,11 @@ A public RPC works fine for these tests, e.g. `export SEPOLIA_RPC_URL=https://et
 | `src/mocks/MockStatusResolver.sol` | `IStatusResolver` stand-in for the ENS resolver (can be told to revert or burn gas) until chunk 6 |
 | `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IListingHook`, `IListingPolicy`, `IListingPolicyReceiver`, `IReceiver` (Chainlink-compatible), `IStatusResolver` (errors, events and reads for the frontend ABI) |
 | `script/DeployListingPolicyReceiver.s.sol` | Deploys the receiver; optionally points a hook at it and sets the ENS mirror |
-| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), and the CRE report vectors shared with the TypeScript workflow |
-| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), and reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`) |
+| `script/demo/` | The demo steps (`FundDemoWallets`, `DemoDeploy`, `DemoLaunch`, `DemoBid`, `DemoSettle`, `DemoTrade`, `DemoHalt`, `ExportDeployments`), each idempotent against the deployments file; `DemoFork` runs them all on a fork with asserts; `anvil-rehearsal.sh` runs them as broadcasts against anvil. Entry points in the `Makefile`, walkthrough in [`DEPLOY.md`](DEPLOY.md) |
+| `deployments/` | `sepolia.json` after the real run (committed); fork and anvil rehearsals write git-ignored files next to it |
+| `abis/` | Frontend ABI arrays, regenerated with `make abis` (CI checks they're current) |
+| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), the CRE report vectors shared with the TypeScript workflow, and the tx-hash export on a trimmed real broadcast log (`test/fixtures/broadcast/`) |
+| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`), and the demo scripts end to end (`DemoScripts.fork.t.sol`) |
 
 ## Price math
 

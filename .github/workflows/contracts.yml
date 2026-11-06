@@ -36,3 +36,9 @@ jobs:
 
       - name: Fork tests (Sepolia)
         run: forge test --match-path 'test/fork/*' -vv
+
+      - name: Demo scripts end to end on a Sepolia fork (no broadcast)
+        run: make demo-fork
+
+      - name: Frontend ABIs are current
+        run: make abis-check
