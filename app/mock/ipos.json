@@ -1,0 +1,281 @@
+{
+  "parent": "listingday.eth",
+  "currentBlock": 7412212,
+  "now": "2026-11-06T15:40:00+05:30",
+  "offer": {
+    "totalSupply": 110000,
+    "auctioned": 90000,
+    "lpReserve": 20000,
+    "issuePrice": 1,
+    "floorPrice": 0.8,
+    "capPrice": 1.9,
+    "perApplicantCap": 20,
+    "targetRaise": 90,
+    "requiredRaise": 45,
+    "lpPercent": 20
+  },
+  "ipos": [
+    {
+      "ticker": "acme",
+      "symbol": "ACME",
+      "name": "Acme SME Ltd",
+      "sector": "Auto components",
+      "city": "Pune",
+      "description": "Precision fasteners and stampings for two-wheeler OEMs. 14 years in business, 3 plants in Chakan.",
+      "url": "https://acme-sme.example",
+      "avatar": {
+        "initials": "AC",
+        "bg": "#1f6feb",
+        "fg": "#ffffff"
+      },
+      "status": "listed",
+      "phase": "listed",
+      "eligibility": "human",
+      "clearingPrice": 1.1,
+      "graduated": true,
+      "listedAt": "2026-11-06T10:00:00+05:30",
+      "raised": 82.5,
+      "bidCount": 31,
+      "applicants": 24,
+      "startBlock": 7408200,
+      "endBlock": 7408500,
+      "claimBlock": 7408600,
+      "records": {
+        "addr": "0x4C2b8a0E7d1f3A9b6C5e0D2f8A1b3c4D5e6F7a81",
+        "token": "0x9a41F3c2B7e8D0a5C6b1E4f7A2d9C3b8E5f6A0d2",
+        "auction": "0x3E7b9C2a1D4f6E8b0A5c7D9e2F1b3A6c8E0d4F5a",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0x5B8d0F2a4C6e8A1c3E5b7D9f1A3c5E7b9D1f3A5c",
+        "pool": "0xb1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d3e5f7a9b1c3"
+      }
+    },
+    {
+      "ticker": "kesar",
+      "symbol": "KESAR",
+      "name": "Kesar Agro Foods",
+      "sector": "Food processing",
+      "city": "Srinagar",
+      "description": "Saffron, dry fruits and spice blends. Exports to 11 countries; new cold-storage unit funded by this issue.",
+      "url": "https://kesar-agro.example",
+      "avatar": {
+        "initials": "KA",
+        "bg": "#f59e0b",
+        "fg": "#ffffff"
+      },
+      "status": "auction",
+      "phase": "live",
+      "eligibility": "human",
+      "clearingPrice": 1.24,
+      "raised": 61.4,
+      "bidCount": 23,
+      "applicants": 19,
+      "startBlock": 7412000,
+      "endBlock": 7412300,
+      "claimBlock": 7412400,
+      "records": {
+        "addr": "0x8D1e3F5a7B9c1D3e5F7a9B1c3D5e7F9a1B3c5D7e",
+        "token": "0x2C4e6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f",
+        "auction": "0x6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f2A4c",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0x1E3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a",
+        "pool": null
+      }
+    },
+    {
+      "ticker": "tara",
+      "symbol": "TARA",
+      "name": "Tara Handloom Textiles",
+      "sector": "Textiles",
+      "city": "Surat",
+      "description": "Power-loom sarees and dress material for 400+ retailers across Gujarat and Maharashtra.",
+      "url": "https://tara-textiles.example",
+      "avatar": {
+        "initials": "TT",
+        "bg": "#db2777",
+        "fg": "#ffffff"
+      },
+      "status": "auction",
+      "phase": "live",
+      "eligibility": "human",
+      "clearingPrice": 0.86,
+      "raised": 12,
+      "bidCount": 6,
+      "applicants": 6,
+      "startBlock": 7412150,
+      "endBlock": 7412450,
+      "claimBlock": 7412550,
+      "records": {
+        "addr": "0x3F5a7C9e1B3d5F7a9C1e3B5d7F9a1C3e5B7d9F1a",
+        "token": "0x4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b6D8f0A2c",
+        "auction": "0x9C1e3B5d7F9a1C3e5B7d9F1a3C5e7B9d1F3a5C7e",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0x0D2f4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b6D8f",
+        "pool": null
+      }
+    },
+    {
+      "ticker": "masala",
+      "symbol": "MASALA",
+      "name": "Masala Bros Kitchens",
+      "sector": "Cloud kitchens",
+      "city": "Bengaluru",
+      "description": "Nine delivery-only kitchens across Bengaluru serving regional thalis. Profitable since FY24.",
+      "url": "https://masalabros.example",
+      "avatar": {
+        "initials": "MB",
+        "bg": "#dc2626",
+        "fg": "#ffffff"
+      },
+      "status": "listed",
+      "phase": "listed",
+      "eligibility": "open",
+      "clearingPrice": 1.25,
+      "graduated": true,
+      "listedAt": "2026-11-02T10:00:00+05:30",
+      "raised": 88.2,
+      "bidCount": 40,
+      "applicants": 36,
+      "startBlock": 7385900,
+      "endBlock": 7386200,
+      "claimBlock": 7386300,
+      "records": {
+        "addr": "0x6E8b0D2f4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b",
+        "token": "0x7B9d1F3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d",
+        "auction": "0x8C0e2B4d6F8a0C2e4B6d8F0a2C4e6B8d0F2a4C6e",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0x9D1f3A5c7E9b1D3f5A7c9E1b3D5f7A9c1E3b5D7f",
+        "pool": "0xc2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6a8b0c2d4"
+      }
+    },
+    {
+      "ticker": "nirmaan",
+      "symbol": "NIRMAAN",
+      "name": "Nirmaan Infra Projects",
+      "sector": "Road construction",
+      "city": "Nagpur",
+      "description": "EPC contractor for state highway and rural road projects. Order book of 4 active contracts.",
+      "url": "https://nirmaan-infra.example",
+      "avatar": {
+        "initials": "NI",
+        "bg": "#0f766e",
+        "fg": "#ffffff"
+      },
+      "status": "surveillance",
+      "phase": "listed",
+      "eligibility": "human",
+      "clearingPrice": 0.98,
+      "graduated": true,
+      "listedAt": "2026-11-04T10:00:00+05:30",
+      "raised": 71.6,
+      "bidCount": 28,
+      "applicants": 25,
+      "startBlock": 7399400,
+      "endBlock": 7399700,
+      "claimBlock": 7399800,
+      "records": {
+        "addr": "0x0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f2A4c6E8b",
+        "token": "0x1F3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a",
+        "auction": "0x2A4c6E8b0D2f4A6c8E0b2D4f6A8c0E2b4D6f8A0c",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0x3B5d7F9a1C3e5B7d9F1a3C5e7B9d1F3a5C7e9B1d",
+        "pool": "0xd3e5f7a9b1c3d5e7f9a1b3c5d7e9f1a3b5c7d9e1f3a5b7c9d1e3f5a7b9c1d3e5"
+      }
+    },
+    {
+      "ticker": "vayu",
+      "symbol": "VAYU",
+      "name": "Vayu E-Mobility",
+      "sector": "Electric vehicles",
+      "city": "Jaipur",
+      "description": "Electric three-wheelers for last-mile cargo. Assembly plant in Sitapura, 2,100 vehicles sold.",
+      "url": "https://vayu-ev.example",
+      "avatar": {
+        "initials": "VE",
+        "bg": "#7c3aed",
+        "fg": "#ffffff"
+      },
+      "status": "halted",
+      "phase": "listed",
+      "eligibility": "human",
+      "clearingPrice": 1.42,
+      "graduated": true,
+      "listedAt": "2026-11-03T10:00:00+05:30",
+      "raised": 90,
+      "bidCount": 45,
+      "applicants": 41,
+      "startBlock": 7392600,
+      "endBlock": 7392900,
+      "claimBlock": 7393000,
+      "records": {
+        "addr": "0x4C6e8B0d2F4a6C8e0B2d4F6a8C0e2B4d6F8a0C2e",
+        "token": "0x5D7f9A1c3E5b7D9f1A3c5E7b9D1f3A5c7E9b1D3f",
+        "auction": "0x6E8a0B2d4F6c8E0a2B4d6F8c0E2a4B6d8F0c2E4a",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0x7F9b1C3e5A7d9F1b3C5e7A9d1F3b5C7e9A1d3F5b",
+        "pool": "0xe4f6a8b0c2d4e6f8a0b2c4d6e8f0a2b4c6d8e0f2a4b6c8d0e2f4a6b8c0d2e4f6"
+      }
+    },
+    {
+      "ticker": "lotus",
+      "symbol": "LOTUS",
+      "name": "Lotus Ceramics",
+      "sector": "Building materials",
+      "city": "Morbi",
+      "description": "Vitrified floor tiles for the domestic market. Auction ended below the graduation threshold.",
+      "url": "https://lotus-ceramics.example",
+      "avatar": {
+        "initials": "LC",
+        "bg": "#64748b",
+        "fg": "#ffffff"
+      },
+      "status": "auction",
+      "phase": "refunding",
+      "eligibility": "open",
+      "clearingPrice": 0.82,
+      "raised": 31.2,
+      "bidCount": 14,
+      "applicants": 12,
+      "startBlock": 7409100,
+      "endBlock": 7409400,
+      "claimBlock": 7409500,
+      "graduated": false,
+      "records": {
+        "addr": "0x8A0c2E4b6D8f0A2c4E6b8D0f2A4c6E8b0D2f4A6c",
+        "token": "0x9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a1C3e5B7d",
+        "auction": "0xA2c4E6b8D0f2A4c6E8b0D2f4A6c8E0b2D4f6A8c0",
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0xB3d5F7a9C1e3B5d7F9a1C3e5B7d9F1a3C5e7B9d1",
+        "pool": null
+      }
+    },
+    {
+      "ticker": "prakriti",
+      "symbol": "PRAKRITI",
+      "name": "Prakriti Organics",
+      "sector": "Agri inputs",
+      "city": "Nashik",
+      "description": "Bio-fertilisers and organic pest control for grape and onion farmers in the Nashik belt.",
+      "url": "https://prakriti-organics.example",
+      "avatar": {
+        "initials": "PO",
+        "bg": "#16a34a",
+        "fg": "#ffffff"
+      },
+      "status": "draft",
+      "phase": "draft",
+      "eligibility": "human",
+      "clearingPrice": null,
+      "startBlock": 7414032,
+      "endBlock": 7414332,
+      "claimBlock": 7414432,
+      "records": {
+        "addr": "0xC4e6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f2",
+        "token": null,
+        "auction": null,
+        "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
+        "policy": "0xD5f7A9c1E3b5D7f9A1c3E5b7D9f1A3c5E7b9D1f3",
+        "pool": null
+      }
+    }
+  ]
+}
