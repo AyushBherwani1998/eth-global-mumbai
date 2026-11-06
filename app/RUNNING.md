@@ -27,27 +27,32 @@ STUB_DELAY=600 node dev/api-stub/server.mjs        # 600ms, shows skeletons
 
 ## Mode B: real Sepolia
 
-Needs deployed contracts. From the repo root:
+Acme is already deployed; its addresses are committed in
+`contracts/deployments/sepolia.json`, so no deploy is needed. From the repo root:
 
 ```bash
-cd contracts
-make demo-sepolia                 # writes contracts/deployments/sepolia.json
-
-cd ../services/api
+cd services/api
 npm install
-SEPOLIA_RPC_URL=<your rpc> npm start      # real backend on port 8788
+npm run dev                       # real backend on port 8788, read-only
 ```
+
+It defaults to a public Sepolia RPC, which prunes old logs and state; set
+`RPC_URL` (or `SEPOLIA_RPC_URL`) to a full-history RPC for complete history.
 
 Then in `app/.env.local`:
 
 ```
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8788
-NEXT_PUBLIC_ISSUER_ADDRESS=<the issuer key's address from deployments/sepolia.json>
 ```
 
 Restart `pnpm dev`. Seven demo companies disappear, the "Demo data" strip
-disappears, and the issuer console switches from demo mode to a real ownership
-check against the signed-in wallet.
+disappears, and the issuer console checks ownership with
+`GET /v1/issuer/:ticker?address=` against the signed-in wallet.
+
+Reads are free. Anything confirmed in the wallet (Buy, Sell, Apply, Collect,
+Refund) is a real Sepolia transaction: the app prepares it on the server, the
+wallet sends each approval and then the final call, and the app waits for
+each receipt before it says anything worked.
 
 Nothing in the app code changes between the two modes. The app talks to one
 base URL and believes whatever that server says.
@@ -65,6 +70,27 @@ verification, which this app does not do.
 
 In the Privy dashboard, allow `http://localhost:3000` as a login domain, enable
 Email and Wallet login, and turn on embedded wallets for users without one.
+
+## Checks
+
+From `app/`, in this order (all of them run in CI, `.github/workflows/app.yml`):
+
+```bash
+pnpm lint
+pnpm test        # node --test: units, the transaction runner, quotes, adapters, console lifecycle
+pnpm typecheck   # next typegen && tsc --noEmit
+pnpm build
+```
+
+The tests mock the wallet and the API; nothing signs or broadcasts.
+
+## Deploying
+
+The app type-imports `services/api/src/types.ts`, so it builds only inside the
+whole repository: `pnpm build` stops early with an explanation otherwise. On a
+host with a root-directory setting use the repository root (`/`) and
+`app/Dockerfile` (see DEPLOY-RAILWAY.md). `NEXT_PUBLIC_*` values are inlined
+at build time, so rebuild after changing them.
 
 ## If a change does not show up
 

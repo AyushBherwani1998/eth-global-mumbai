@@ -28,17 +28,27 @@ logo only; protocol words go inside `<Details>`.
 
 ## providers.tsx
 
-`useApp()`: `connected, sessionReady, address, ensName, usdcBalance, ethBalance, connect(), disconnect(),
-isIssuerFor, network { ok, name, chainId }, switchNetwork(), setWrongNetwork(bool), anon { transport,
-fallback, live }, sendTx({ title, success, revert, revertTitle, revertDetail, delayMs }),
-notify(title, status?, detail?)`. Toasts render one at a time at the bottom
-(UI.md 2.20): pending "Check your wallet app", success headline, error headline with the decoded
+`useApp()`: `connected, sessionReady, address, ensName, usdcBalance, ethBalance, portfolio, connect(),
+disconnect(), isIssuerFor, network { ok, name, chainId, walletChainId }, switchNetwork(), canSign,
+signerLabel, demoData, txBusy, runTx({ title, success, failTitle?, prepare, guard?, onProgress? }),
+anon { transport, fallback, live }, notify(title, status?, detail?)`. Toasts render one at a time at the
+bottom (UI.md 2.20): pending "Check your wallet app", success headline, error headline with the decoded
 error name on the grey second line.
 
 Sign-in is real (see wallet/ below): `connected`, `sessionReady`, `address` and `ensName` come from the
-signed-in account, `connect()` opens the sign-in flow and `disconnect()` ends the session. Everything
-else is still mock, so the demo works with a wallet that owns nothing on chain. `sessionReady` is false
-only while the session is being read; hold space rather than flashing "Sign in".
+signed-in account, `connect()` opens the sign-in flow and `disconnect()` ends the session. `sessionReady`
+is false only while the session is being read; hold space rather than flashing "Sign in".
+
+Balances and holdings come from `GET /v1/portfolio/:address` (`portfolio`; `usdcBalance` / `ethBalance`
+are null until it answers). `demoData` is true while the API reports itself as the fixture stub.
+
+`runTx` is the only way the app sends anything (`lib/tx.ts` `runPrepared`): it calls `prepare` (a
+`POST /v1/prepare/*`), refuses stub, wrong-chain or wrong-sender answers, runs `guard`, stops on a failed
+simulation with the decoded error, sends each needed approval and waits for its receipt, re-prepares, then
+sends the final call and waits for its receipt. Success is reported only on a confirmed receipt; a
+rejection, revert, timeout, chain or account switch stops the run and says which steps already landed.
+One run at a time (`txBusy`); `refreshLive()` re-reads every live hook afterwards. `canSign` is false for
+sessions with no wallet (email-only demo sign-in), which show a "can't send" note instead of a button.
 
 `isIssuerFor` is non-empty only when the signed-in address equals the listing owner address from the
 deployment config (`NEXT_PUBLIC_ISSUER_ADDRESS`, see `wallet/env.ts`). There is no URL flag and no local
@@ -144,7 +154,7 @@ The console is its own surface under `/console`, mounted by `app/(console)/layou
 `SkeletonList({ rows })`, `SkeletonCards({ count })`, `SkeletonChart({ height })`,
 `ErrorCard({ title?, body?, onRetry?, retrying? })` (plain English + Retry, never a silent fallback),
 `OfflineStrip({ asOf?, force? })` (grey strip, renders nothing while online), `useOnline()`.
-The wrong-network button lives in `AccountSheet` (`useApp().setWrongNetwork(true)` to demo it).
+The wrong-network button lives in `AccountSheet`; it shows when the signed-in wallet reports a chain other than Sepolia, and `switchNetwork()` asks the wallet to switch.
 
 ## time-chart.tsx + chart/ (UI.md section 3, UX.md 3.11)
 
