@@ -636,7 +636,7 @@ Re-based at **Fri ~14:00 IST: about 19 h remain** (was 21.5 h from 11:30). The o
 
 ## 15. Risks
 
-See [`VALIDATION.md`](VALIDATION.md#top-risks) for the ranked top risks.
+See [`VALIDATION.md`](VALIDATION.md#3-top-risks) for the ranked top risks.
 
 | Risk | Mitigation |
 |---|---|
