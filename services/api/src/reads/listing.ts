@@ -39,7 +39,7 @@ async function ensText(ctx: Ctx, l: ListingCfg, key: string): Promise<string | n
   }
 }
 
-async function ensAddr(ctx: Ctx, l: ListingCfg): Promise<Address | null> {
+export async function ensAddr(ctx: Ctx, l: ListingCfg): Promise<Address | null> {
   try {
     const v = await ctx.client.getEnsAddress({ name: normalize(l.ensName), universalResolverAddress: l.external.ensUniversalResolver });
     return v && !/^0x0{40}$/i.test(v) ? getAddress(v) : null;
