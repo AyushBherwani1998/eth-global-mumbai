@@ -2,13 +2,7 @@
 pragma solidity 0.8.26;
 
 import {ListingPolicyReceiver} from "../../src/ListingPolicyReceiver.sol";
-import {
-    IEnsEthRegistrar,
-    IEnsMockERC20,
-    IEnsPermissionedRegistry,
-    IEnsPermissionedResolver,
-    IEnsUserRegistry
-} from "../../src/interfaces/IEnsV2.sol";
+import {IEnsMockERC20, IEnsPermissionedResolver, IEnsUserRegistry} from "../../src/interfaces/IEnsV2.sol";
 import {ListingPolicy} from "../../src/interfaces/IListingPolicy.sol";
 import {Sepolia, SepoliaEns} from "../../src/libraries/Constants.sol";
 import {EnsNames, EnsRoles} from "../../src/libraries/EnsV2.sol";
@@ -94,7 +88,7 @@ contract EnsFork is EnsBase, StdAssertions {
 
         new EnsName().run();
         uint64 committedAt = REGISTRAR.commitmentAt(_commitment());
-        assertEq(committedAt, block.timestamp, "commit sent");
+        assertEq(committedAt, vm.getBlockTimestamp(), "commit sent");
         assertTrue(REGISTRAR.isAvailable(label), "not registered by the commit run");
         assertEq(vm.parseJsonUint(_json(), ".ens.parent.commit.validFrom"), committedAt + 60, "validFrom in json");
 
@@ -224,40 +218,6 @@ contract EnsFork is EnsBase, StdAssertions {
         assertEq(vm.parseJsonString(j, ".ens.records.['listingday.status']"), "listed");
         assertTrue(vm.parseJsonBool(j, ".ens.statusRole.granted"));
         assertFalse(vm.parseJsonBool(j, ".ens.ticker.transferable"));
-    }
-
-    // ---------------------------------------------------------------- views for the tests
-
-    function issuer() external view returns (address) {
-        return vm.addr(deployerKey);
-    }
-
-    function exchange() external view returns (address) {
-        return vm.addr(exchangeKey);
-    }
-
-    function registry() external view returns (IEnsPermissionedRegistry) {
-        return _userRegistry();
-    }
-
-    function resolver() external view returns (IEnsPermissionedResolver) {
-        return _issuerResolver();
-    }
-
-    function receiver() external view returns (ListingPolicyReceiver) {
-        return _receiver();
-    }
-
-    function parentLabel() external view returns (string memory) {
-        return _parentLabel();
-    }
-
-    function tickerName() external view returns (string memory) {
-        return _tickerName();
-    }
-
-    function registrar() external pure returns (IEnsEthRegistrar) {
-        return REGISTRAR;
     }
 
     // ---------------------------------------------------------------- internal

@@ -293,14 +293,14 @@ abstract contract DemoBase is Script {
         uint256 key = _broadcasterKey();
         require(vm.addr(key) == receiver.broadcaster(), "CRE_BROADCASTER_KEY is not the receiver's broadcaster");
         p.chainSelector = Sepolia.CRE_CHAIN_SELECTOR;
-        p.asOf = uint64(block.timestamp);
+        p.asOf = uint64(vm.getBlockTimestamp());
         uint64 last = receiver.latestPolicy().asOf;
         if (p.asOf <= last) p.asOf = last + 1;
         executionId = keccak256(abi.encode(tag, address(receiver), p.asOf, p.halted));
         bytes memory raw = abi.encodePacked(
             uint8(1),
             executionId,
-            uint32(block.timestamp),
+            uint32(vm.getBlockTimestamp()),
             uint32(1),
             uint32(1),
             abi.encodePacked(SIM_WORKFLOW_CID, SIM_WORKFLOW_NAME, SIM_WORKFLOW_OWNER, REPORT_ID),

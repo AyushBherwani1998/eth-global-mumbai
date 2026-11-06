@@ -131,7 +131,7 @@ contract EnsNamespaceForkTest is SepoliaForkTest, CreReports {
         _pay(ops, label);
         vm.prank(ops);
         REGISTRAR.commit(commitment);
-        uint64 validFrom = uint64(block.timestamp) + REGISTRAR.MIN_COMMITMENT_AGE();
+        uint64 validFrom = uint64(vm.getBlockTimestamp()) + REGISTRAR.MIN_COMMITMENT_AGE();
 
         skip(REGISTRAR.MIN_COMMITMENT_AGE() - 1);
         vm.expectRevert(

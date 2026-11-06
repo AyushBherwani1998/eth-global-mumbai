@@ -59,10 +59,11 @@ library EnsNames {
         bytes memory s = bytes(name);
         if (s.length == 0) return hex"00";
         out = new bytes(s.length + 2);
-        uint256 lenAt;
+        uint256 lenAt = 0;
         for (uint256 i; i <= s.length; i++) {
             if (i == s.length || s[i] == ".") {
                 uint256 len = i - lenAt;
+                // forge-lint: disable-next-line(require-revert-in-loop)
                 if (len == 0 || len > 255) revert InvalidName(name);
                 // casting to 'uint8' is safe because len <= 255 is checked above
                 // forge-lint: disable-next-line(unsafe-typecast)
@@ -84,9 +85,11 @@ library EnsNames {
     }
 
     function _namehash(bytes memory dnsName, uint256 offset) private pure returns (bytes32) {
+        // forge-lint: disable-next-line(require-revert-in-loop)
         if (offset >= dnsName.length) revert InvalidName("");
         uint256 len = uint8(dnsName[offset]);
         if (len == 0) return bytes32(0);
+        // forge-lint: disable-next-line(require-revert-in-loop)
         if (offset + 1 + len >= dnsName.length) revert InvalidName("");
         bytes32 labelHash;
         assembly ("memory-safe") {

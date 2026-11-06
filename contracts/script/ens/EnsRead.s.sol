@@ -39,7 +39,7 @@ contract EnsRead is EnsBase {
         uint256 ownerRoles;
     }
 
-    function run() external {
+    function run() external view {
         string memory name = _tickerName();
         console2.log("=== EnsRead", name, "via Universal Resolver", SepoliaEns.UNIVERSAL_RESOLVER);
         Ticker memory t = ticker(_parentLabel(), _tickerLabel());
