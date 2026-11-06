@@ -317,14 +317,14 @@ Desktop: this sheet is the sticky right panel with `Buy | Sell` tabs.
 Purpose: everything I've asked the market to do.
 
 1. Header "Orders", "Account".
-2. Segmented `Trades · IPO applications` (48px). Default Trades, unless an application needs action.
+2. Segmented `IPO applications · Market trades` (48px). Default Market trades, unless an application needs action.
 3. Action card (if anything is actionable): "2 allotments ready · Collect all" or "10 USDC refundable · Refund all" (one filled button).
-4. Trades: newest first, 72px rows: company, "Bought 892 shares at 1.11" / "Sold 1,000 shares at 1.09", time, "Receipt" link. Rejected attempts show "Rejected" in red with the one-line reason.
+4. Market trades: every trade in the listed pools, not only this wallet's (per-wallet history is not indexed), labelled "All market trades" with a line saying so. Newest first, 72px rows: company, "Buy · 892 shares at 1.11" / "Sell · 1,000 shares at 1.09", time, "Receipt" link. Rejected attempts show "Rejected" in red with the one-line reason.
 5. IPO applications: grouped by company. Group header: logo, name, "Current price 1.24 · closes in 42m" / "Listed at 1.10" / "Not listed", status word. Three 16px stats: Applied, Shares allotted, Refundable. Rows: "8 USDC up to 1.40", time (no block numbers), status word, one action button when valid.
    Status words: `Likely allotted` (above the current price), `Below the price`, `Partly allotted`, `Allotted`, `Collected`, `Refunded`, `Refund available`.
    Actions: "Refund", "Collect shares", "Settle" (partly allotted: collects shares and refunds the rest).
 
-States: signed out ("Sign in to see your orders", one filled "Sign in"); empty per segment ("No trades yet · See companies"); loading; per-row pending.
+States: signed out ("Sign in to see your orders", one filled "Sign in"); empty per segment ("No market trades yet · See companies"); loading; per-row pending.
 
 Desktop: a table per segment, action column right; the action card becomes a banner.
 
