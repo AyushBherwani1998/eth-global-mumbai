@@ -1,0 +1,13 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "installCommand": "npm ci --prefix services/api && ln -sfn services/api/node_modules node_modules",
+  "buildCommand": "",
+  "framework": null,
+  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "functions": {
+    "api/index.ts": {
+      "includeFiles": "{contracts/deployments/**,services/api/src/**}",
+      "maxDuration": 60
+    }
+  }
+}

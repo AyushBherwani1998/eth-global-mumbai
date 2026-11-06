@@ -2,7 +2,9 @@
 
 This repo is an **isolated monorepo**: the Next.js app, the read/prepare API, and the mock exchange are separate Node packages. `contracts/` (Foundry) and `cre/` (Chainlink CRE workflow) are not Railway services.
 
-Nothing in this PR creates a Railway project. Create one yourself, connect this GitHub repo, and add **three services** from the same repo.
+Nothing in this PR creates a Railway project. Create one yourself, connect this GitHub repo, and add the services below from the same repo.
+
+**`mock-exchange` is optional on Railway.** The app and API never call it. Only the Chainlink CRE workflow (and the issuer console when it edits policy) talk to it. For the ETHGlobal demo, run mock-exchange + CRE on your laptop and deploy only `app` + `api`. Deploy mock-exchange only if CRE will run somewhere other than your laptop (then point `cre/listing-policy/config.staging.json` `apiUrl` at its public URL).
 
 Railway injects `PORT`. Do not set `PORT` yourself. Each process binds to that port on `0.0.0.0` when `PORT` is set (the API image also sets `HOST=0.0.0.0`).
 
@@ -12,7 +14,7 @@ Railway injects `PORT`. Do not set `PORT` yourself. Each process binds to that p
 | --- | --- | --- | --- | --- |
 | `app` | `/app` | `/app/railway.json` | Railpack (`pnpm build` / `pnpm start`) | `/` |
 | `api` | `/` (repository root) | `/services/api/railway.json` | Dockerfile at `services/api/Dockerfile` | `/health` |
-| `mock-exchange` | `/services/mock-exchange` | `/services/mock-exchange/railway.json` | Railpack (`node src/index.ts`) | `/health` |
+| `mock-exchange` (optional) | `/services/mock-exchange` | `/services/mock-exchange/railway.json` | Railpack (`node src/index.ts`) | `/health` |
 
 The API **root directory must stay `/`**. Its Docker build context is the repository root so the image can copy `contracts/deployments/sepolia.json`. If you set the API root to `/services/api`, that copy fails and the process has no listing addresses.
 
@@ -30,9 +32,13 @@ Names only; copy values from each package's `.env.example` or README. Never put 
 
 | Variable | Required | Notes |
 | --- | --- | --- |
-| `NEXT_PUBLIC_API_URL` | No, until the app leaves mock data | Public HTTPS origin of `api`, no trailing slash. Inlined at **build** time. Example: `https://${{api.RAILWAY_PUBLIC_DOMAIN}}` |
+| `NEXT_PUBLIC_API_URL` | Yes for live data | Public HTTPS origin of `api`, no trailing slash. Inlined at **build** time. Example: `https://${{api.RAILWAY_PUBLIC_DOMAIN}}` |
+| `NEXT_PUBLIC_PRIVY_APP_ID` | Yes for real sign-in | From [dashboard.privy.io](https://dashboard.privy.io). Blank keeps the local demo sign-in sheet. Add the Railway app domain to Privy's allowed login domains after deploy. |
+| `NEXT_PUBLIC_ISSUER_ADDRESS` | Recommended | Issuer wallet from `contracts/deployments/sepolia.json`. Blank leaves the console in DEMO MODE. |
+| `NEXT_PUBLIC_RPC_URL` | No | Browser Sepolia RPC for the few direct reads. |
+| `NEXT_PUBLIC_MAINNET_RPC_URL` | No | Mainnet RPC for ENS name resolution. |
 
-After you first generate the API's public domain, trigger a **rebuild** of `app` so the new value is baked in.
+After you first generate the API's public domain, trigger a **rebuild** of `app` so the new value is baked in. Changing any `NEXT_PUBLIC_*` later also needs a rebuild.
 
 Node is pinned to 22 via `app/.node-version` and `package.json` `engines` / `packageManager` (`pnpm@10.28.0`).
 
@@ -50,7 +56,7 @@ Node is pinned to 22 via `app/.node-version` and `package.json` `engines` / `pac
 | `LOGS_MAX_RANGE` | No | Default `50000`. |
 | `USDC_ADDRESS`, `PERMIT2_ADDRESS`, `POOL_MANAGER_ADDRESS`, `POSITION_MANAGER_ADDRESS`, `UNIVERSAL_ROUTER_ADDRESS`, `STATE_VIEW_ADDRESS`, `QUOTER_ADDRESS`, `LBP_STRATEGY_ADDRESS`, `MULTICALL3_ADDRESS`, `ENS_UNIVERSAL_RESOLVER_ADDRESS` | No | Overrides; otherwise the deployments file, then Sepolia constants. |
 
-### `mock-exchange` (see `services/mock-exchange/README.md`)
+### `mock-exchange` (optional — see `services/mock-exchange/README.md`)
 
 | Variable | Required | Notes |
 | --- | --- | --- |
@@ -88,9 +94,11 @@ The API never fabricates listing addresses. It re-reads `DEPLOYMENTS_FILES` on e
 ## Order of deployment
 
 1. Create the Railway project and connect this repo.
-2. Create `mock-exchange`, set its root directory and `MOCK_EXCHANGE_SECRET`, generate a domain if CRE needs it, deploy.
-3. Create `api` with root `/`, point it at `services/api/Dockerfile`, set `SEPOLIA_RPC_URL` (archive RPC), deploy. Confirm `GET /health` is 200 (503 means the RPC is down, on the wrong chain, or no deployments file was readable). You can set `CORS_ORIGINS` after `app` has a domain and redeploy `api` (cheap: env-only).
-4. Create `app` with root `/app`, set `NEXT_PUBLIC_API_URL` to the API's public `https://…` origin, deploy.
-5. Set `CORS_ORIGINS` on `api` to the app origin (and rebuild `app` if you added `NEXT_PUBLIC_API_URL` after the first app build).
+2. Create `api` with root `/`, point it at `services/api/Dockerfile`, set `SEPOLIA_RPC_URL` (archive RPC), deploy. Confirm `GET /health` is 200 (503 means the RPC is down, on the wrong chain, or no deployments file was readable). You can set `CORS_ORIGINS` after `app` has a domain and redeploy `api` (cheap: env-only).
+3. Create `app` with root `/app`, set `NEXT_PUBLIC_API_URL` (and Privy / issuer vars), deploy. Add the app domain to Privy's allowed login domains.
+4. Set `CORS_ORIGINS` on `api` to the app origin (and rebuild `app` if you added `NEXT_PUBLIC_API_URL` after the first app build).
+5. **Optional:** create `mock-exchange` only if CRE will not run on your laptop. Set `MOCK_EXCHANGE_SECRET`, generate a domain, point the CRE config at it.
 
-Suggested check: open the app URL (mock screens until the frontend is wired to the API), then `curl https://<api>/health` and `curl https://<mock-exchange>/health`.
+Suggested check: open the app URL, then `curl https://<api>/health`. If you deployed mock-exchange, also `curl https://<mock-exchange>/health`.
+
+For a free Hobby deploy instead of Railway, see [`DEPLOY-VERCEL.md`](./DEPLOY-VERCEL.md).
