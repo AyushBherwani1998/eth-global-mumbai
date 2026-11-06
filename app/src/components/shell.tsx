@@ -11,6 +11,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import { ArrowLeft, Briefcase, ListOrdered, Search, Share2, TrendingUp, type LucideIcon } from "lucide-react";
 import { useApp } from "./providers";
 import { useTheme, type ThemeSetting } from "./theme";
+import { TickerMark } from "@/components/company/logos";
 import { Button, Change, KV, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
 import { blocksToCountdown, changeVs, dateTimeIST, lotFixed, shortAddr, usdc } from "@/lib/format";
 import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, WALLET, dayOpen, getMarket, type Ipo } from "@/lib/mock";
@@ -128,16 +129,28 @@ function Avatar({ size = 36 }: { size?: number }) {
 
 export function AccountControl({ compact }: { compact?: boolean }) {
   const { connected } = useApp();
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [pathWhenOpen, setPathWhenOpen] = useState(pathname);
+  // The control lives in the root nav, so a client navigation does not remount
+  // it. Drop the sheet as soon as the path changes, including the back button.
+  if (open && pathWhenOpen !== pathname) {
+    setOpen(false);
+    setPathWhenOpen(pathname);
+  }
+  const show = () => {
+    setPathWhenOpen(pathname);
+    setOpen(true);
+  };
   return (
     <>
       {connected ? (
-        <button type="button" onClick={() => setOpen(true)} className={cx("flex items-center rounded-[10px] text-text hover:bg-surface-2", compact ? "h-12 gap-2 px-2" : "h-14 min-w-12 flex-col justify-center gap-0.5 px-2")}>
+        <button type="button" onClick={show} className={cx("flex items-center rounded-[10px] text-text hover:bg-surface-2", compact ? "h-12 gap-2 px-2" : "h-14 min-w-12 flex-col justify-center gap-0.5 px-2")}>
           <Avatar size={compact ? 34 : 36} />
           <span className="t-nav-label">Account</span>
         </button>
       ) : (
-        <button type="button" onClick={() => setOpen(true)} className="t-chip inline-flex h-10 items-center rounded-full border border-line px-4 text-text hover:bg-surface-2">
+        <button type="button" onClick={show} className="t-chip inline-flex h-10 items-center rounded-full border border-line px-4 text-text hover:bg-surface-2">
           Sign in
         </button>
       )}
@@ -187,7 +200,7 @@ export function TopNav() {
       <Container className="flex h-full items-center gap-8">
         <Link href="/" className="flex items-center gap-3 text-text">
           <Logo size={34} />
-          <span className="text-[20px] leading-7 font-medium">Listing Day</span>
+          <span className="text-[20px] leading-7 font-medium">Thamba</span>
         </Link>
         <ul className="flex h-full items-stretch gap-6">
           {NAV.map((it) => {
@@ -200,7 +213,7 @@ export function TopNav() {
                   className={cx("relative flex items-center text-[17px] leading-[22px] font-medium", active ? "text-text" : "text-text-2 hover:text-text")}
                 >
                   {it.label}
-                  {active && <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-brand" />}
+                  {active && <span aria-hidden className="absolute inset-x-0 bottom-0 h-0.5 bg-gain" />}
                 </Link>
               </li>
             );
@@ -345,7 +358,11 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
         href={href}
         logo={logo}
         title={ipo.name}
-        sub={ipo.sector}
+        sub={
+          <>
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
+          </>
+        }
         flag={halted ? { text: "Halted", tone: "loss" } : watch ? { text: "Watch", tone: "warn" } : undefined}
         right={lotFixed(last)}
         rightSub={<Change abs={ch.abs} rel={ch.rel} />}
@@ -359,8 +376,13 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
         href={href}
         logo={logo}
         title={ipo.name}
-        sub={`IPO open · closes in ${blocksToCountdown((ipo.endBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}`}
-        right={<span className="text-[16px] leading-[22px] font-semibold text-brand-text">Apply</span>}
+        sub={
+          <>
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · IPO open · closes in{" "}
+            {blocksToCountdown((ipo.endBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}
+          </>
+        }
+        right={<span className="t-change-sm text-gain-text">Apply</span>}
       />
     );
 
@@ -370,7 +392,12 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
         href={href}
         logo={logo}
         title={ipo.name}
-        sub={`IPO opens in ${blocksToCountdown((ipo.startBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}`}
+        sub={
+          <>
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · IPO opens in{" "}
+            {blocksToCountdown((ipo.startBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}
+          </>
+        }
         right={<span className="t-body text-text-2">{`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`}</span>}
       />
     );
@@ -380,10 +407,14 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
       href={href}
       logo={logo}
       title={ipo.name}
-      sub="Not listed · refunds open"
+      sub={
+        <>
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · Not listed · refunds open
+        </>
+      }
       right={
         hasMoneyIn ? (
-          <span className="text-[16px] leading-[22px] font-semibold text-brand-text">Refund</span>
+          <span className="t-change-sm text-gain-text">Refund</span>
         ) : (
           <span className="t-body text-text-2">Closed</span>
         )
@@ -432,6 +463,7 @@ function AccountRow({
   href,
   external,
   onClick,
+  onNavigate,
 }: {
   title: ReactNode;
   sub?: ReactNode;
@@ -440,6 +472,8 @@ function AccountRow({
   /** Opens in a new tab (the test-USDC faucet). */
   external?: boolean;
   onClick?: () => void;
+  /** Close the sheet when an in-app link is followed, including a same-page link. */
+  onNavigate?: () => void;
 }) {
   const body = (
     <>
@@ -464,7 +498,7 @@ function AccountRow({
     );
   if (href)
     return (
-      <Link href={href} className={cls}>
+      <Link href={href} className={cls} onClick={onNavigate}>
         {body}
       </Link>
     );
@@ -515,7 +549,7 @@ function InstallSheet({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <SheetPortal>
       <Sheet open={open} onClose={onClose} title="Add to home screen">
-        <p className="t-body text-text-2">Two steps in Safari, and Listing Day opens like any other app.</p>
+        <p className="t-body text-text-2">Two steps in Safari, and Thamba opens like any other app.</p>
         <ol className="t-body mt-3 list-decimal space-y-2 pl-5 text-text">
           <li>Tap the Share button at the bottom of Safari.</li>
           <li>Scroll down and tap &ldquo;Add to Home Screen&rdquo;, then tap Add.</li>
@@ -564,7 +598,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
           <p className="t-caption mt-3">Signing in uses a crypto wallet on the {app.network.name} test network. Nothing is charged.</p>
           <div className="mt-4 border-t border-line">
             <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
-            <AccountRow title="About Listing Day" href="/about" />
+            <AccountRow title="About Thamba" href="/about" onNavigate={onClose} />
           </div>
         </Sheet>
       </SheetPortal>
@@ -623,7 +657,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             <AccountRow title="Add to home screen" sub="Opens like an app, works offline" onClick={() => (needsSteps ? setInstallOpen(true) : install())} />
           )}
 
-          <AccountRow title="About Listing Day" sub="What this is, the mock disclaimer, credits" href="/about" />
+          <AccountRow title="About Thamba" sub="What this is, the mock disclaimer, credits" href="/about" onNavigate={onClose} />
         </div>
       </Sheet>
       <PrivacySheet open={privacyOpen} onClose={() => setPrivacyOpen(false)} />

@@ -45,7 +45,7 @@ error name on the grey second line.
 | `AppBar` | `title, right?, below?` | Mobile tab-screen header: 34px logo, 20/500 title, Search (icon + label), Account control. Hairline appears after scroll. Hidden at >= 1024 (TopNav takes over). `below` is the slot for a full-width search field if a screen wants one. |
 | `TopNav` | none | Desktop 56px nav: logo + wordmark, Markets · Orders · Portfolio (· Console for issuers), 320px search, Account. Mounted once in `app/layout.tsx`. |
 | `BottomNav` | none | Mobile 64px, 3 items, active = brand icon + label, no pill. Mounted by `(tabs)/layout.tsx`. |
-| `DetailBar` | `fallback="/", right?` | 56px bar with "Back" (history, else `fallback`). Put `<ShareButton>` in `right`. |
+| `DetailBar` | `fallback="/", right?` | 56px bar with "Back" (history, else `fallback`). Company pages leave `right` empty; Share sits with the company name. |
 | `ShareButton` | `title` | Labelled Share control (Web Share API). |
 | `IconButton` | `label, icon, onClick?, href?` | Icon 24 over a 13/500 label, 48x56 target. Never icon-only. |
 | `AccountControl` | `compact?` | "Sign in" outlined pill when signed out; avatar + "Account" when signed in. Opens `AccountSheet`. |
@@ -101,7 +101,7 @@ The wrong-network button lives in `AccountSheet` (`useApp().setWrongNetwork(true
 ## time-chart.tsx (UI.md section 3, UX.md 3.11)
 
 `PriceChart` props: `data [{time, value, halted?}]`, `kind "market"\|"clearing"\|"raised"`,
-`baseline?` (dotted: day open on 1D, range start on 1W/All, issue price on IPO), `reference?`
+`baseline?` (dotted: range start, or the issue price on an IPO), `reference?`
 (`RefPoint[]` → dotted step line + shaded band from `bandBps`; directional draws the half toward the
 reference; halted spans draw no band), `showBand?`, `lines? [{price, label?}]` (floor / cap /
 minimum raise, dotted, right-edge labels), `rejects? number[]` (times, clamped to the nearest point,
@@ -111,8 +111,9 @@ Expand), `onExpand?` (labelled Expand button, mobile only). Line is 3px (2.5 vis
 last >= first of the data passed. Chart is created once per theme / kind / height; data changes go
 through `setData` and the primitive, never a rebuild. Hover never rebuilds.
 
-`RangeChips({ value, onChange, options? })` renders `1D · 1W · All` (40px, 52 min, grey fill when
-selected). `sliceRange(points, range, nowSec)` and `RANGE_SECONDS` slice data for a range.
+`RangeSelect({ value, onChange })` is the chart window: 5m, 10m, 30m, 1hr, 24hr, 1 week,
+1 month, Max. `RangeChips({ value, onChange, options? })` is the short toggle (Price /
+Subscription). `sliceRange(points, range, nowSec)` and `RANGE_SECONDS` slice data for a range.
 `FullscreenChart({ open, onClose, title, chart: (height) => node, footer })` is the Expand view.
 
 `sparkline.tsx`: `Sparkline({ points, width=84, height=32, up?, max=72 })`, 2.5px, coloured by `up`

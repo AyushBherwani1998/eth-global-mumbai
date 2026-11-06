@@ -4,6 +4,7 @@
 // "All stocks" rows and the disclaimer. Listed companies only; IPOs live on
 // the other chip. Every price is USDC per 1,000 shares.
 
+import { TickerMark } from "@/components/company/logos";
 import { Sparkline } from "@/components/sparkline";
 import { Change, Card, CompanyCard, IndexCard, ListRow, SectionTitle, Skeleton, TickerLogo } from "@/components/ui";
 import { ErrorCard, SkeletonCards, SkeletonList } from "@/components/states";
@@ -85,7 +86,7 @@ export function StocksBody() {
     <>
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <IndexCard
-          label="Listing Day SME"
+          label="Thamba SME"
           value={index.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           change={<Change abs={indexChange.abs} rel={indexChange.rel} digits={changeDigits(indexChange.abs)} />}
           spark={<Sparkline points={indexPoints} width={72} height={32} fill up={indexChange.abs >= 0} />}
@@ -110,7 +111,12 @@ export function StocksBody() {
               name={r.ipo.name}
               price={lotFixed(r.last)}
               change={<Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} />}
-              sub={r.flag ? (r.flag.tone === "loss" ? "Trading halted" : "Under watch today") : r.ipo.sector}
+              sub={
+                <>
+                  <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> ·{" "}
+                  {r.flag ? (r.flag.tone === "loss" ? "Trading halted" : "Under watch today") : r.ipo.sector}
+                </>
+              }
             />
           );
         })}
@@ -126,7 +132,11 @@ export function StocksBody() {
               href={hrefFor(r.ipo)}
               logo={<TickerLogo ipo={r.ipo} size={40} />}
               title={r.ipo.name}
-              sub={r.ipo.sector}
+              sub={
+                <>
+                  <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> · {r.ipo.sector}
+                </>
+              }
               flag={r.flag}
               sparkline={<Sparkline points={r.market.prices} width={72} height={28} up={ch.abs >= 0} />}
               right={lotFixed(r.last)}

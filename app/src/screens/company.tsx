@@ -14,8 +14,9 @@ import { CircuitBanner, ruleCopy } from "@/components/circuit-banner";
 import { useApp } from "@/components/providers";
 import { ErrorCard, SkeletonChart } from "@/components/states";
 import { useMockLoad } from "@/components/company/load";
+import { TickerMark, markVar } from "@/components/company/logos";
 import { changeDigits, countdown } from "@/components/company/num";
-import { FullscreenChart, PriceChart, RANGE_WORDS, RangeChips, sliceRange, type ChartLine, type ChartRange, type HoverPoint } from "@/components/time-chart";
+import { FullscreenChart, PriceChart, RANGE_WORDS, RangeChips, RangeSelect, sliceRange, type ChartLine, type ChartRange, type HoverPoint } from "@/components/time-chart";
 import {
   Button,
   Card,
@@ -40,7 +41,6 @@ import {
   OFFER,
   PORTFOLIO,
   bidsFor,
-  dayOpen,
   ensName,
   getClearing,
   type Ipo,
@@ -67,10 +67,16 @@ export function CompanyScreen({ ipo, market }: { ipo: Ipo; market?: Market }) {
 function CompanyHead({ ipo, note, onDetails }: { ipo: Ipo; note?: ReactNode; onDetails: () => void }) {
   return (
     <div className="pt-2">
-      <TickerLogo ipo={ipo} size={40} />
-      <h1 className="mt-3 text-[20px] leading-7 text-text">{ipo.name}</h1>
+      <div className="flex items-center justify-between gap-3">
+        <TickerLogo ipo={ipo} size={40} />
+        <ShareButton title={ipo.name} />
+      </div>
+      <div className="mt-3 flex items-start justify-between gap-3">
+        <h1 className="text-[20px] leading-7 text-text">{ipo.name}</h1>
+        <span className="t-caption mt-0.5 shrink-0 rounded-[10px] border border-line px-2.5 py-1 font-medium text-text-2">{ipo.sector}</span>
+      </div>
       <p className="t-label mt-1 flex flex-wrap items-center gap-x-2">
-        <span>{ipo.sector}</span>
+        <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} />
         <span aria-hidden>·</span>
         <button type="button" onClick={onDetails} className="t-label inline-flex items-center gap-1 text-gain-text">
           <BadgeCheck className="size-4" aria-hidden /> Verified
@@ -155,7 +161,7 @@ type ListedTab = "overview" | "trades" | "rejected" | "details";
 function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
   const { connected } = useApp();
   const { loading, error, retry, retrying } = useMockLoad();
-  const [range, setRange] = useState<ChartRange>("1D");
+  const [range, setRange] = useState<ChartRange>("24H");
   const [tab, setTab] = useState<ListedTab>("overview");
   const [hover, setHover] = useState<HoverPoint>(null);
   const [sheet, setSheet] = useState<TradeSide | null>(null);
@@ -170,14 +176,14 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
   const rule = ruleCopy(policy);
 
   const data = useMemo(() => sliceRange(market.prices, range, NOW_SEC), [market.prices, range]);
-  const base = range === "1D" ? (dayOpen(ipo.ticker) ?? data[0].value) : data[0].value;
+  const base = data[0].value;
   const change = changeVs(shown, base);
   const rejected = useMemo(() => [...extraRejected, ...market.rejected], [extraRejected, market.rejected]);
   const rejectTimes = useMemo(() => rejected.map((r) => new Date(r.time).getTime() / 1000), [rejected]);
   const holding = PORTFOLIO.holdings.find((h) => h.ticker === ipo.ticker);
   const owned = (holding?.shares ?? 0) + (holding?.unclaimedShares ?? 0);
 
-  const daySeries = useMemo(() => sliceRange(market.prices, "1D", NOW_SEC), [market.prices]);
+  const daySeries = useMemo(() => sliceRange(market.prices, "24H", NOW_SEC), [market.prices]);
   const dayLow = Math.min(...daySeries.map((d) => d.value));
   const dayHigh = Math.max(...daySeries.map((d) => d.value));
 
@@ -203,7 +209,7 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
 
   return (
     <>
-      <DetailBar right={<ShareButton title={ipo.name} />} />
+      <DetailBar />
       <TwoColumn
         panel={
           <OrderPanel
@@ -246,7 +252,7 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
               <div className="mt-4">{chart(280)}</div>
 
               <div className="dotted-line mt-2 pt-3">
-                <RangeChips value={range} onChange={setRange} />
+                <RangeSelect value={range} onChange={setRange} />
               </div>
 
               <div className="mt-4">
@@ -388,7 +394,7 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
         onClose={() => setExpanded(false)}
         title={`${ipo.name} · ${lotFixed(shown)}`}
         chart={(h) => chart(h, true)}
-        footer={<RangeChips value={range} onChange={setRange} />}
+        footer={<RangeSelect value={range} onChange={setRange} />}
       />
     </>
   );
@@ -491,7 +497,7 @@ function IpoCompany({ ipo }: { ipo: Ipo }) {
 
   return (
     <>
-      <DetailBar right={<ShareButton title={ipo.name} />} />
+      <DetailBar />
       <TwoColumn panel={open ? applyPanel : <PhasePanel ipo={ipo} price={price} seconds={seconds} applied={applied} />}>
         <main>
           <CompanyHead ipo={ipo} note={note} onDetails={() => setTab("details")} />
@@ -517,7 +523,11 @@ function IpoCompany({ ipo }: { ipo: Ipo }) {
                   <Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} size="lg" />
                   <span className="t-body text-text-2">{hover ? dateTimeIST(hover.time) : "vs issue price"}</span>
                 </p>
-                {open && <p className="t-body mt-1 text-text">Closes in {countdown(seconds)}</p>}
+                {open && (
+                  <p className="t-body mt-1 text-text">
+                    Closes in <span className={seconds < 3600 ? "text-warn" : undefined}>{countdown(seconds)}</span>
+                  </p>
+                )}
                 <UnitLine />
               </PriceBlock>
 
@@ -553,7 +563,11 @@ function IpoCompany({ ipo }: { ipo: Ipo }) {
                 </p>
                 <ProgressBar className="mt-3" value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
                 <p className="t-caption mt-2">
-                  Subscribed {(raised / OFFER.targetRaise).toFixed(2)} times · {ipo.applicants} people ·{" "}
+                  Subscribed{" "}
+                  <span className="font-medium" style={{ color: markVar(ipo.ticker) }}>
+                    {(raised / OFFER.targetRaise).toFixed(2)}
+                  </span>{" "}
+                  times · {ipo.applicants} people ·{" "}
                   {raised >= OFFER.requiredRaise ? "past the minimum to list" : `lists if it reaches ${usdc(OFFER.requiredRaise, 0)} USDC`}
                 </p>
                 {ipo.phase === "refunding" && (
@@ -748,7 +762,9 @@ function ApplyPanel({
     <Card className="p-5">
       <p className="t-label">Current price</p>
       <p className="num t-price-large text-text">{lotFixed(price)}</p>
-      <p className="t-caption">USDC per 1,000 shares · closes in {countdown(seconds)}</p>
+      <p className="t-caption">
+        USDC per 1,000 shares · closes in <span className={seconds < 3600 ? "text-warn" : undefined}>{countdown(seconds)}</span>
+      </p>
       {body}
       <div className="mt-5">{footer}</div>
     </Card>

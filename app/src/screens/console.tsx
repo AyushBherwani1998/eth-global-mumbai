@@ -14,6 +14,7 @@ import { ConsoleShell, ConsoleSignIn, RunnerStatus } from "@/components/console/
 import { useIssuerSession } from "@/components/console/session";
 import { CircuitBanner } from "@/components/circuit-banner";
 import { PriceChart } from "@/components/time-chart";
+import { TickerMark } from "@/components/company/logos";
 import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
 import { blockNo, dateTimeIST, lotFixed, shares, shortAddr, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
 import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo, type Mode, type Policy } from "@/lib/mock";
@@ -33,7 +34,7 @@ const STEPS: { id: StepId; title: string; sub: string }[] = [
   {
     id: "ticker",
     title: "Register the name",
-    sub: "Your company name on Listing Day, and what it points to.",
+    sub: "Your company name on Thamba, and what it points to.",
   },
   {
     id: "policy",
@@ -131,7 +132,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
           <div className="min-w-0 flex-1">
             <h1 className="t-page-title text-text">{ipo.name}</h1>
             <p className="t-label truncate">
-              {ensName(ipo.ticker)} · {statusLabel(ipo)}
+              <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ensName(ipo.ticker)} · {statusLabel(ipo)}
             </p>
           </div>
           <RunnerStatus className="shrink-0 pt-1" />
@@ -309,7 +310,14 @@ function CreateStep({ ipo }: { ipo: Ipo }) {
   return (
     <Card className="p-4">
       <div className="divide-y divide-line">
-        <KV k="Company" v={`${ipo.name} (${ipo.symbol})`} />
+        <KV
+          k="Company"
+          v={
+            <>
+              {ipo.name} (<TickerMark ticker={ipo.ticker} symbol={ipo.symbol} />)
+            </>
+          }
+        />
         <KV k="Shares in total" v={shares(OFFER.totalSupply)} />
         <KV k="Shares offered in the IPO" v={shares(OFFER.auctioned)} sub={`${shares(OFFER.lpReserve)} kept for the market`} />
         <KV k="Issue price" v={`${lotFixed(OFFER.issuePrice)} per 1,000 shares`} />

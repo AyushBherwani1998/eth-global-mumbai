@@ -7,6 +7,7 @@
 import { useState, type ReactNode } from "react";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/providers";
+import { TickerMark } from "@/components/company/logos";
 import { AmountField, Button, Details, KV, Sheet, Slider, Stepper, TextLink, TickerLogo, cx } from "@/components/ui";
 import { lotFixed, perShare, secondsToDuration, shares, usdc } from "@/lib/format";
 import { COMMITTED, FAUCET_URL, OFFER, WALLET, type Ipo } from "@/lib/mock";
@@ -253,7 +254,9 @@ export function ApplySheet({
     <Sheet open={open} onClose={onClose} title={`Apply for ${ipo.name}`} footer={footer}>
       <div className="flex items-center gap-3 pb-1">
         <TickerLogo ipo={ipo} size={36} />
-        <span className="t-label">{ipo.sector}</span>
+        <span className="t-label">
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
+        </span>
       </div>
       {body}
     </Sheet>

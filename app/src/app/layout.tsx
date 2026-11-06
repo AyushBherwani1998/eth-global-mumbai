@@ -9,10 +9,10 @@ import "./globals.css";
 const roboto = Roboto({ subsets: ["latin"], weight: ["400", "500", "700"], variable: "--font-roboto", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Listing Day", template: "%s · Listing Day" },
+  title: { default: "Thamba", template: "%s · Thamba" },
   description: "Buy and sell shares of listed Indian SMEs, and apply to new IPOs.",
-  applicationName: "Listing Day",
-  appleWebApp: { capable: true, title: "Listing Day", statusBarStyle: "default" },
+  applicationName: "Thamba",
+  appleWebApp: { capable: true, title: "Thamba", statusBarStyle: "default" },
   formatDetection: { telephone: false },
 };
 

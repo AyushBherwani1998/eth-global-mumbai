@@ -16,16 +16,21 @@ export async function generateMetadata({ params }: PageProps<"/stock/[ticker]">)
 
 /**
  * One company page for every phase (UX.md 3.3 / 3.4). The content changes with
- * the lifecycle phase; the URL does not.
+ * the lifecycle phase; the URL does not. The ticker is read inside Suspense so
+ * the shell can be shared across company links.
  */
-export default async function StockPage({ params }: PageProps<"/stock/[ticker]">) {
+export default function StockPage({ params }: PageProps<"/stock/[ticker]">) {
+  return (
+    <Suspense fallback={<SkeletonChart className="pt-20" />}>
+      <StockBody params={params} />
+    </Suspense>
+  );
+}
+
+async function StockBody({ params }: { params: PageProps<"/stock/[ticker]">["params"] }) {
   const { ticker } = await params;
   const ipo = getIpo(ticker);
   if (!ipo) notFound();
   const market = ipo.phase === "listed" ? getMarket(ticker) : undefined;
-  return (
-    <Suspense fallback={<SkeletonChart className="pt-20" />}>
-      <CompanyScreen ipo={ipo} market={market} />
-    </Suspense>
-  );
+  return <CompanyScreen ipo={ipo} market={market} />;
 }

@@ -31,7 +31,7 @@ import {
   type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
-import { Maximize2 } from "lucide-react";
+import { ChevronDown, Maximize2 } from "lucide-react";
 import { useOnThemeChange } from "./theme";
 import { Chip, cx } from "./ui";
 import { dateIST, dateTimeIST, timeIST } from "@/lib/format";
@@ -45,7 +45,7 @@ export type ChartPoint = { time: number; value: number; halted?: boolean };
 export type ChartRef = { time: number; value: number; mode: Mode; bandBps: number };
 export type ChartLine = { price: number; label?: string };
 export type HoverPoint = { time: number; value: number } | null;
-export type ChartRange = "5m" | "15m" | "30m" | "1H" | "1D" | "1W" | "ALL";
+export type ChartRange = "5m" | "10m" | "30m" | "1H" | "24H" | "1W" | "1M" | "ALL";
 
 /** Stable empty defaults: a fresh array each render would re-run the data effect. */
 const NO_LINES: ChartLine[] = [];
@@ -53,31 +53,34 @@ const NO_REJECTS: number[] = [];
 
 export const RANGE_SECONDS: Record<ChartRange, number> = {
   "5m": 300,
-  "15m": 900,
+  "10m": 600,
   "30m": 1800,
   "1H": 3600,
-  "1D": 86400,
+  "24H": 86400,
   "1W": 7 * 86400,
+  "1M": 30 * 86400,
   ALL: Infinity,
 };
 export const RANGE_LABELS: Record<ChartRange, string> = {
   "5m": "5m",
-  "15m": "15m",
+  "10m": "10m",
   "30m": "30m",
-  "1H": "1H",
-  "1D": "1D",
-  "1W": "1W",
-  ALL: "All",
+  "1H": "1hr",
+  "24H": "24hr",
+  "1W": "1 week",
+  "1M": "1 month",
+  ALL: "Max",
 };
-export const RANGES: ChartRange[] = ["5m", "15m", "30m", "1H", "1D", "1W", "ALL"];
-/** Plain words for the header, next to the change ("Today", "Last 15 minutes"). */
+export const RANGES: ChartRange[] = ["5m", "10m", "30m", "1H", "24H", "1W", "1M", "ALL"];
+/** Plain words for the header, next to the change. */
 export const RANGE_WORDS: Record<ChartRange, string> = {
   "5m": "Last 5 minutes",
-  "15m": "Last 15 minutes",
+  "10m": "Last 10 minutes",
   "30m": "Last 30 minutes",
   "1H": "Last hour",
-  "1D": "Today",
-  "1W": "This week",
+  "24H": "Last 24 hours",
+  "1W": "Last 7 days",
+  "1M": "Last 30 days",
   ALL: "Since listing",
 };
 
@@ -332,7 +335,7 @@ export function PriceChart({
   data: ChartPoint[];
   /** market: plain line. clearing: step line. raised: line with a soft area fill. */
   kind?: "market" | "clearing" | "raised";
-  /** Dotted baseline: day open (1D), range start (1W, All) or issue price (IPO). */
+  /** Dotted baseline: the start of the visible range, or the issue price on an IPO. */
   baseline?: number;
   /** Reference price over time with its band; draws the dotted step line and the shaded band. */
   reference?: ChartRef[];
@@ -842,9 +845,39 @@ export function PriceChart({
 }
 
 // ---------------------------------------------------------------------------
-// Range chips: 1D · 1W · All (UX.md 3.11). Selected = grey fill, dark border.
+// Chart window: native menu, 48px, plain labels. Chips stay for short toggles
+// such as Price / Subscription, which are not a time range.
 // ---------------------------------------------------------------------------
 
+export function RangeSelect({
+  value,
+  onChange,
+  className,
+}: {
+  value: ChartRange;
+  onChange: (range: ChartRange) => void;
+  className?: string;
+}) {
+  return (
+    <label className={cx("field relative inline-flex h-12 items-center rounded-[10px] bg-bg", className)}>
+      <select
+        value={value}
+        aria-label="Chart range"
+        onChange={(e) => onChange(e.target.value as ChartRange)}
+        className="t-body h-full cursor-pointer appearance-none bg-transparent pr-10 pl-3 text-text"
+      >
+        {RANGES.map((id) => (
+          <option key={id} value={id}>
+            {RANGE_LABELS[id]}
+          </option>
+        ))}
+      </select>
+      <ChevronDown className="pointer-events-none absolute right-3 size-5 text-text-2" aria-hidden />
+    </label>
+  );
+}
+
+/** Short toggle row. Pass `options`; the chart window uses `RangeSelect`. */
 export function RangeChips<T extends string = ChartRange>({
   value,
   onChange,
@@ -853,7 +886,7 @@ export function RangeChips<T extends string = ChartRange>({
 }: {
   value: T;
   onChange: (r: T) => void;
-  /** Defaults to every window: 5m through All. */
+  /** Required for anything other than the chart windows. */
   options?: { id: T; label: string }[];
   className?: string;
 }) {
@@ -871,7 +904,7 @@ export function RangeChips<T extends string = ChartRange>({
 
 // ---------------------------------------------------------------------------
 // Fullscreen chart (UI.md 3.7): fixed view, bar with Back + name + readout,
-// chart fills the height with the time axis on, range chips at the bottom.
+// chart fills the height with the time axis on, range menu at the bottom.
 // ---------------------------------------------------------------------------
 
 export function FullscreenChart({
@@ -886,7 +919,7 @@ export function FullscreenChart({
   title: string;
   /** Render prop so the caller keeps control of chart props; receives the available height. */
   chart: (height: number) => ReactNode;
-  /** Range chips row. */
+  /** Range menu, or another control under the chart. */
   footer?: ReactNode;
 }) {
   const [h, setH] = useState(300);

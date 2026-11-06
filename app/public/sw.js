@@ -1,7 +1,7 @@
 // Minimal service worker: makes the app installable and keeps the shell
 // usable on a flaky connection. Chain data is never cached here; reads go
 // through Anon-RPC and must be live.
-const CACHE = "listing-day-shell-v3";
+const CACHE = "thamba-shell-v3";
 const SHELL = ["/", "/orders", "/portfolio", "/about", "/offline"];
 
 self.addEventListener("install", (e) => {

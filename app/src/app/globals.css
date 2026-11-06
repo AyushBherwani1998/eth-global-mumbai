@@ -28,6 +28,15 @@
   --brand: #5367ff;
   --brand-text: #4556e6;
   --warn: #a66200;
+  /* company marks as text: the tile colour where it clears 4.5:1, otherwise darkened */
+  --mark-acme: #1c4e89;
+  --mark-kesar: #b06028;
+  --mark-tara: #7a3e5c;
+  --mark-masala: #a15c1a;
+  --mark-nirmaan: #3e4c6b;
+  --mark-vayu: #1f6a6a;
+  --mark-lotus: #8e3d55;
+  --mark-prakriti: #3e6b4f;
   /* chips */
   --chip-on-bg: #ebebeb;
   --chip-on-line: #222222;
@@ -60,6 +69,15 @@
     --brand: #7b8bff;
     --brand-text: #7b8bff;
     --warn: #f5a623;
+    /* same marks, lightened so they clear 4.5:1 on both dark grounds */
+    --mark-acme: #6b8cb2;
+    --mark-kesar: #c46b2c;
+    --mark-tara: #a2788d;
+    --mark-masala: #b47d48;
+    --mark-nirmaan: #788297;
+    --mark-vayu: #578f8f;
+    --mark-lotus: #b07788;
+    --mark-prakriti: #6e907b;
     --chip-on-bg: #2a2a2a;
     --chip-on-line: #e6e6e6;
     --gain-fill: rgb(15 203 154 / 0.12);
@@ -90,6 +108,14 @@
   --brand: #7b8bff;
   --brand-text: #7b8bff;
   --warn: #f5a623;
+  --mark-acme: #6b8cb2;
+  --mark-kesar: #c46b2c;
+  --mark-tara: #a2788d;
+  --mark-masala: #b47d48;
+  --mark-nirmaan: #788297;
+  --mark-vayu: #578f8f;
+  --mark-lotus: #b07788;
+  --mark-prakriti: #6e907b;
   --chip-on-bg: #2a2a2a;
   --chip-on-line: #e6e6e6;
   --gain-fill: rgb(15 203 154 / 0.12);

@@ -246,10 +246,17 @@ export function UnderlineTabs<T extends string>({
       const el = refs.current.get(value);
       const list = listRef.current;
       if (!el || !list) return;
-      setBar({ left: el.offsetLeft - list.offsetLeft, width: el.offsetWidth });
+      // offsetLeft is already relative to this list (it is position: relative),
+      // while list.offsetLeft is the list's place in a higher ancestor. Subtracting
+      // the two shifts the bar by the centred container's offset.
+      const listRect = list.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      setBar({ left: elRect.left - listRect.left, width: elRect.width });
     };
     measure();
     const ro = new ResizeObserver(measure);
+    const el = refs.current.get(value);
+    if (el) ro.observe(el);
     if (listRef.current) ro.observe(listRef.current);
     return () => ro.disconnect();
   }, [value, tabs.length]);
@@ -796,8 +803,23 @@ export function Pill({ children }: { tone?: string; dot?: boolean; children: Rea
 
 export type RuleKind = "listing" | "surveillance" | "one-way" | "halted";
 
-export function RuleStrip({ kind, text, onDetails, className }: { kind: RuleKind; text: string; onDetails?: () => void; className?: string }) {
-  const square = kind === "halted" ? "bg-loss" : kind === "listing" ? "bg-text-2" : "bg-warn";
+export function RuleStrip({
+  kind,
+  text,
+  label,
+  onDetails,
+  className,
+}: {
+  kind: RuleKind;
+  text: string;
+  /** Leading word, in the mode colour. The rest of the sentence stays black. */
+  label?: string;
+  onDetails?: () => void;
+  className?: string;
+}) {
+  const square = kind === "halted" ? "bg-loss" : kind === "listing" ? "bg-brand" : "bg-warn";
+  const word = kind === "halted" ? "text-loss-text" : kind === "listing" ? "text-brand-text" : "text-warn";
+  const rest = label && text.startsWith(label) ? text.slice(label.length).replace(/^[.\s]+/, "") : text;
   const Tag = onDetails ? "button" : "div";
   return (
     <Tag
@@ -806,7 +828,11 @@ export function RuleStrip({ kind, text, onDetails, className }: { kind: RuleKind
       className={cx("-mx-5 flex min-h-12 w-[calc(100%+40px)] items-center gap-3 bg-surface-2 px-5 py-2 text-left", className)}
     >
       <span aria-hidden className={cx("size-2 shrink-0", square)} />
-      <span className="t-body flex-1 text-text">{text}</span>
+      <span className="t-body min-w-0 flex-1 text-text">
+        {label && <span className={cx("font-medium", word)}>{label}</span>}
+        {label && rest ? ". " : null}
+        {rest}
+      </span>
       {onDetails && <span className="t-nav-label shrink-0 text-text-2">Details</span>}
     </Tag>
   );

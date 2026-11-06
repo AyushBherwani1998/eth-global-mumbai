@@ -8,6 +8,7 @@
 import { useMemo, useState, type ReactNode } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { useApp } from "@/components/providers";
+import { TickerMark } from "@/components/company/logos";
 import { AmountField, Button, Details, KV, Segmented, Sheet, Stepper, TextLink, TickerLogo, cx } from "@/components/ui";
 import { lotFixed, shares, timeIST, usdc } from "@/lib/format";
 import { PORTFOLIO, type Ipo, type Market, type Rejected } from "@/lib/mock";
@@ -244,7 +245,9 @@ export function TradeSheet({
     <Sheet open={open} onClose={onClose} title={`${side === "buy" ? "Buy" : "Sell"} ${ipo.name}`} footer={footer}>
       <div className="flex items-center gap-3 pb-1">
         <TickerLogo ipo={ipo} size={36} />
-        <span className="t-label">{ipo.sector}</span>
+        <span className="t-label">
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
+        </span>
       </div>
       {body}
     </Sheet>

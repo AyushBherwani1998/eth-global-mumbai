@@ -2,8 +2,8 @@ import type { MetadataRoute } from "next";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "Listing Day",
-    short_name: "Listing Day",
+    name: "Thamba",
+    short_name: "Thamba",
     description: "Buy and sell shares of listed Indian SMEs, and apply to new IPOs.",
     start_url: "/",
     scope: "/",

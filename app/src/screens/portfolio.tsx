@@ -10,7 +10,7 @@ import { useState } from "react";
 import { AppBar } from "@/components/shell";
 import { useApp } from "@/components/providers";
 import { OfflineStrip } from "@/components/states";
-import { CompanyLogo, logoColor } from "@/components/company/logos";
+import { CompanyLogo, TickerMark, logoColor, markVar } from "@/components/company/logos";
 import { Sparkline } from "@/components/sparkline";
 import {
   Button,
@@ -59,7 +59,9 @@ function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
           <li key={r.ipo.ticker} className="flex h-12 items-center gap-3">
             <CompanyLogo ticker={r.ipo.ticker} size={20} />
             <span className="t-body min-w-0 flex-1 truncate text-text">{r.ipo.name}</span>
-            <span className="num t-body text-text">{Math.round((r.value / base) * 100)}%</span>
+            <span className="num t-body font-medium" style={{ color: markVar(r.ipo.ticker) }}>
+              {Math.round((r.value / base) * 100)}%
+            </span>
           </li>
         ))}
       </ul>
@@ -142,7 +144,7 @@ export function PortfolioScreen() {
           <span className="min-w-0">
             <span className="block truncate text-text">{r.ipo.name}</span>
             <span className="num t-label block">
-              {shares(r.qty)} shares · bought at {lotFixed(r.avgCost)}
+              <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> · {shares(r.qty)} shares · bought at {lotFixed(r.avgCost)}
             </span>
           </span>
         </span>
@@ -228,7 +230,11 @@ export function PortfolioScreen() {
                   href={`/stock/${r.ipo.ticker}`}
                   logo={<TickerLogo ipo={r.ipo} size={40} />}
                   title={r.ipo.name}
-                  sub={`${shares(r.qty)} shares · bought at ${lotFixed(r.avgCost)}`}
+                  sub={
+                    <>
+                      <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> · {shares(r.qty)} shares · bought at {lotFixed(r.avgCost)}
+                    </>
+                  }
                   sparkline={<Sparkline points={getMarket(r.ipo.ticker)?.prices ?? []} width={56} height={26} up={r.today.abs >= 0} />}
                   right={usdc(r.value)}
                   rightSub={<Change abs={r.today.abs} rel={r.today.rel} />}
@@ -271,6 +277,7 @@ export function PortfolioScreen() {
                     <Card key={lp.id} className="p-4">
                       <p className="t-list-title text-text">{ipo.name}</p>
                       <p className="num t-label mt-0.5">
+                        <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> ·{" "}
                         {gone ? "Nothing left in the market" : `${usdc(lp.liquidityUsdc)} USDC + ${shares(lp.liquidityShares)} shares`} · earned{" "}
                         {usdc(lp.feesUsdc)}
                       </p>

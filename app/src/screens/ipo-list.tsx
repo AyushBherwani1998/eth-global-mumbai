@@ -10,6 +10,7 @@ import { ListOrdered, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/providers";
 import { ErrorCard } from "@/components/states";
 import { useMockLoad } from "@/components/company/load";
+import { TickerMark, markVar } from "@/components/company/logos";
 import { changeDigits, countdown } from "@/components/company/num";
 import { Button, Card, Change, EmptyState, ProgressBar, PromoCard, Segmented, Skeleton, TickerLogo } from "@/components/ui";
 import { useBlockCountdown } from "@/lib/hooks";
@@ -111,7 +112,9 @@ function Head({ ipo }: { ipo: Ipo }) {
       <TickerLogo ipo={ipo} size={40} />
       <span className="min-w-0 flex-1">
         <span className="t-card-title block truncate text-text">{ipo.name}</span>
-        <span className="t-label block truncate">{ipo.sector}</span>
+        <span className="t-label block truncate">
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
+        </span>
       </span>
     </Link>
   );
@@ -148,12 +151,15 @@ function OpenCard({ ipo, applied }: { ipo: Ipo; applied: number }) {
         </span>
         <span className="text-right">
           <span className="t-label block">Closes in</span>
-          <span className="num t-section-title block text-text">{countdown(seconds)}</span>
+          <span className={`num t-section-title block ${seconds < 3600 ? "text-warn" : "text-text"}`}>{countdown(seconds)}</span>
         </span>
       </div>
       <ProgressBar className="mt-3" value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
       <p className="t-caption mt-2">
-        {subscribed.toFixed(1)}x subscribed · lists if it reaches {usdc(OFFER.requiredRaise, 0)} USDC
+        <span className="font-medium" style={{ color: markVar(ipo.ticker) }}>
+          {subscribed.toFixed(1)}x
+        </span>{" "}
+        subscribed · lists if it reaches {usdc(OFFER.requiredRaise, 0)} USDC
       </p>
       {applied > 0 && <p className="t-body mt-3 text-text">You applied {usdc(applied)} USDC</p>}
       {applied > 0 ? (

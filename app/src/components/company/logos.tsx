@@ -28,6 +28,19 @@ export function logoColor(ticker: string): string {
   return LOGO_COLOR[ticker] ?? "#3E4C6B";
 }
 
+/** Text-safe pair of the tile colour. Follows the theme; unknown tickers fall back to grey. */
+export function markVar(ticker: string): string {
+  return `var(--mark-${ticker}, var(--text-2))`;
+}
+
+export function TickerMark({ ticker, symbol, className }: { ticker: string; symbol: string; className?: string }) {
+  return (
+    <span className={className ? `font-medium ${className}` : "font-medium"} style={{ color: markVar(ticker) }}>
+      {symbol}
+    </span>
+  );
+}
+
 export function CompanyLogo({ ticker, size = 40, className }: { ticker: string; size?: number; className?: string }) {
   const color = logoColor(ticker);
   const d = GLYPH[ticker];

@@ -11,6 +11,7 @@ import { useMemo, useState } from "react";
 import { AppBar } from "@/components/shell";
 import { useApp } from "@/components/providers";
 import { OfflineStrip } from "@/components/states";
+import { TickerMark } from "@/components/company/logos";
 import { Button, Card, EmptyState, SectionTitle, Table, TextLink, TickerLogo, UnderlineTabs, cx, type Column } from "@/components/ui";
 import { blocksToCountdown, dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
 import { BIDS, CURRENT_BLOCK, IPOS, getIpo, getMarket, type Bid, type BidState, type Ipo, type Policy } from "@/lib/mock";
@@ -382,7 +383,9 @@ function ApplicationGroup({
         <TickerLogo ipo={ipo} size={40} />
         <span className="min-w-0 flex-1">
           <span className="t-list-title block truncate text-text">{ipo.name}</span>
-          <span className="num t-label block truncate">{groupSub(ipo)}</span>
+          <span className="num t-label block truncate">
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {groupSub(ipo)}
+          </span>
         </span>
       </Link>
       <Card className="p-4">
@@ -459,7 +462,9 @@ function ApplicationTable({
           <TickerLogo ipo={r.ipo} size={28} />
           <span className="min-w-0">
             <span className="block truncate text-text">{r.ipo.name}</span>
-            <span className="num t-label block truncate">{groupSub(r.ipo)}</span>
+            <span className="num t-label block truncate">
+              <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> · {groupSub(r.ipo)}
+            </span>
           </span>
         </span>
       ),
@@ -509,7 +514,9 @@ function TradeRow({ row }: { row: OrderRow }) {
       <TickerLogo ipo={row.ipo} size={40} />
       <span className="min-w-0 flex-1">
         <span className="t-list-title block truncate text-text">{row.ipo.name}</span>
-        <span className="num t-label block">{row.title}</span>
+        <span className="num t-label block">
+          <TickerMark ticker={row.ipo.ticker} symbol={row.ipo.symbol} /> · {row.title}
+        </span>
         {row.reason && <span className="t-label block text-text-2">{row.reason}</span>}
         <span className="t-caption block">{dateTimeIST(row.at / 1000)}</span>
       </span>
@@ -529,7 +536,12 @@ function TradeTable({ rows }: { rows: OrderRow[] }) {
       render: (r) => (
         <span className="flex items-center gap-3">
           <TickerLogo ipo={r.ipo} size={28} />
-          <span className="truncate text-text">{r.ipo.name}</span>
+          <span className="min-w-0">
+            <span className="block truncate text-text">{r.ipo.name}</span>
+            <span className="t-label block">
+              <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} />
+            </span>
+          </span>
         </span>
       ),
     },

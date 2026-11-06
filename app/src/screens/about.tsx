@@ -16,12 +16,12 @@ export function AboutScreen() {
     <>
       <DetailBar fallback="/" />
       <main className="max-w-[720px] pb-6">
-        <h1 className="t-page-title mt-2">About Listing Day</h1>
+        <h1 className="t-page-title mt-2">About Thamba</h1>
 
         <section className="mt-4">
           <h2 className="t-section-title">What this is</h2>
           <p className="t-body mt-1 text-text-2">
-            Listing Day is a place to buy and sell shares in small Indian companies, and to apply for their IPOs. An IPO runs as an open sale: you say
+            Thamba is a place to buy and sell shares in small Indian companies, and to apply for their IPOs. An IPO runs as an open sale: you say
             how much you want to put in and, if you like, the most you are willing to pay. Everyone who gets shares pays the same final price. If the
             IPO does not raise enough, every application is refunded.
           </p>

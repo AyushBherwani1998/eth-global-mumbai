@@ -63,7 +63,7 @@ export function CircuitBanner({ ticker, policy, className }: { ticker: string; p
   const { lo, hi } = band(policy.referencePrice, policy.bandBps);
   return (
     <>
-      <RuleStrip kind={copy.kind} text={copy.text} onDetails={() => setOpen(true)} className={className} />
+      <RuleStrip kind={copy.kind} label={copy.label} text={copy.text} onDetails={() => setOpen(true)} className={className} />
       <Sheet open={open} onClose={() => setOpen(false)} title="Trading rule">
         <p className="t-list-title text-text">{copy.label}</p>
         <p className="t-body mt-1 text-text">{copy.text}</p>

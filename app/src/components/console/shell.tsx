@@ -39,7 +39,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-line bg-bg">
         <ConsoleContainer className="flex h-14 items-center gap-3">
           <Logo size={28} />
-          <span className="t-list-title text-text">Listing Day</span>
+          <span className="t-list-title text-text">Thamba</span>
           <span className="t-label hidden sm:block">Issuer console</span>
           <div className="ml-auto flex items-center gap-4">
             <RunnerStatus className="hidden sm:block" />
@@ -94,12 +94,12 @@ export function ConsoleSignIn() {
       <div className="mx-auto w-full max-w-[440px]">
         <div className="flex items-center gap-3">
           <Logo size={28} />
-          <span className="t-list-title text-text">Listing Day</span>
+          <span className="t-list-title text-text">Thamba</span>
           <span className="t-label">Issuer console</span>
         </div>
         <h1 className="t-page-title mt-8">Issuer sign in</h1>
         <p className="t-body mt-2 text-text-2">
-          This console is for companies listing their shares. If you are here to buy or sell shares, use the Listing Day app instead.
+          This console is for companies listing their shares. If you are here to buy or sell shares, use the Thamba app instead.
         </p>
         <Button className="mt-6 min-w-[200px]" onClick={signIn}>
           Sign in
