@@ -13,7 +13,7 @@ abstract contract SepoliaForkTest is Test {
         "SEPOLIA_RPC_URL not set: skipping Sepolia fork test (set it or run forge test --fork-url $SEPOLIA_RPC_URL)";
 
     function setUp() public virtual {
-        if (block.chainid != Sepolia.CHAIN_ID) {
+        if (vm.getChainId() != Sepolia.CHAIN_ID) {
             string memory rpcUrl = vm.envOr("SEPOLIA_RPC_URL", string(""));
             if (bytes(rpcUrl).length == 0) {
                 vm.skip(true, SKIP_REASON);
@@ -23,7 +23,7 @@ abstract contract SepoliaForkTest is Test {
             if (forkBlock == 0) vm.createSelectFork(rpcUrl);
             else vm.createSelectFork(rpcUrl, forkBlock);
         }
-        assertEq(block.chainid, Sepolia.CHAIN_ID, "fork is not Sepolia");
+        assertEq(vm.getChainId(), Sepolia.CHAIN_ID, "fork is not Sepolia");
         setUpFork();
     }
 
