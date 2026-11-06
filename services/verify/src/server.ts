@@ -61,7 +61,11 @@ export function createVerifyServer(options: VerifyServerOptions): Server {
       });
       prune(pending, now());
       if (pending.size >= MAX_PENDING_REQUESTS) throw new HttpError(503, "busy", "too many open verification requests");
-      pending.set(rp.nonce.toLowerCase(), { ticker: listing.ticker, wallet, expiresAt: rp.expiresAt });
+      pending.set(rp.nonce.toLowerCase(), {
+        ticker: listing.ticker,
+        wallet,
+        expiresAt: now() + config.world.rpRequestTtlSeconds,
+      });
       return {
         app_id: config.world.appId,
         action: listing.action,
