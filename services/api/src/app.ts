@@ -1,3 +1,5 @@
+import { basename } from "node:path";
+
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { BaseError } from "viem";
@@ -96,9 +98,10 @@ export function createApp(ctx: Ctx): Hono {
   app.notFound((c) => json(c, errorBody("NOT_FOUND", `no route ${c.req.method} ${c.req.path}`), 404));
 
   app.get("/health", async (c) => {
-    const deployments = readDeployments(ctx.config).map((d) =>
-      d.error === undefined ? { file: d.file, ticker: d.ticker, ok: true } : { file: d.file, ticker: d.ticker, ok: false, error: d.error },
-    );
+    const deployments = readDeployments(ctx.config).map((d) => {
+      const file = basename(d.file);
+      return d.error === undefined ? { file, ticker: d.ticker, ok: true } : { file, ticker: d.ticker, ok: false, error: d.error.split(d.file).join(file) };
+    });
     const base = { chainId: ctx.config.chainId, rpc: redactRpc(ctx.config.rpcUrl), deployments };
     try {
       const [rpcChainId, block] = await Promise.all([ctx.client.getChainId(), ctx.client.getBlockNumber()]);

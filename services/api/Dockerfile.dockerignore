@@ -1,0 +1,5 @@
+**
+!services/api/package.json
+!services/api/package-lock.json
+!services/api/src/**
+!contracts/deployments/sepolia.json
