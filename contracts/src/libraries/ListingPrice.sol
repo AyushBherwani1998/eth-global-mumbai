@@ -89,4 +89,42 @@ library ListingPrice {
     function roundDownToTick(uint256 priceQ96, uint256 spacingQ96) internal pure returns (uint256) {
         return priceQ96 - (priceQ96 % spacingQ96);
     }
+
+    // ------------------------------------------------------------------ v4 pool prices
+    // A v4 pool prices currency1 per currency0 as sqrtPriceX96. USDC usually sorts below MockSME, so USDC is
+    // currency0 and the pool price is shares per USDC (inverted): a higher share price is a LOWER sqrtPriceX96.
+
+    /// @notice CCA-style Q96 share price (raw USDC per raw share) to a v4 sqrtPriceX96.
+    /// @dev Same math as liquidity-launcher `TokenPricing` (what LBPStrategy uses to initialize the pool), so
+    ///      `priceQ96ToSqrtPriceX96(clearingPriceQ96, usdcIsCurrency0)` equals the migrated pool's opening price.
+    function priceQ96ToSqrtPriceX96(uint256 priceQ96, bool usdcIsCurrency0) internal pure returns (uint160) {
+        uint256 priceX192 = usdcIsCurrency0 ? Math.mulDiv(Q96 << 96, Q96, priceQ96) : priceQ96 << 96;
+        // forge-lint: disable-next-line(unsafe-typecast)
+        return uint160(Math.sqrt(priceX192));
+    }
+
+    /// @notice v4 sqrtPriceX96 to a CCA-style Q96 share price (raw USDC per raw share), rounded down.
+    function sqrtPriceX96ToPriceQ96(uint160 sqrtPriceX96, bool usdcIsCurrency0) internal pure returns (uint256) {
+        if (usdcIsCurrency0) {
+            uint256 inverse = Math.mulDiv(Q96, Q96, sqrtPriceX96);
+            return Math.mulDiv(inverse, inverse, Q96);
+        }
+        return Math.mulDiv(sqrtPriceX96, sqrtPriceX96, Q96);
+    }
+
+    /// @notice Points price to a v4 sqrtPriceX96 (e.g. a ListingHook policy reference price).
+    function pointsToSqrtPriceX96(uint256 points, bool usdcIsCurrency0) internal pure returns (uint160) {
+        return priceQ96ToSqrtPriceX96(pointsToQ96(points), usdcIsCurrency0);
+    }
+
+    /// @notice Untruncated points price to a v4 sqrtPriceX96, for prices between ticks (e.g. 104.5 points as
+    ///         `pointsE2 = 10_450`). Display and test use only.
+    function pointsE2ToSqrtPriceX96(uint256 pointsE2, bool usdcIsCurrency0) internal pure returns (uint160) {
+        return priceQ96ToSqrtPriceX96(Math.mulDiv(pointsE2, Q96, 100 * 1e17), usdcIsCurrency0);
+    }
+
+    /// @notice v4 sqrtPriceX96 to points scaled by 100 (11_000 = 110.00 points = 1.10 USDC per lot), rounded down.
+    function sqrtPriceX96ToPointsE2(uint160 sqrtPriceX96, bool usdcIsCurrency0) internal pure returns (uint256) {
+        return Math.mulDiv(sqrtPriceX96ToPriceQ96(sqrtPriceX96, usdcIsCurrency0), 100 * 1e17, Q96);
+    }
 }
