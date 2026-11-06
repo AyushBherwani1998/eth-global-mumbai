@@ -64,6 +64,8 @@ library EnsNames {
             if (i == s.length || s[i] == ".") {
                 uint256 len = i - lenAt;
                 if (len == 0 || len > 255) revert InvalidName(name);
+                // casting to 'uint8' is safe because len <= 255 is checked above
+                // forge-lint: disable-next-line(unsafe-typecast)
                 out[lenAt] = bytes1(uint8(len));
                 lenAt = i + 1;
             } else {

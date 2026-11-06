@@ -9,6 +9,9 @@ evm_version = "cancun"
 optimizer = true
 optimizer_runs = 11111
 bytecode_hash = "none"
+# DemoScripts.fork.t.sol runs the json-heavy demo and ENS scripts in one test; a single script's `run()` can exceed
+# the forked Sepolia block gas limit (~200M), which forge otherwise caps calls at.
+disable_block_gas_limit = true
 # Nested submodules of the pinned deps are not checked out; use only remappings.txt.
 auto_detect_remappings = false
 # CreReportFixture.t.sol reads the report vectors pinned by the CRE workflow's tests.
