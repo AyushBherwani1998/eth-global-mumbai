@@ -796,6 +796,7 @@ function OrderPanel({
         title="Buy and sell here"
         body={`Sign in and the buy and sell form opens in this panel. ${listing.name}'s price and today's limits are the same either way.`}
         label="Sign in to buy or sell"
+        fullWidth
       />
     );
   if (!market)
@@ -1198,6 +1199,7 @@ function ApplyPanel({ listing, price, seconds }: { listing: ListingDetail; price
         title="Apply for this IPO"
         body={`Sign in and the application form opens in this panel. ${listing.name}'s price range and how long it stays open are the same either way.`}
         label="Sign in to apply"
+        fullWidth
       />
     );
   return <ApplyPanelForm listing={listing} price={price} seconds={seconds} />;

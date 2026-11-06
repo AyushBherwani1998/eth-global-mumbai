@@ -230,6 +230,7 @@ export function SignInCard({
   points,
   label = "Sign in",
   quiet,
+  fullWidth,
   className,
 }: {
   title: string;
@@ -243,6 +244,8 @@ export function SignInCard({
    * the screen keeps one filled action (UI.md 7.4).
    */
   quiet?: boolean;
+  /** Narrow side panels: the button spans the card at every width. */
+  fullWidth?: boolean;
   className?: string;
 }) {
   const { connect, network } = useApp();
@@ -265,7 +268,7 @@ export function SignInCard({
         </button>
       ) : (
         <>
-          <SignInButton label={label} size="bar" className="mt-4 w-full sm:w-auto sm:min-w-[240px]" />
+          <SignInButton label={label} size="bar" className={cx("mt-4 w-full", !fullWidth && "sm:w-auto sm:min-w-[240px]")} />
           <p className="t-caption mt-3">
             Use your email and we make you a secure wallet, or sign in with one you already have. Everything here runs on the {network.name} test
             network and nothing is charged.
