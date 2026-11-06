@@ -145,9 +145,9 @@ contract ListingPolicyReceiverHookTest is PoolActions, CreReports {
 
     /// @dev A CRE report from the broadcaster, one second after the previous one.
     function _report(ListingPolicy memory p, string memory status) internal {
-        vm.warp(block.timestamp + 1);
+        vm.warp(vm.getBlockTimestamp() + 1);
         p.chainSelector = Sepolia.CRE_CHAIN_SELECTOR;
-        p.asOf = uint64(block.timestamp);
+        p.asOf = uint64(vm.getBlockTimestamp());
         assertTrue(_deliver(address(forwarder), address(receiver), broadcaster, _encodeReport(p, status)), "applied");
     }
 
@@ -245,7 +245,7 @@ contract ListingPolicyReceiverHookTest is PoolActions, CreReports {
 
     function test_coolOffReport_blocksUntilTimestamp() public {
         ListingPolicy memory p;
-        p.coolOffUntil = uint64(block.timestamp + 1 hours);
+        p.coolOffUntil = uint64(vm.getBlockTimestamp() + 1 hours);
         _report(p, "");
         _swapTo(
             swapRouter,
@@ -269,7 +269,7 @@ contract ListingPolicyReceiverHookTest is PoolActions, CreReports {
         _reference(110, 0);
         _swapToPoints(11_200);
 
-        vm.warp(block.timestamp + MAX_AGE + 1);
+        vm.warp(vm.getBlockTimestamp() + MAX_AGE + 1);
         assertTrue(receiver.isStale());
         _swapTo(swapRouter, manager, key, trader, _sqrtAt(11_000), _haltedRevert());
         _modifyLiquidity(int256(LIQUIDITY / 2));

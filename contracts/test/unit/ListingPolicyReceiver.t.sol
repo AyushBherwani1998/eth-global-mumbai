@@ -165,7 +165,7 @@ contract ListingPolicyReceiverTest is CreReports {
     // ---------------------------------------------------------------- freshness
 
     function test_onReport_asOfNotIncreasing_rejected() public {
-        uint64 t = uint64(block.timestamp);
+        uint64 t = uint64(vm.getBlockTimestamp());
         _apply(_policyAt(t), "");
 
         bytes memory same = _encodeReport(_policyAt(t), "");
@@ -186,13 +186,13 @@ contract ListingPolicyReceiverTest is CreReports {
         assertFalse(_deliver(address(forwarder), address(receiver), broadcaster, same));
         assertEq(receiver.latestPolicy().version, 1);
 
-        vm.warp(block.timestamp + 1);
+        vm.warp(vm.getBlockTimestamp() + 1);
         _apply(_policyAt(t + 1), "");
         assertEq(receiver.latestPolicy().version, 2);
     }
 
     function test_onReport_olderThanMaxAge_rejected() public {
-        uint64 tooOld = uint64(block.timestamp - MAX_AGE - 1);
+        uint64 tooOld = uint64(vm.getBlockTimestamp() - MAX_AGE - 1);
         _onReport(
             address(forwarder),
             broadcaster,
@@ -201,19 +201,19 @@ contract ListingPolicyReceiverTest is CreReports {
         );
         _assertNothingApplied();
 
-        _apply(_policyAt(uint64(block.timestamp - MAX_AGE)), ""); // exactly maxAge old: still accepted
+        _apply(_policyAt(uint64(vm.getBlockTimestamp() - MAX_AGE)), ""); // exactly maxAge old: still accepted
         assertEq(receiver.latestPolicy().version, 1);
     }
 
     function test_onReport_asOfInTheFuture_rejected() public {
-        uint64 future = uint64(block.timestamp + receiver.MAX_FUTURE_SKEW() + 1);
+        uint64 future = uint64(vm.getBlockTimestamp() + receiver.MAX_FUTURE_SKEW() + 1);
         _onReport(
             address(forwarder),
             broadcaster,
             _encodeReport(_policyAt(future), ""),
-            abi.encodeWithSelector(IListingPolicyReceiver.ReportFromFuture.selector, future, block.timestamp)
+            abi.encodeWithSelector(IListingPolicyReceiver.ReportFromFuture.selector, future, vm.getBlockTimestamp())
         );
-        _apply(_policyAt(uint64(block.timestamp + receiver.MAX_FUTURE_SKEW())), "");
+        _apply(_policyAt(uint64(vm.getBlockTimestamp() + receiver.MAX_FUTURE_SKEW())), "");
     }
 
     // ---------------------------------------------------------------- payload checks
@@ -271,7 +271,7 @@ contract ListingPolicyReceiverTest is CreReports {
         p.normalBandBps = 1500;
         p.survBandBps = 300;
         p.mode = 2;
-        p.coolOffUntil = uint64(block.timestamp - 1);
+        p.coolOffUntil = uint64(vm.getBlockTimestamp() - 1);
 
         ListingPolicy memory expected = p;
         expected.version = 1;
@@ -282,8 +282,8 @@ contract ListingPolicyReceiverTest is CreReports {
         _assertEq(receiver.policy(), expected);
         assertEq(receiver.status(), "surveillance");
 
-        vm.warp(block.timestamp + 10);
-        p.asOf = uint64(block.timestamp);
+        vm.warp(vm.getBlockTimestamp() + 10);
+        p.asOf = uint64(vm.getBlockTimestamp());
         p.mode = 0;
         p.halted = true;
         expected = p;
@@ -305,20 +305,20 @@ contract ListingPolicyReceiverTest is CreReports {
         _apply(p, "");
         assertEq(receiver.status(), "listed");
 
-        vm.warp(block.timestamp + 1);
-        p.asOf = uint64(block.timestamp);
+        vm.warp(vm.getBlockTimestamp() + 1);
+        p.asOf = uint64(vm.getBlockTimestamp());
         p.mode = 1;
         _apply(p, "");
         assertEq(receiver.status(), "surveillance");
 
-        vm.warp(block.timestamp + 1);
-        p.asOf = uint64(block.timestamp);
-        p.coolOffUntil = uint64(block.timestamp + 60);
+        vm.warp(vm.getBlockTimestamp() + 1);
+        p.asOf = uint64(vm.getBlockTimestamp());
+        p.coolOffUntil = uint64(vm.getBlockTimestamp() + 60);
         _apply(p, "");
         assertEq(receiver.status(), "halted", "cool-off reads as halted");
 
-        vm.warp(block.timestamp + 1);
-        p.asOf = uint64(block.timestamp);
+        vm.warp(vm.getBlockTimestamp() + 1);
+        p.asOf = uint64(vm.getBlockTimestamp());
         p.coolOffUntil = 0;
         p.mode = 0;
         _apply(p, "auction");
@@ -339,13 +339,13 @@ contract ListingPolicyReceiverTest is CreReports {
         ListingPolicy memory p = _freshPolicy();
         p.mode = 1;
         _apply(p, "");
-        assertEq(receiver.staleAt(), block.timestamp + MAX_AGE + 1);
+        assertEq(receiver.staleAt(), vm.getBlockTimestamp() + MAX_AGE + 1);
 
-        vm.warp(block.timestamp + MAX_AGE);
+        vm.warp(vm.getBlockTimestamp() + MAX_AGE);
         assertFalse(receiver.isStale(), "exactly maxAge old is still fresh");
         assertFalse(receiver.policy().halted);
 
-        vm.warp(block.timestamp + 1);
+        vm.warp(vm.getBlockTimestamp() + 1);
         assertTrue(receiver.isStale());
         ListingPolicy memory served = receiver.policy();
         assertTrue(served.halted, "stale policy fails closed");
@@ -366,7 +366,7 @@ contract ListingPolicyReceiverTest is CreReports {
         assertEq(resolver.text(ACME_DNS, "listingday.status"), "listed");
         assertEq(receiver.mirroredStatusHash(), keccak256("listed"));
 
-        vm.warp(block.timestamp + 1);
+        vm.warp(vm.getBlockTimestamp() + 1);
         vm.recordLogs();
         vm.prank(address(forwarder), broadcaster);
         receiver.onReport(_metadata(), _encodeReport(_freshPolicy(), ""));
@@ -374,7 +374,7 @@ contract ListingPolicyReceiverTest is CreReports {
         assertEq(_countLogs(logs, MockStatusResolver.TextChanged.selector), 0, "no ENS write when unchanged");
         assertEq(_countLogs(logs, IListingPolicyReceiver.PolicyApplied.selector), 1);
 
-        vm.warp(block.timestamp + 1);
+        vm.warp(vm.getBlockTimestamp() + 1);
         ListingPolicy memory p = _freshPolicy();
         p.halted = true;
         _apply(p, "");

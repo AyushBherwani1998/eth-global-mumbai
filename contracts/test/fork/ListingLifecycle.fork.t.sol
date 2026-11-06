@@ -538,7 +538,7 @@ contract ListingLifecycleForkTest is SepoliaForkTest, HookFixture, PoolActions, 
         );
         _swapTo(swapRouter, manager, key, trader, ListingPrice.pointsToSqrtPriceX96(111, true), halted);
 
-        vm.warp(block.timestamp + 1);
+        vm.warp(vm.getBlockTimestamp() + 1);
         p = _freshPolicy();
         assertTrue(
             _deliver(Sepolia.CRE_MOCK_FORWARDER, address(receiver), broadcaster, _encodeReport(p, ""), 1_500_000),

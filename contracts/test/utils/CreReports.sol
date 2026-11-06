@@ -45,15 +45,16 @@ abstract contract CreReports is Test {
 
     /// @notice Full `rawReport` for `forwarder.report`: 45-byte forwarder header, 64-byte metadata, payload.
     function _rawReport(bytes32 executionId, bytes memory payload) internal view returns (bytes memory) {
-        return
-            abi.encodePacked(uint8(1), executionId, uint32(block.timestamp), uint32(1), uint32(1), _metadata(), payload);
+        return abi.encodePacked(
+            uint8(1), executionId, uint32(vm.getBlockTimestamp()), uint32(1), uint32(1), _metadata(), payload
+        );
     }
 
     /// @notice A policy for the Sepolia chain selector, `asOf` = now, everything else default.
     function _freshPolicy() internal view returns (ListingPolicy memory p) {
         p.chainSelector = Sepolia.CRE_CHAIN_SELECTOR;
         // forge-lint: disable-next-line(unsafe-typecast)
-        p.asOf = uint64(block.timestamp);
+        p.asOf = uint64(vm.getBlockTimestamp());
     }
 
     /// @notice Sends `forwarder.report(receiver, ...)` from `sender` (also tx.origin) and returns
