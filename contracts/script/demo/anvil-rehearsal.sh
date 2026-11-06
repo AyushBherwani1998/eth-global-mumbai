@@ -24,7 +24,9 @@ for i in 0 1 2 3 4 5 6 7; do wallets+=("$(key "wallet$i")"); done
 DEMO_WALLET_KEYS="$(IFS=,; echo "${wallets[*]}")"
 export DEMO_WALLET_KEYS
 
-anvil --fork-url "$SEPOLIA_RPC_URL" --chain-id 31337 --port "$port" --block-time 2 --silent &
+# A few blocks behind the head, so every node behind a load-balanced public RPC already has the fork block.
+fork_block="$(( $(cast block-number --rpc-url "$SEPOLIA_RPC_URL") - 5 ))"
+anvil --fork-url "$SEPOLIA_RPC_URL" --fork-block-number "$fork_block" --chain-id 31337 --port "$port" --block-time 2 --silent &
 anvil_pid=$!
 trap 'kill $anvil_pid 2>/dev/null || true' EXIT
 for _ in $(seq 1 60); do cast block-number --rpc-url "$RPC_URL" > /dev/null 2>&1 && break; sleep 1; done

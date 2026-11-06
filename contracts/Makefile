@@ -4,11 +4,16 @@
 #   make demo-sepolia     the real thing: every step with --broadcast on Sepolia, waiting for the auction blocks
 # Every step target can be run on its own and re-run after a failure (each step skips what is already done).
 
--include .env
-export
+# .env holds plain KEY=value lines (no quotes). Only its variables are exported, never the derived ones below:
+# an exported BROADCAST would carry a stale --rpc-url into nested `make -e` calls.
+ifneq (,$(wildcard .env))
+include .env
+export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' .env)
+endif
 
 RPC_URL ?= $(SEPOLIA_RPC_URL)
 DEPLOYMENTS_FILE ?= deployments/sepolia.json
+export RPC_URL DEPLOYMENTS_FILE
 FORGE_FLAGS ?=
 BROADCAST = --rpc-url $(RPC_URL) --broadcast --slow $(FORGE_FLAGS)
 VERIFY = $(if $(ETHERSCAN_API_KEY),--verify --etherscan-api-key $(ETHERSCAN_API_KEY),)
