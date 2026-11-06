@@ -2,12 +2,14 @@ import { basename } from "node:path";
 
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { BaseError } from "viem";
+import { BaseError, getAddress, isAddress } from "viem";
 
 import { errorCatalog } from "./abis.ts";
+import { extractSignedRequest, isAuthorizedIssuer, loadAuthConfig, verifySignedRequest, type AuthConfig } from "./auth.ts";
 import { originAllowed, readDeployments } from "./config.ts";
 import { allListings, getListing, head, type Ctx } from "./context.ts";
 import { HttpError, badRequest } from "./errors.ts";
+import { ListingCreationStorage, type ListingCreationState } from "./listing-creation.ts";
 import { parseAddress, prepareBid, prepareClaim, prepareExit, prepareSwap } from "./prepare.ts";
 import { auctionView, bidsView, clearingSeries, eligibilityView } from "./reads/auction.ts";
 import { configView } from "./reads/config.ts";
@@ -15,6 +17,7 @@ import { issuerView } from "./reads/issuer.ts";
 import { ensView, listingDetail, listingSummary } from "./reads/listing.ts";
 import { marketView, policyView, swapsView } from "./reads/market.ts";
 import { policyHistory } from "./reads/policy-history.ts";
+import { relayPolicyReport } from "./policy-relay.ts";
 import { portfolioView } from "./reads/portfolio.ts";
 import type { ApiError, BidsResponse, ClearingResponse, ErrorCatalog, Health, ListingsResponse } from "./types.ts";
 import { iso } from "./units.ts";
@@ -71,6 +74,10 @@ function limitQuery(c: Context): number {
 export function createApp(ctx: Ctx): Hono {
   const app = new Hono();
   const origins = ctx.config.corsOrigins;
+  
+  // Initialize auth config and listing creation storage
+  const authConfig: AuthConfig = loadAuthConfig(process.env);
+  const listingStorage = new ListingCreationStorage(process.env.LISTING_STATE_PATH);
 
   app.use(
     "*",
@@ -215,6 +222,102 @@ export function createApp(ctx: Ctx): Hono {
       return json(c, await fn(ctx, l, body));
     });
   }
+
+  // Listing creation endpoints
+  app.post("/v1/listings/create", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId);
+
+    if (signedReq.action !== "create_listing") {
+      throw badRequest("Invalid action for this endpoint");
+    }
+
+    const payload = signedReq.payload as Record<string, unknown>;
+    const ticker = payload.ticker;
+    const tokenName = payload.tokenName;
+    const tokenSymbol = payload.tokenSymbol;
+
+    if (typeof ticker !== "string" || !ticker) {
+      throw badRequest("Missing or invalid ticker");
+    }
+    if (typeof tokenName !== "string" || !tokenName) {
+      throw badRequest("Missing or invalid tokenName");
+    }
+    if (typeof tokenSymbol !== "string" || !tokenSymbol) {
+      throw badRequest("Missing or invalid tokenSymbol");
+    }
+
+    const listing = listingStorage.create({
+      ticker,
+      tokenName,
+      tokenSymbol,
+      issuerAddress,
+      deploymentConfig: payload.config as ListingCreationState["deploymentConfig"],
+    });
+
+    return json(c, { success: true, listing });
+  });
+
+  app.get("/v1/listings/creation/:id", async (c) => {
+    const id = c.req.param("id");
+    const listing = listingStorage.get(id);
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+    return json(c, listing);
+  });
+
+  app.get("/v1/listings/creations", async (c) => {
+    const address = c.req.query("issuer");
+    let listings: ListingCreationState[];
+    
+    if (address) {
+      if (!isAddress(address)) {
+        throw badRequest("Invalid issuer address");
+      }
+      listings = listingStorage.getByIssuer(getAddress(address));
+    } else {
+      listings = listingStorage.list();
+    }
+    
+    return json(c, { listings });
+  });
+
+  app.post("/v1/listings/creation/:id/update", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    await verifySignedRequest(signedReq, authConfig, ctx.config.chainId);
+
+    const id = c.req.param("id");
+    const payload = signedReq.payload as Record<string, unknown>;
+
+    const listing = listingStorage.get(id);
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    const updated = listingStorage.update(id, payload as Partial<ListingCreationState>);
+    return json(c, { success: true, listing: updated });
+  });
+
+  // Policy relay endpoint for demo manual relaying
+  app.post("/v1/policy/:ticker/relay", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    await verifySignedRequest(signedReq, authConfig, ctx.config.chainId);
+
+    const ticker = c.req.param("ticker");
+    const listing = getListing(ctx, ticker);
+
+    if (signedReq.action !== "relay_policy") {
+      throw badRequest("Invalid action for this endpoint");
+    }
+
+    const payload = signedReq.payload as Record<string, unknown>;
+    
+    // Relay the policy report to the blockchain
+    const result = await relayPolicyReport(ctx, listing, payload);
+    
+    return json(c, { success: true, result });
+  });
 
   return app;
 }

@@ -20,6 +20,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { CommandBlock, ConsoleShell, ConsoleSignIn, GateLine, NotTheOwner } from "@/components/console/shell";
 import { useIssuerSession } from "@/components/console/session";
 import { modeWords, usePolicy, type PolicyView } from "@/components/console/policy";
+import { PolicyControls } from "@/components/console/policy-controls";
 import { STEP_ORDER, currentStep, lifecycle, type StepId } from "@/components/console/lifecycle";
 import { apiConfigured, errorTitle, type Auction, type Bid, type ClearingPoint, type ListingDetail, type MarketView } from "@/lib/api";
 import { ApiErrorCard } from "@/lib/api-state";
@@ -505,7 +506,7 @@ function TradingRulePanel({ ticker }: { ticker: string }) {
     <>
       <SectionTitle>Trading rule</SectionTitle>
       <p className="t-label -mt-2">
-        The limits the exchange is enforcing on your share right now. This panel only reads. Nothing here changes the rule.
+        The limits the exchange is enforcing on your share right now. Read current state and change policy below.
       </p>
 
       {data && <PolicyRows p={data} updatedAt={updatedAt} refreshing={refreshing} onRetry={retry} />}
@@ -525,6 +526,11 @@ function TradingRulePanel({ ticker }: { ticker: string }) {
           retrying={refreshing}
         />
       )}
+
+      {/* Policy Controls */}
+      <div className="mt-4">
+        <PolicyControls ticker={ticker} policy={data} />
+      </div>
 
       <Card className="mt-3 p-4">
         <p className="t-list-title text-text">Changing the rule runs from the command line</p>
