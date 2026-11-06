@@ -3,9 +3,15 @@
 // Orders (UX.md 3.7). Two tabs: IPO applications (this wallet's bids from
 // GET /v1/bids?owner=, grouped by company, plain state words and the verbs
 // Refund / Settle / Collect shares) and Market trades (every trade in the
-// listed pools from GET /v1/market/:ticker/swaps, not filtered to this wallet:
+// listed pools from GET /v1/market/:ticker, not filtered to this wallet:
 // the pool only records the router as the sender, so per-wallet trade history
 // is not available). Desktop renders the same data as tables.
+//
+// The verbs are real transactions: Settle and Refund are the auction's exit
+// (POST /v1/prepare/exit), Collect is its claim (POST /v1/prepare/claim).
+// "Collect all" is one claim per company (the auction batches bids of one
+// owner); "Refund all" is one exit per application, one after another. Each is
+// its own transaction, so a batch can stop part way: what landed stays landed.
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -18,7 +24,7 @@ import { Button, Card, EmptyState, SectionTitle, Table, TextLink, TickerLogo, Un
 import { dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
 import { COPY, hrefFor, isListed } from "@/lib/adapt";
 import { ApiErrorCard, DemoDataStrip } from "@/lib/api-state";
-import type { Bid, Listing } from "@/lib/api";
+import { api, type Bid, type BidStatus, type ClaimDetails, type ExitDetails, type Listing, type Prepared } from "@/lib/api";
 import { merge2, useBids, useListings, useQuotes } from "@/lib/live";
 import { BottomSpacer } from "./common";
 
@@ -39,18 +45,24 @@ function statusOf(bid: Bid, listing: Listing | undefined): Status {
   const refundOnly = listing?.phase === "refunding" || listing?.graduated === false;
   const canExit = bid.actions.exit !== null;
   const canClaim = bid.actions.claim;
+  const back = bid.refundableUsdc !== null && bid.refundableUsdc > 0 ? ` ${usdc(bid.refundableUsdc)} USDC comes back.` : "";
 
-  switch (bid.state) {
+  switch (bid.status) {
     case "claimed":
       return { word: "Claimed", tone: "gain" };
+    case "refunded":
+      return { word: "Refunded" };
     case "exited":
-      if (bid.filledShares === 0) return { word: "Refunded" };
+      if (!bid.claimableShares) return bid.filledShares === 0 ? { word: "Refunded" } : { word: "Exited" };
       return canClaim
-        ? { word: "Claimable", tone: "gain", verb: "collect", note: "Your unspent USDC is back. Collect your shares to finish." }
+        ? { word: "Claimable", tone: "gain", verb: "collect", note: `Your unspent USDC is back. Collect your ${shares(bid.claimableShares)} shares to finish.` }
         : { word: "Exited", note: "Your unspent USDC is back. Your shares can be collected once the IPO opens claims." };
+  }
+
+  switch (bid.state) {
     case "refundable":
       return canExit
-        ? { word: "Refund available", tone: "warn", verb: "refund" }
+        ? { word: "Refund available", tone: "warn", verb: "refund", note: back.trim() || undefined }
         : { word: "Refund available", tone: "warn", note: "The refund opens when the IPO closes." };
     case "partial":
       return canExit
@@ -67,7 +79,7 @@ function statusOf(bid: Bid, listing: Listing | undefined): Status {
         : { word: "Allotted", tone: "gain", note: "You can settle once the IPO closes." };
     case "outbid":
       return canExit
-        ? { word: "Refund available", tone: "warn", verb: "refund" }
+        ? { word: "Refund available", tone: "warn", verb: "refund", note: back.trim() || undefined }
         : { word: "Below the price", note: "Your maximum is under the current price. You can still be allotted if the price falls." };
     case "active":
     default:
@@ -88,7 +100,8 @@ function groupSub(listing: Listing | undefined): string {
   return "IPO not open yet";
 }
 
-const bidKeyOf = (b: Bid) => `${b.ticker}:${b.id}`;
+/** `<auction>:<id>` from the server: ids restart per auction, so the id alone is not unique. */
+const bidKeyOf = (b: Bid) => b.key;
 
 /** Amounts that only exist after the exit. */
 const sharesOrCopy = (n: number | null) => (n === null ? COPY.afterSettle : `${shares(n)} shares`);
@@ -104,7 +117,8 @@ type OrderRow = { id: string; listing: Listing; at: number; title: string; tx: s
 // ---------------------------------------------------------------------------
 
 type Tab = "applications" | "trades";
-type Override = Partial<Record<string, "exited" | "claimed">>;
+/** A bid this screen just settled or collected: shown as `to` while the server still reports `from`. */
+type Override = Partial<Record<string, { from: BidStatus; to: "exited" | "claimed" }>>;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "applications", label: "IPO applications" },
@@ -112,7 +126,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function OrdersScreen() {
-  const { connected, connect, address, sendTx } = useApp();
+  const { connected, connect, address, runTx, notify, txBusy } = useApp();
   const [over, setOver] = useState<Override>({});
   const [busy, setBusy] = useState<string | "all" | null>(null);
   const [tab, setTab] = useState<Tab>("applications");
@@ -125,12 +139,14 @@ export function OrdersScreen() {
 
   const listingOf = (t: string) => all.find((l) => l.ticker === t);
 
-  // A settled or collected application keeps its new word until the next poll
-  // confirms it on chain.
+  // A settled or collected application keeps its new word until the server
+  // (a block behind, at worst) reports the change itself.
   const effective = (b: Bid): Bid => {
     const o = over[bidKeyOf(b)];
-    if (!o) return b;
-    return { ...b, state: o, claimed: o === "claimed", actions: { exit: null, claim: o === "exited" } };
+    if (!o || b.status !== o.from) return b;
+    return o.to === "claimed"
+      ? { ...b, status: "claimed", state: "claimed", claimed: true, claimableShares: 0, actions: { exit: null, claim: false } }
+      : { ...b, status: "exited", state: "exited", actions: { exit: null, claim: false } };
   };
 
   const myBids = (bids.data?.bids ?? []).map(effective);
@@ -146,12 +162,12 @@ export function OrdersScreen() {
     for (const q of quotes.data ?? []) {
       const listing = all.find((l) => l.ticker === q.ticker);
       if (!listing) continue;
-      for (const t of q.swaps.trades.slice(0, 6)) {
+      for (const t of q.market.trades.slice(0, 6)) {
         out.push({
           id: `${q.ticker}-${t.tx}-${t.time}`,
           listing,
           at: t.time * 1000,
-          title: `${t.side === "buy" ? "Buy" : "Sell"} · ${shares(t.shares)} shares at ${lotFixed(t.price)}`,
+          title: `${t.side === "buy" ? "Buy" : "Sell"} · ${shares(t.shares)} shares at ${lotFixed(t.avgPrice)}`,
           tx: t.tx,
         });
       }
@@ -178,33 +194,79 @@ export function OrdersScreen() {
   const collectable = myBids.filter((b) => statusOf(b, listingOf(b.ticker)).verb === "collect");
   const refundable = myBids.filter((b) => statusOf(b, listingOf(b.ticker)).verb === "refund");
 
+  const from = address as `0x${string}`;
+  const exitOf = (bid: Bid) => ({
+    prepare: () => api.prepareExit({ ticker: bid.ticker, bidId: bid.id, from }),
+    // The server says why no exit works yet (e.g. checkpoints still to come).
+    guard: (p: Prepared<ExitDetails>) => p.details.reason,
+  });
+  const claimGuard = (p: Prepared<ClaimDetails>) => (p.details.tokensFilled > 0 ? null : (p.details.warnings[0] ?? "There are no shares to collect from this application."));
+  const mark = (list: Bid[], to: "exited" | "claimed") =>
+    setOver((o) => ({ ...o, ...Object.fromEntries(list.map((b) => [bidKeyOf(b), { from: b.status, to }] as const)) }));
+
   const act = async (bid: Bid, verb: Verb) => {
+    if (busy || txBusy) return;
     const listing = listingOf(bid.ticker);
     setBusy(bidKeyOf(bid));
-    const r = await sendTx(
-      verb === "collect"
-        ? {
-            title: `Collecting your ${listing?.name ?? bid.ticker} shares`,
-            success: bid.filledShares === null ? "Shares collected" : `Collected ${shares(bid.filledShares)} shares`,
-          }
-        : verb === "settle"
-          ? { title: "Settling your application", success: "Settled. Shares are ready to collect" }
-          : { title: "Refunding your application", success: "Your USDC is on its way back" },
-    );
-    setBusy(null);
-    if (r.ok) setOver((o) => ({ ...o, [bidKeyOf(bid)]: verb === "collect" ? "claimed" : "exited" }));
+    try {
+      const r =
+        verb === "collect"
+          ? await runTx({
+              title: `Collecting your ${listing?.name ?? bid.ticker} shares`,
+              success: bid.claimableShares ? `Collected ${shares(bid.claimableShares)} shares` : "Shares collected",
+              failTitle: "Your shares weren't collected",
+              prepare: () => api.prepareClaim({ ticker: bid.ticker, bidId: bid.id, from }),
+              guard: claimGuard,
+            })
+          : await runTx({
+              ...exitOf(bid),
+              title: verb === "settle" ? "Settling your application" : "Refunding your application",
+              success: verb === "settle" ? "Settled. Shares are ready to collect" : "Refunded. Your USDC is back in your wallet",
+              failTitle: verb === "settle" ? "Your application wasn't settled" : "Your refund didn't go through",
+            });
+      if (r.ok) mark([bid], verb === "collect" ? "claimed" : "exited");
+    } finally {
+      setBusy(null);
+    }
   };
 
+  // Not atomic: one transaction per company (collect) or per application
+  // (refund), in order, stopping at the first that does not go through.
   const actAll = async (verb: "collect" | "refund") => {
+    if (busy || txBusy) return;
     const list = verb === "collect" ? collectable : refundable;
+    const batches = verb === "collect" ? [...new Set(list.map((b) => b.ticker))].map((t) => list.filter((b) => b.ticker === t)) : list.map((b) => [b]);
     setBusy("all");
-    const r = await sendTx(
-      verb === "collect"
-        ? { title: "Collecting all your shares", success: `Collected shares from ${list.length} applications` }
-        : { title: "Refunding all your applications", success: `${list.length} applications refunded` },
-    );
-    setBusy(null);
-    if (r.ok) setOver((o) => ({ ...o, ...Object.fromEntries(list.map((b) => [bidKeyOf(b), verb === "collect" ? "claimed" : "exited"] as const)) }));
+    let done = 0;
+    try {
+      for (const [i, batch] of batches.entries()) {
+        const first = batch[0];
+        const of = batches.length > 1 ? ` (${i + 1} of ${batches.length})` : "";
+        const r =
+          verb === "collect"
+            ? await runTx({
+                title: `Collecting your ${listingOf(first.ticker)?.name ?? first.ticker} shares${of}`,
+                success: `Collected shares from ${batch.length} ${batch.length === 1 ? "application" : "applications"}${of}`,
+                failTitle: "Your shares weren't collected",
+                prepare: () => api.prepareClaim({ ticker: first.ticker, bidIds: batch.map((b) => b.id), from }),
+                guard: claimGuard,
+              })
+            : await runTx({
+                ...exitOf(first),
+                title: `Refunding your application${of}`,
+                success: `Refunded${of}`,
+                failTitle: "Your refund didn't go through",
+              });
+        if (!r.ok) {
+          if (done > 0) notify(`${done} of ${batches.length} done`, "error", `${r.message} The ones already done stay done; try the rest again.`);
+          return;
+        }
+        done += 1;
+        mark(batch, verb === "collect" ? "claimed" : "exited");
+      }
+    } finally {
+      setBusy(null);
+    }
   };
 
   return (
@@ -227,17 +289,19 @@ export function OrdersScreen() {
             {collectable.length > 0 ? (
               <ActionCard
                 title={`${collectable.length} ${collectable.length === 1 ? "allotment" : "allotments"} ready to collect`}
-                body="One confirmation collects every share from applications you have settled."
+                body="Collects every share from applications you have settled: one confirmation per company."
                 label="Collect all"
                 busy={busy === "all"}
+                disabled={busy !== null}
                 onClick={() => actAll("collect")}
               />
             ) : refundable.length > 0 ? (
               <ActionCard
                 title={`${refundable.length} ${refundable.length === 1 ? "application" : "applications"} can be refunded`}
-                body="One confirmation returns the USDC from every application that was not allotted."
+                body="Returns the USDC from every application that was not allotted: one confirmation each, in order."
                 label="Refund all"
                 busy={busy === "all"}
+                disabled={busy !== null}
                 onClick={() => actAll("refund")}
               />
             ) : null}
@@ -304,14 +368,14 @@ export function OrdersScreen() {
 // Pieces
 // ---------------------------------------------------------------------------
 
-function ActionCard({ title, body, label, onClick, busy }: { title: string; body: string; label: string; onClick: () => void; busy?: boolean }) {
+function ActionCard({ title, body, label, onClick, busy, disabled }: { title: string; body: string; label: string; onClick: () => void; busy?: boolean; disabled?: boolean }) {
   return (
     <Card className="mt-4 p-4 lg:flex lg:items-center lg:gap-6">
       <div className="min-w-0 flex-1">
         <p className="t-list-title text-text">{title}</p>
         <p className="t-label mt-0.5">{body}</p>
       </div>
-      <Button className="mt-3 w-full lg:mt-0 lg:w-auto lg:shrink-0" onClick={onClick} busy={busy} disabled={busy}>
+      <Button className="mt-3 w-full lg:mt-0 lg:w-auto lg:shrink-0" onClick={onClick} busy={busy} disabled={busy || disabled}>
         {busy ? "Check your wallet app" : label}
       </Button>
     </Card>
@@ -380,7 +444,7 @@ function ApplicationGroup({
               </div>
               {s.note && <p className="t-label mt-1">{s.note}</p>}
               {s.verb && (
-                <Button variant="secondary" size="sm" className="mt-2" busy={busy === key} disabled={busy === key} onClick={() => onAct(b, s.verb as Verb)}>
+                <Button variant="secondary" size="sm" className="mt-2" busy={busy === key} disabled={busy !== null} onClick={() => onAct(b, s.verb as Verb)}>
                   {busy === key ? "Check your wallet app" : VERB_LABEL[s.verb]}
                 </Button>
               )}
@@ -438,7 +502,7 @@ function ApplicationTable({ groups, busy, onAct }: { groups: Group[]; busy: stri
             variant="secondary"
             size="sm"
             busy={busy === bidKeyOf(r.bid)}
-            disabled={busy === bidKeyOf(r.bid)}
+            disabled={busy !== null}
             onClick={() => onAct(r.bid, r.status.verb as Verb)}
           >
             {busy === bidKeyOf(r.bid) ? "Check your wallet app" : VERB_LABEL[r.status.verb]}

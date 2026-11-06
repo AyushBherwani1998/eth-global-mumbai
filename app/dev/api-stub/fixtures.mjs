@@ -17,6 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const SPEC = JSON.parse(readFileSync(join(HERE, "..", "..", "mock", "demo-exchange.json"), "utf8"));
+const WALLET = JSON.parse(readFileSync(join(HERE, "..", "..", "mock", "wallet.json"), "utf8"));
 
 const BLOCK_SECONDS = 12;
 const BLOCKS_PER_MIN = 60 / BLOCK_SECONDS;
@@ -131,6 +132,7 @@ function tradesFrom(company, points, listBlock) {
       usdc,
       shares: sharesOut,
       price: points[i].value,
+      avgPrice: r4((usdc / sharesOut) * 1000),
       tx: hashFor(company.ticker, `swap${i}`),
       block: listBlock + i,
       sender: EXTERNAL.universalRouter,
@@ -144,6 +146,26 @@ function tradesFrom(company, points, listBlock) {
     });
   }
   return out;
+}
+
+/** The server's `BidStatus` for a spec bid (services/api/src/types.ts). */
+function statusOf(b) {
+  if (b.claimed || b.state === "claimed") return "claimed";
+  if (b.state === "exited") return (b.filledShares ?? 0) > 0 ? "exited" : "refunded";
+  if (b.state === "refundable" || b.exitable) return "awaitingExit";
+  return "open";
+}
+function claimableOf(b) {
+  const st = statusOf(b);
+  if (st === "exited") return b.filledShares ?? 0;
+  if (st === "claimed" || st === "refunded") return 0;
+  return null;
+}
+function refundableOf(b) {
+  const st = statusOf(b);
+  if (st === "awaitingExit") return b.budget;
+  if (st === "open") return null;
+  return 0;
 }
 
 /** CCA checkpoints: the clearing price only ever rises, and the raise with it. */
@@ -371,6 +393,36 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
       };
 
       const lastPrice = points.length ? points[points.length - 1].value : current.ref;
+      const prices = points.filter((p) => !p.halted).map((p, i) => ({ time: p.time, value: p.value, block: listBlock + i }));
+
+      const reference = c.policy.map((p) => {
+        const pb = band(p.ref, p.bandBps);
+        return {
+          time: nowSec - p.minutesAgo * 60,
+          value: p.ref,
+          mode: p.halted ? c.policy.findLast((q) => !q.halted)?.mode ?? "normal" : p.mode,
+          bandBps: p.bandBps,
+          low: pb.low,
+          high: pb.high,
+          version: p.version,
+          carryForward: false,
+        };
+      });
+      reference.push({ ...reference[reference.length - 1], time: nowSec, carryForward: true });
+
+      const haltSpans = [];
+      c.policy.forEach((p, i) => {
+        const fromTime = nowSec - p.minutesAgo * 60;
+        const next = c.policy[i + 1];
+        const toTime = next ? nowSec - next.minutesAgo * 60 : null;
+        if (p.halted) haltSpans.push({ from: iso(fromTime), to: toTime === null ? null : iso(toTime), fromTime, toTime, cause: "report", version: p.version, tx: hashFor(c.ticker, `policy${p.version}`) });
+        else if (p.coolOffMin) {
+          const end = fromTime + p.coolOffMin * 60;
+          haltSpans.push({ from: iso(fromTime), to: end <= nowSec ? iso(end) : null, fromTime, toTime: end <= nowSec ? end : null, cause: "coolingOff", version: p.version, tx: hashFor(c.ticker, `policy${p.version}`) });
+        }
+      });
+      const coolingOff = !halted && Boolean(current.coolOffMin) && sinceSec + current.coolOffMin * 60 > nowSec;
+      const haltCause = halted ? "report" : coolingOff ? "coolingOff" : null;
 
       market = {
         ticker: c.ticker,
@@ -380,13 +432,23 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
         usdcIsCurrency0: true,
         price: lastPrice,
         points: r4(lastPrice * 100),
+        referencePrice: current.ref,
+        referencePoints: r4(current.ref * 100),
         band: policy.band,
+        halted: haltCause !== null,
+        haltCause,
+        tradingOpen: haltCause === null,
         listingPrice: a.clearing ?? null,
         listedAt,
         listingDayEndsAt: listingDayEnds,
         policy,
         liquidity: { usdc: c.pool?.usdc ?? 0, shares: c.pool?.shares ?? 0 },
         rejected: [],
+        trades,
+        prices,
+        tradesLimit: 200,
+        reference,
+        haltSpans,
         events: c.policy.map((p) => ({
           time: iso(nowSec - p.minutesAgo * 60),
           kind: p.halted ? "halted" : p.mode,
@@ -405,13 +467,15 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
         },
       };
 
-      swaps = { ticker: c.ticker, poolId: records.pool, trades, prices: points.map((p) => ({ time: p.time, value: p.value })) };
+      swaps = { ticker: c.ticker, poolId: records.pool, trades, prices };
     }
 
     // ---- bids ----------------------------------------------------------
     const bids = (c.bids ?? []).map((b) => ({
+      key: `${records.auction}:${b.id}`,
       id: b.id,
       ticker: c.ticker,
+      auction: records.auction,
       owner: b.mine ? null : OTHER_BIDDER, // filled in per request
       budget: b.budget,
       maxPrice: b.maxPrice,
@@ -419,8 +483,11 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
       submittedBlock: blockAt(b.minutesAgo),
       submittedAt: iso(nowSec - b.minutesAgo * 60),
       state: b.state,
+      status: statusOf(b),
       filledShares: b.filledShares ?? null,
       refund: b.refund ?? null,
+      claimableShares: claimableOf(b),
+      refundableUsdc: refundableOf(b),
       exitedBlock: b.state === "exited" || b.state === "claimed" ? claimBlock : null,
       claimed: Boolean(b.claimed),
       tx: hashFor(c.ticker, `bid${b.id}`),
@@ -430,6 +497,8 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
         maxPriceQ96: "87150978765691",
         tokensFilled: b.filledShares === undefined ? null : String(Math.round(b.filledShares * 1e18)),
         currencyRefunded: b.refund === undefined ? null : String(Math.round(b.refund * 1e6)),
+        claimable: claimableOf(b) === null ? null : String(Math.round(claimableOf(b) * 1e18)),
+        refundable: refundableOf(b) === null ? null : String(Math.round(refundableOf(b) * 1e6)),
       },
     }));
 
@@ -500,6 +569,83 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
     };
   };
 
+  /** Shares bought on the market with no application behind them, so a holding without bids is on screen. */
+  const MARKET_ONLY = { nirmaan: 5000 };
+
+  const portfolio = (address) => {
+    const mine = bidsFor(address, null).bids;
+    const holdings = [];
+    for (const t of tickers) {
+      const entry = byTicker.get(t);
+      const own = mine.filter((b) => b.ticker === t);
+      const shares = own.filter((b) => b.status === "claimed").reduce((s, b) => s + (b.filledShares ?? 0), 0) + (MARKET_ONLY[t] ?? 0);
+      const unclaimedShares = own.reduce((s, b) => s + (b.claimableShares ?? 0), 0);
+      const pendingBids = own.filter((b) => b.status === "open" || b.status === "awaitingExit").length;
+      if (shares === 0 && unclaimedShares === 0 && pendingBids === 0) continue;
+      const price = entry.market?.price ?? entry.listing.clearingPrice;
+      holdings.push({
+        ticker: t,
+        symbol: entry.listing.symbol,
+        token: entry.listing.records.token,
+        shares,
+        unclaimedShares,
+        pendingBids,
+        price,
+        priceSource: entry.market ? "pool" : price === null ? null : "clearing",
+        value: price === null ? null : r6(((shares + unclaimedShares) * price) / 1000),
+        avgCost: null,
+        raw: { balance: BigInt(Math.round(shares)).toString() + "000000000000000000", unclaimed: BigInt(Math.round(unclaimedShares)).toString() + "000000000000000000" },
+      });
+    }
+    const unclaimed = {};
+    for (const h of holdings) if (h.unclaimedShares > 0) unclaimed[h.ticker] = h.unclaimedShares;
+    const usdcBal = WALLET.usdcBalance;
+    const ethBal = WALLET.ethBalance;
+    return {
+      address,
+      chainId: SPEC.chainId,
+      block: currentBlock,
+      asOf: iso(nowSec),
+      balances: { eth: ethBal, usdc: usdcBal, raw: { eth: String(Math.round(ethBal * 1e9)) + "000000000", usdc: String(Math.round(usdcBal * 1e6)) } },
+      holdings,
+      bids: mine,
+      totals: {
+        holdingsValueUsdc: r6(holdings.reduce((s, h) => s + (h.value ?? 0), 0)),
+        unclaimedShares: unclaimed,
+        refundableUsdc: r6(mine.reduce((s, b) => s + (b.refundableUsdc ?? 0), 0)),
+        inAuctionUsdc: r6(mine.filter((b) => b.status === "open" || b.status === "awaitingExit").reduce((s, b) => s + b.budget, 0)),
+      },
+      unsupported: {
+        costBasis: "Not computed: no cost-basis accounting.",
+        pnl: "Not computed: needs cost basis.",
+        lpPositions: "Not computed.",
+        lpFees: "Not computed.",
+        tradeHistory: "Swaps are attributed to the router, not the wallet.",
+      },
+    };
+  };
+
+  /** The demo wallet is the issuer of the listings `mock/wallet.json` says it issues; nobody else is. */
+  const issuer = (ticker, address) => {
+    const owner = WALLET.isIssuerFor.includes(ticker) ? DEMO_OWNER : addrFor(ticker, "issuer");
+    const entry = byTicker.get(ticker);
+    const isIssuer = Boolean(address) && address.toLowerCase() === owner.toLowerCase();
+    return {
+      ticker,
+      ensName: entry.listing.ensName,
+      chainId: SPEC.chainId,
+      block: currentBlock,
+      token: { address: entry.listing.records.token, name: entry.listing.name, symbol: entry.listing.symbol },
+      ensAddr: entry.listing.records.addr,
+      ensAddrIsToken: true,
+      issuer: { address: owner, source: "ens" },
+      treasury: addrFor(ticker, "treasury"),
+      roles: [],
+      check: address ? { address, isIssuer, roles: isIssuer ? ["ens.nameOwner"] : [] } : null,
+      notes: [],
+    };
+  };
+
   return {
     chainId: SPEC.chainId,
     currentBlock,
@@ -510,6 +656,8 @@ export function build(nowSec = Math.floor(Date.now() / 1000)) {
     listings: tickers.map((t) => byTicker.get(t).listing),
     bidsFor,
     eligibility,
+    portfolio,
+    issuer,
     external: EXTERNAL,
     addrFor,
   };
