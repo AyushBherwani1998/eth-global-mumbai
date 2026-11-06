@@ -4,7 +4,24 @@
 // Colour follows the sign of the change it sits next to (`up`), defaulting to
 // last >= first of the drawn points.
 
-type Pt = { value: number };
+type Pt = { value: number; time?: number };
+
+/** The last `seconds` of the series when the points are timed. */
+function window_(points: Pt[], seconds: number): Pt[] {
+  const last = points[points.length - 1];
+  if (!last || last.time === undefined) return points;
+  const from = last.time - seconds;
+  const out = points.filter((p) => (p.time ?? 0) >= from);
+  return out.length > 1 ? out : points.slice(-2);
+}
+
+/** At most n points, evenly spaced, first and last always kept. */
+function sample(points: Pt[], n: number): Pt[] {
+  if (points.length <= n) return points;
+  const out: Pt[] = [];
+  for (let i = 0; i < n; i += 1) out.push(points[Math.round((i / (n - 1)) * (points.length - 1))]);
+  return out;
+}
 
 export function Sparkline({
   points,
@@ -12,6 +29,7 @@ export function Sparkline({
   height = 32,
   up,
   max = 72,
+  seconds = 86400,
   fill = false,
   className,
 }: {
@@ -20,13 +38,16 @@ export function Sparkline({
   height?: number;
   /** Override the colour rule, e.g. with the row's 1D change sign. */
   up?: boolean;
-  /** Last N points drawn. */
+  /** At most N points drawn, sampled evenly over the window. */
   max?: number;
+  /** Window covered, in seconds, when the points carry times. Matches the
+   *  change shown next to the line (today), whatever the data's resolution. */
+  seconds?: number;
   /** Flat tint under the line. No gradient. */
   fill?: boolean;
   className?: string;
 }) {
-  const pts = points.slice(-max);
+  const pts = sample(window_(points, seconds), max);
   if (pts.length < 2) return <svg width={width} height={height} aria-hidden className={className} />;
   const vals = pts.map((p) => p.value);
   const min = Math.min(...vals);

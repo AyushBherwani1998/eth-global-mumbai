@@ -12,6 +12,7 @@ import { ArrowLeft, Briefcase, ListOrdered, Search, Share2, TrendingUp, type Luc
 import { useApp } from "./providers";
 import { useTheme, type ThemeSetting } from "./theme";
 import { TickerMark } from "@/components/company/logos";
+import { EditAvatarSheet, UserAvatar } from "@/components/avatar";
 import { Button, Change, KV, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
 import { blocksToCountdown, changeVs, dateTimeIST, lotFixed, shortAddr, usdc } from "@/lib/format";
 import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, WALLET, dayOpen, getMarket, type Ipo } from "@/lib/mock";
@@ -117,18 +118,14 @@ export function IconButton({
 // Account control: "Sign in" (outlined, 40px) or avatar + "Account".
 // ---------------------------------------------------------------------------
 
+/** The signed-in person's profile picture (components/avatar). */
 function Avatar({ size = 36 }: { size?: number }) {
-  const { ensName, address } = useApp();
-  const initial = (ensName ?? address).replace(/^0x/, "").charAt(0).toUpperCase();
-  return (
-    <span aria-hidden className="inline-flex items-center justify-center rounded-full border border-line bg-surface-2 text-[15px] font-medium text-text" style={{ width: size, height: size }}>
-      {initial}
-    </span>
-  );
+  const { address } = useApp();
+  return <UserAvatar address={address} size={size} />;
 }
 
 export function AccountControl({ compact }: { compact?: boolean }) {
-  const { connected } = useApp();
+  const { connected, sessionReady } = useApp();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pathWhenOpen, setPathWhenOpen] = useState(pathname);
@@ -142,6 +139,11 @@ export function AccountControl({ compact }: { compact?: boolean }) {
     setPathWhenOpen(pathname);
     setOpen(true);
   };
+  // The session is read after mount, so hold the space until it is known
+  // rather than showing "Sign in" and swapping it for the picture a tick later.
+  if (!sessionReady)
+    return <span aria-hidden className={cx("block", compact ? "h-12 w-[34px]" : "h-14 w-12")} />;
+
   return (
     <>
       {connected ? (
@@ -570,6 +572,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   const { theme, setTheme } = useTheme();
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [installOpen, setInstallOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
   const { canInstall, needsSteps, install } = useInstallPrompt();
 
   if (!open) return null;
@@ -578,24 +581,22 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
     return (
       <SheetPortal>
         <Sheet open={open} onClose={onClose} title="Sign in">
-          <p className="t-body text-text-2">Sign in with MetaMask or WalletConnect. We never move your money without asking.</p>
-          <div className="mt-4 space-y-3">
-            {["MetaMask", "WalletConnect"].map((w) => (
-              <Button
-                key={w}
-                variant="secondary"
-                size="bar"
-                className="w-full"
-                onClick={() => {
-                  app.connect();
-                  onClose();
-                }}
-              >
-                Sign in with {w}
-              </Button>
-            ))}
-          </div>
-          <p className="t-caption mt-3">Signing in uses a crypto wallet on the {app.network.name} test network. Nothing is charged.</p>
+          <p className="t-body text-text-2">
+            Sign in with your email and we make you a secure wallet. Already have one? Sign in with that instead. We
+            never move your money without asking.
+          </p>
+          <Button
+            variant="buy"
+            size="bar"
+            className="mt-4 w-full"
+            onClick={() => {
+              onClose();
+              app.connect();
+            }}
+          >
+            Sign in
+          </Button>
+          <p className="t-caption mt-3">Everything here runs on the {app.network.name} test network. Nothing is charged.</p>
           <div className="mt-4 border-t border-line">
             <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
             <AccountRow title="About Thamba" href="/about" onNavigate={onClose} />
@@ -627,6 +628,13 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             </button>
           </div>
 
+          <AccountRow
+            title="Profile picture"
+            sub="Pick one made from your account, or upload your own"
+            right={<Avatar size={32} />}
+            onClick={() => setAvatarOpen(true)}
+          />
+
           {low && <AccountRow title="Get free test USDC" sub="Opens the Circle faucet in a new tab" href={FAUCET_URL} external />}
 
           {app.network.ok ? (
@@ -653,6 +661,12 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
 
           <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
 
+          {/*
+            No issuer row here on purpose. The console is a separate product
+            with its own sign in at /console, and the investor app must not
+            reveal that an issuer mode exists. See design/UX.md section 2.
+          */}
+
           {canInstall && (
             <AccountRow title="Add to home screen" sub="Opens like an app, works offline" onClick={() => (needsSteps ? setInstallOpen(true) : install())} />
           )}
@@ -662,6 +676,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
       </Sheet>
       <PrivacySheet open={privacyOpen} onClose={() => setPrivacyOpen(false)} />
       <InstallSheet open={installOpen} onClose={() => setInstallOpen(false)} />
+      <EditAvatarSheet open={avatarOpen} onClose={() => setAvatarOpen(false)} address={app.address} />
     </SheetPortal>
   );
 }

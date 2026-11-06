@@ -12,11 +12,13 @@ import { BadgeCheck, ExternalLink, Wallet } from "lucide-react";
 import { ActionBar, DetailBar, ShareButton, TwoColumn } from "@/components/shell";
 import { CircuitBanner, ruleCopy } from "@/components/circuit-banner";
 import { useApp } from "@/components/providers";
-import { ErrorCard, SkeletonChart } from "@/components/states";
+import { ErrorCard } from "@/components/states";
+import { ChartSkeleton } from "@/components/chart/skeleton";
 import { useMockLoad } from "@/components/company/load";
 import { TickerMark, markVar } from "@/components/company/logos";
 import { changeDigits, countdown } from "@/components/company/num";
-import { FullscreenChart, PriceChart, RANGE_WORDS, RangeChips, RangeSelect, sliceRange, type ChartLine, type ChartRange, type HoverPoint } from "@/components/time-chart";
+import { FullscreenChart, PriceChart, RANGE_OPTIONS, RANGE_WORDS, RangeChips, sliceRange, type ChartLine, type ChartRange, type HoverPoint } from "@/components/time-chart";
+import { ChartTypeToggle, ExpandButton, RangeChipRow, useChartType } from "@/components/chart/controls";
 import {
   Button,
   Card,
@@ -161,7 +163,8 @@ type ListedTab = "overview" | "trades" | "rejected" | "details";
 function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
   const { connected } = useApp();
   const { loading, error, retry, retrying } = useMockLoad();
-  const [range, setRange] = useState<ChartRange>("24H");
+  const [range, setRange] = useState<ChartRange>("1D");
+  const [chartType, setChartType] = useChartType();
   const [tab, setTab] = useState<ListedTab>("overview");
   const [hover, setHover] = useState<HoverPoint>(null);
   const [sheet, setSheet] = useState<TradeSide | null>(null);
@@ -183,7 +186,7 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
   const holding = PORTFOLIO.holdings.find((h) => h.ticker === ipo.ticker);
   const owned = (holding?.shares ?? 0) + (holding?.unclaimedShares ?? 0);
 
-  const daySeries = useMemo(() => sliceRange(market.prices, "24H", NOW_SEC), [market.prices]);
+  const daySeries = useMemo(() => sliceRange(market.prices, "1D", NOW_SEC), [market.prices]);
   const dayLow = Math.min(...daySeries.map((d) => d.value));
   const dayHigh = Math.max(...daySeries.map((d) => d.value));
 
@@ -192,10 +195,17 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
     setSheet(s);
   };
 
+  // Open / high / low / close of the window shown, for the Bars summary row.
+  const win = useMemo(() => {
+    const vals = data.map((d) => d.value);
+    return { open: data[0].value, high: Math.max(...vals), low: Math.min(...vals), close: data[data.length - 1].value };
+  }, [data]);
+
   const chart = (height: number, fullscreen = false) => (
     <PriceChart
       data={data}
       kind="market"
+      type={chartType}
       baseline={base}
       reference={market.reference}
       rejects={rejectTimes}
@@ -203,8 +213,19 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
       height={height}
       onHover={setHover}
       readout={fullscreen}
-      onExpand={fullscreen ? undefined : () => setExpanded(true)}
+      axes={fullscreen}
+      detail={fullscreen}
     />
+  );
+
+  const chartControls = (
+    <>
+      <RangeChipRow value={range} onChange={setRange} options={RANGE_OPTIONS} className="lg:flex-1" />
+      <div className="mt-1 flex items-center justify-between lg:mt-0">
+        <ChartTypeToggle value={chartType} onChange={setChartType} />
+        <ExpandButton onClick={() => setExpanded(true)} />
+      </div>
+    </>
   );
 
   return (
@@ -226,7 +247,7 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
           <CompanyHead ipo={ipo} onDetails={() => setTab("details")} />
 
           {loading ? (
-            <SkeletonChart className="mt-4" height={280} />
+            <ChartSkeleton className="mt-2" height={280} />
           ) : error ? (
             <ErrorCard
               className="mt-4"
@@ -251,9 +272,23 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
 
               <div className="mt-4">{chart(280)}</div>
 
-              <div className="dotted-line mt-2 pt-3">
-                <RangeSelect value={range} onChange={setRange} />
-              </div>
+              {chartType === "bars" && (
+                <dl className="num mt-2 grid grid-cols-4 gap-2 text-[13px] leading-[18px]">
+                  {([
+                    ["Open", win.open],
+                    ["High", win.high],
+                    ["Low", win.low],
+                    ["Close", win.close],
+                  ] as const).map(([k, v]) => (
+                    <div key={k}>
+                      <dt className="t-caption">{k}</dt>
+                      <dd className="text-text">{lotFixed(v, 3)}</dd>
+                    </div>
+                  ))}
+                </dl>
+              )}
+
+              <div className="dotted-line mt-3 pt-2 lg:flex lg:items-center lg:gap-4">{chartControls}</div>
 
               <div className="mt-4">
                 {connected ? (
@@ -394,7 +429,14 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
         onClose={() => setExpanded(false)}
         title={`${ipo.name} · ${lotFixed(shown)}`}
         chart={(h) => chart(h, true)}
-        footer={<RangeSelect value={range} onChange={setRange} />}
+        footer={
+          <div className="lg:flex lg:items-center lg:gap-4">
+            <RangeChipRow value={range} onChange={setRange} options={RANGE_OPTIONS} className="lg:flex-1" />
+            <div className="mt-1 flex justify-start lg:mt-0">
+              <ChartTypeToggle value={chartType} onChange={setChartType} />
+            </div>
+          </div>
+        }
       />
     </>
   );

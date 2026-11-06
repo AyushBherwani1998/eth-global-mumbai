@@ -36,10 +36,14 @@ export function ConsoleListScreen() {
       return { ipo, next: NEXT[step] ?? "Create the listing", raised: ipo.raised ?? 0, applications: ipo.bidCount ?? 0 };
     });
 
+  const totalRaised = rows.reduce((s, r) => s + r.raised, 0);
+  const totalApplications = rows.reduce((s, r) => s + r.applications, 0);
+
   const columns: Column<Row>[] = [
     {
       key: "listing",
       label: "Listing",
+      width: "32%",
       render: (r) => (
         <span className="flex items-center gap-3">
           <TickerLogo ipo={r.ipo} size={28} />
@@ -50,14 +54,15 @@ export function ConsoleListScreen() {
         </span>
       ),
     },
-    { key: "phase", label: "Phase", render: (r) => statusLabel(r.ipo) },
-    { key: "raised", label: "Raised", align: "right", render: (r) => `${usdc(r.raised)} / ${OFFER.targetRaise}` },
-    { key: "applications", label: "Applications", align: "right", render: (r) => String(r.applications) },
-    { key: "next", label: "Next", render: (r) => r.next },
+    { key: "phase", label: "Phase", width: "12%", render: (r) => statusLabel(r.ipo) },
+    { key: "next", label: "Next step", width: "22%", render: (r) => r.next },
+    { key: "raised", label: "Raised", align: "right", width: "14%", render: (r) => `${usdc(r.raised)} / ${OFFER.targetRaise}` },
+    { key: "applications", label: "Applications", align: "right", width: "12%", render: (r) => String(r.applications) },
     {
       key: "open",
       label: "",
       align: "right",
+      width: "8%",
       render: (r) => (
         <Link href={`/console/${r.ipo.ticker}`} className="t-change-sm text-gain-text">
           Open
@@ -68,10 +73,28 @@ export function ConsoleListScreen() {
 
   return (
     <ConsoleShell>
-      <h1 className="t-page-title mt-6">Your listings</h1>
-      <p className="t-label mt-1">
-        {session.ensName ?? "This wallet"} manages {rows.length} {rows.length === 1 ? "listing" : "listings"}. Investors never see this screen.
-      </p>
+      <header className="border-b border-line py-5">
+        <h1 className="t-page-title text-text">Your listings</h1>
+        <p className="t-label mt-1">
+          {session.ensName ?? "This wallet"} manages {rows.length} {rows.length === 1 ? "listing" : "listings"}. Investors never see this screen.
+        </p>
+      </header>
+
+      {rows.length > 0 && (
+        <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-4">
+          {[
+            { k: "Listings", v: String(rows.length) },
+            { k: "Raised across listings", v: `${usdc(totalRaised)} USDC` },
+            { k: "Applications", v: String(totalApplications) },
+            { k: "Exchange runner", v: CONSOLE.runnerOnline ? "Online" : "Offline", tone: CONSOLE.runnerOnline },
+          ].map((c) => (
+            <div key={c.k} className="bg-surface p-4">
+              <dt className="t-label">{c.k}</dt>
+              <dd className={cx("num t-list-title mt-1", c.tone === undefined ? "text-text" : c.tone ? "text-gain-text" : "text-loss-text")}>{c.v}</dd>
+            </div>
+          ))}
+        </dl>
+      )}
 
       {rows.length === 0 ? (
         <EmptyState
@@ -80,10 +103,11 @@ export function ConsoleListScreen() {
         />
       ) : (
         <>
-          <div className="mt-6 hidden lg:block">
+          <h2 className="t-section-title mt-8 text-text">Listings</h2>
+          <div className="mt-2 hidden lg:block">
             <Table columns={columns} rows={rows} rowKey={(r) => r.ipo.ticker} href={(r) => `/console/${r.ipo.ticker}`} />
           </div>
-          <div className="mt-4 divide-y divide-line lg:hidden">
+          <div className="mt-2 divide-y divide-line border-t border-line lg:hidden">
             {rows.map((r) => (
               <Link key={r.ipo.ticker} href={`/console/${r.ipo.ticker}`} className="flex min-h-14 items-center gap-3 py-3">
                 <TickerLogo ipo={r.ipo} size={32} />
@@ -104,7 +128,7 @@ export function ConsoleListScreen() {
         </>
       )}
 
-      <p className={cx("t-caption mt-8")}>Prices and amounts in USDC per 1,000 shares. Sample data, not live chain reads.</p>
+      <p className="t-caption mt-8 border-t border-line pt-4">Prices and amounts in USDC per 1,000 shares. Sample data, not live chain reads.</p>
     </ConsoleShell>
   );
 }

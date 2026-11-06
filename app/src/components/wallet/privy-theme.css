@@ -1,0 +1,60 @@
+/*
+ * Privy modal, brought onto our tokens.
+ *
+ * Privy's `appearance` config covers the background and the accent colour, but
+ * not the typeface, the corner radius or the hairline, and it paints a shadow
+ * we do not use anywhere in this app (UI.md 1.2: elevation does not exist).
+ * Those four come from here, scoped to Privy's own stable element ids
+ * (#privy-dialog, #privy-modal-content, #privy-dialog-backdrop) so nothing in
+ * the app is touched.
+ *
+ * Everything below reads a token, so the modal follows light and dark the same
+ * way the rest of the app does.
+ */
+
+#privy-dialog,
+#privy-dialog-backdrop {
+  font-family: var(--font-sans);
+}
+
+#privy-dialog *,
+#privy-dialog input,
+#privy-dialog button {
+  font-family: var(--font-sans) !important;
+  letter-spacing: 0 !important;
+}
+
+/* The sheet itself: our surface, our hairline, 10px, no elevation. */
+#privy-modal-content {
+  border-radius: var(--radius-card) !important;
+  border: 1px solid var(--line) !important;
+  box-shadow: none !important;
+}
+
+/* Buttons, inputs and wallet rows inside it: 10px, no shadow, 48px minimum. */
+#privy-dialog button,
+#privy-dialog input,
+#privy-dialog [role="button"] {
+  border-radius: var(--radius-card) !important;
+  box-shadow: none !important;
+}
+
+#privy-dialog button:not([aria-label]),
+#privy-dialog input {
+  min-height: 48px !important;
+}
+
+/* Overlay: our token, no blur (UI.md 2.15). */
+#privy-dialog-backdrop {
+  background: var(--overlay) !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* On phone Privy docks to the bottom; match our sheet's top-only radius. */
+@media (max-width: 767px) {
+  #privy-modal-content {
+    border-radius: var(--radius-card) var(--radius-card) 0 0 !important;
+    border-bottom: 0 !important;
+  }
+}

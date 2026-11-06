@@ -28,12 +28,37 @@ logo only; protocol words go inside `<Details>`.
 
 ## providers.tsx
 
-`useApp()` (mock state): `connected, address, ensName, usdcBalance, ethBalance, connect(), disconnect(),
+`useApp()`: `connected, sessionReady, address, ensName, usdcBalance, ethBalance, connect(), disconnect(),
 isIssuerFor, network { ok, name, chainId }, switchNetwork(), setWrongNetwork(bool), anon { transport,
 reads, direct, lastError, since }, countRead(n), sendTx({ title, success, revert, revertTitle,
 revertDetail, delayMs }), notify(title, status?, detail?)`. Toasts render one at a time at the bottom
 (UI.md 2.20): pending "Check your wallet app", success headline, error headline with the decoded
 error name on the grey second line.
+
+Sign-in is real (see wallet/ below): `connected`, `sessionReady`, `address` and `ensName` come from the
+signed-in account, `connect()` opens the sign-in flow and `disconnect()` ends the session. Everything
+else is still mock, so the demo works with a wallet that owns nothing on chain. `sessionReady` is false
+only while the session is being read; hold space rather than flashing "Sign in". `isIssuerFor` is non-empty
+when the signed-in address owns the demo listings; `?issuer=1` allowlists whatever address is signed in.
+
+## wallet/ (sign-in)
+
+`WalletSessionProvider` (mounted inside `Providers`) and `useWalletSession()` →
+`{ mode, ready, connected, address, ensName, login(), logout() }`. With a real
+`NEXT_PUBLIC_PRIVY_APP_ID` it is Privy (`@privy-io/react-auth`): email with a Privy embedded wallet plus
+MetaMask and other browser wallets, Sepolia only, themed from our tokens (`privy-theme.css`). Without an
+app id Privy cannot initialise, so `demo-session.tsx` takes over with the same shape: a local sign-in
+sheet offering email, a browser wallet, or the demo issuer account. `ens.ts` resolves reverse ENS on
+mainnet; it is one cached read and every failure is null. Config is in `env.ts`; see `app/.env.example`.
+
+## avatar/ (profile pictures)
+
+| export | what |
+|---|---|
+| `UserAvatar` | `address, size=36`. The picture for an address: the uploaded one, else the generated one. Decorative, so it carries no label. |
+| `GeneratedAvatar` | `address, variant=0, size` — inline SVG, flat geometric shapes on a 64-unit grid, 12 templates x 10 token palettes x 4 rotations. Same address and variant always give the same picture. |
+| `EditAvatarSheet` | `open, onClose, address` — the picture large, eight variants to choose from, upload, and "Use generated picture". Opened from the Account sheet's "Profile picture" row. |
+| `useAvatarPref` / `setAvatarPref` / `clearAvatarPref` | Per-address choice in `localStorage("thamba.avatar.<address>")`. Uploads are downscaled to 256x256 and stored as a data URL; nothing leaves the device. |
 
 ## shell.tsx (UI.md 2.1 to 2.3, 2.14; UX.md section 2)
 
@@ -49,7 +74,7 @@ error name on the grey second line.
 | `ShareButton` | `title` | Labelled Share control (Web Share API). |
 | `IconButton` | `label, icon, onClick?, href?` | Icon 24 over a 13/500 label, 48x56 target. Never icon-only. |
 | `AccountControl` | `compact?` | "Sign in" outlined pill when signed out; avatar + "Account" when signed in. Opens `AccountSheet`. |
-| `AccountSheet` | `open, onClose` | Signed out: title "Sign in", two 56px buttons, one explainer line, Appearance, About. Signed in: Signed in as / Available to spend / Sign out, Get free test USDC (< 20), Network row or "Switch to Sepolia" button (`network.ok=false`), Private browsing (opens `PrivacySheet`), Appearance segmented, Issuer console (if owner), Add to home screen (when installable), About. |
+| `AccountSheet` | `open, onClose` | Signed out: title "Sign in", one 56px filled "Sign in" button into the real sign-in flow, one explainer line, Appearance, About. Signed in: Signed in as / Available to spend / Sign out, Profile picture (opens `EditAvatarSheet`), Get free test USDC (< 20), Network row or "Switch to Sepolia" button (`network.ok=false`), Private browsing (opens `PrivacySheet`), Appearance segmented, Issuer console (if owner), Add to home screen (when installable), About. |
 | `PrivacySheet` | `open, onClose` | The private-reads explainer (KV rows + "What this doesn't hide"). |
 | `SearchButton` / `SearchSheet` | | Search sheet with `SearchField`; results are `ListRow`s to `/stock/[ticker]`. |
 | `ActionBar` | `children` | Mobile fixed bottom bar (hairline top, safe-area). Put two `Button size="bar"` (sell / buy) or one. Renders nothing at >= 1024. |
@@ -98,26 +123,41 @@ error name on the grey second line.
 `OfflineStrip({ asOf?, force? })` (grey strip, renders nothing while online), `useOnline()`.
 The wrong-network button lives in `AccountSheet` (`useApp().setWrongNetwork(true)` to demo it).
 
-## time-chart.tsx (UI.md section 3, UX.md 3.11)
+## time-chart.tsx + chart/ (UI.md section 3, UX.md 3.11)
 
 `PriceChart` props: `data [{time, value, halted?}]`, `kind "market"\|"clearing"\|"raised"`,
-`baseline?` (dotted: range start, or the issue price on an IPO), `reference?`
-(`RefPoint[]` → dotted step line + shaded band from `bandBps`; directional draws the half toward the
-reference; halted spans draw no band), `showBand?`, `lines? [{price, label?}]` (floor / cap /
-minimum raise, dotted, right-edge labels), `rejects? number[]` (times, clamped to the nearest point,
-drawn as 9px red x), `height=280`, `digits=2`, `onHover(p | null)`, `readout=true` (24px line above
-the chart: time left, 18/500 value right), `labels=true` (H / L / last), `axes=false` (time axis for
-Expand), `onExpand?` (labelled Expand button, mobile only). Line is 3px (2.5 visual) and coloured by
-last >= first of the data passed. Chart is created once per theme / kind / height; data changes go
-through `setData` and the primitive, never a rebuild. Hover never rebuilds.
+`type "line"\|"bars"` (candles, market only), `baseline?` (dotted line at the window open, or the
+issue price on an IPO), `reference?` (`RefPoint[]` → the trading limits from `bandBps`), `showBand?`
+(force the limits on/off), `lines? [{price, label?}]` (floor / cap / minimum raise, dashed,
+right-edge labels, pinned to the edge with a caret when off-scale), `rejects? number[]` (times inside
+the window, drawn as 9px red x), `height=280`, `digits=2`, `onHover(p | null)`, `readout=true`,
+`labels=true` (right-edge level labels), `axes=false` (time axis, Expand only), `detail=false`
+(Expand only: adds the dotted reference step line).
 
-`RangeSelect({ value, onChange })` is the chart window: 5m, 10m, 30m, 1hr, 24hr, 1 week,
-1 month, Max. `RangeChips({ value, onChange, options? })` is the short toggle (Price /
-Subscription). `sliceRange(points, range, nowSec)` and `RANGE_SECONDS` slice data for a range.
+**The price scale is the data's own low and high in the selected window** (plus 12% scale margins).
+Limits, levels and the baseline never widen it; an off-scale level is clipped and its label pinned at
+the edge with ↑ / ↓. Nothing else is drawn: no H / L labels, no last-price box, no band fill, no time
+axis inline. The line is 3px (2.5 visual) and coloured by the change over the window.
+
+A window or type change **tweens** (340ms ease-out, instant under `prefers-reduced-motion`):
+`chart/series.ts` resamples both windows onto one grid of OHLC bars (`Shape`) and interpolates values,
+times, the price window, the overlay and the line / candle alphas; candles grow out of the line.
+The chart object is created once per theme / kind / height — never rebuilt on a range or type change.
+
+`chart/controls.tsx`: `RangeChipRow({ value, onChange, options })` (the window chips: 5m, 15m, 30m,
+1H, 1D, 1W, All — one row, no scrolling), `ChartTypeToggle({ value, onChange })` (Line | Bars),
+`useChartType()` (remembered in `localStorage["thamba.chartType"]`), `ExpandButton({ onClick })`.
+`chart/skeleton.tsx`: `ChartSkeleton({ height })`, shaped like the finished block so nothing shifts.
+`chart/overlay.ts`: the series primitive drawing halt columns, the baseline, limits and reject marks.
+
+`RangeChips({ value, onChange, options })` is the short toggle (Price / Subscription).
+`sliceRange(points, range, nowSec)`, `RANGE_SECONDS`, `RANGE_OPTIONS`, `RANGE_WORDS`.
 `FullscreenChart({ open, onClose, title, chart: (height) => node, footer })` is the Expand view.
 
-`sparkline.tsx`: `Sparkline({ points, width=84, height=32, up?, max=72 })`, 2.5px, coloured by `up`
-(pass the row's change sign) or last >= first.
+`sparkline.tsx`: `Sparkline({ points, width=84, height=32, up?, max=72, seconds=86400 })`, 2.5px,
+coloured by `up` (pass the row's change sign) or last >= first. When the points carry `time` it draws
+the last `seconds` of the series, evenly sampled to `max` points, so the line matches the change
+printed beside it whatever the data's resolution.
 
 `circuit-banner.tsx`: `CircuitBanner({ ticker, policy })` = `RuleStrip` + "Trading rule" sheet
 (sentence, why, changed time, allowed range, collapsed Details). Renders nothing on Normal.

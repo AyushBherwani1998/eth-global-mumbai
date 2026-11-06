@@ -31,10 +31,12 @@ const SESSION_START = ist("2026-11-06T09:15:00");
 
 /**
  * Resolution by age, so the intraday ranges (5m to 1H) have something to draw:
- * 15s for the last hour, 30s for the last three, 1m for the rest of today,
- * 5m for older days.
+ * 5s for the last fifteen minutes (the 5m and 15m chips, and enough points to
+ * bucket into candles), 15s for the last hour, 30s for the last three, 1m for
+ * the rest of today, 5m for older days.
  */
 function stepAt(t) {
+  if (t >= NOW - 900) return 5;
   if (t >= NOW - 3600) return 15;
   if (t >= NOW - 3 * 3600) return 30;
   if (t >= SESSION_START) return 60;

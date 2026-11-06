@@ -1,14 +1,17 @@
 "use client";
 
-// Mock app state: sign-in (wallet), network, private-read counter, tx toasts.
-// Real wiring (wagmi + Anon-RPC transport) replaces this provider later;
-// screens only use the hooks below.
+// App state. Sign-in is real: Privy owns the session (components/wallet), so
+// `connected`, `address` and `ensName` come from the signed-in account.
+// Everything else here is still mock: balances, holdings, bids, policy, prices,
+// the private-read counter and the transaction toasts.
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { WALLET } from "@/lib/mock";
 import { shortHash, txUrl } from "@/lib/format";
 import { ThemeProvider } from "./theme";
 import { Toast } from "./ui";
+import { WalletSessionProvider, useWalletSession } from "./wallet/session";
+import { ISSUER_ADDRESS } from "./wallet/env";
 
 type ToastItem = {
   id: number;
@@ -33,6 +36,8 @@ type TxOptions = {
 
 type AppState = {
   connected: boolean;
+  /** False only while the sign-in session is still being read, so nothing flashes signed-out. */
+  sessionReady: boolean;
   address: string;
   ensName: string | null;
   usdcBalance: number;
@@ -64,10 +69,27 @@ function fakeHash() {
 export function Providers({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider>
-      <AppProvider>{children}</AppProvider>
+      <WalletSessionProvider>
+        <AppProvider>{children}</AppProvider>
+      </WalletSessionProvider>
     </ThemeProvider>
   );
 }
+
+/**
+ * Who sees the issuer console. The signed-in address has to be the one that
+ * owns the demo listings; `?issuer=1` allowlists whatever address you are
+ * signed in with, so a judge can use their own wallet without a rebuild.
+ */
+function useIssuerOverride() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).get("issuer") === "1",
+    () => false,
+  );
+}
+
+const ISSUER_OWNER = (ISSUER_ADDRESS || WALLET.address).toLowerCase();
 
 /** Screenshot hook. ?signedout=1 keeps the investor session signed out. It does not touch the issuer console. */
 function useSignedOutFlag() {
@@ -80,7 +102,9 @@ function useSignedOutFlag() {
 
 function AppProvider({ children }: { children: React.ReactNode }) {
   const signedOut = useSignedOutFlag();
-  const [connected, setConnected] = useState(WALLET.connected);
+  const issuerOverride = useIssuerOverride();
+  const session = useWalletSession();
+  const connected = session.connected && !signedOut;
   const [wrongNetwork, setWrongNetwork] = useState(false);
   const [reads, setReads] = useState(WALLET.anonRpc.anonReads);
   const [toast, setToast] = useState<ToastItem | null>(null);
@@ -136,16 +160,20 @@ function AppProvider({ children }: { children: React.ReactNode }) {
     [show],
   );
 
+  const isIssuer = connected && (issuerOverride || (session.address ?? "").toLowerCase() === ISSUER_OWNER);
+
   const value = useMemo<AppState>(
     () => ({
-      connected: connected && !signedOut,
-      address: WALLET.address,
-      ensName: WALLET.ensName,
+      connected,
+      sessionReady: session.ready,
+      // Balances stay mock, so the demo works with a wallet that owns nothing.
+      address: session.address ?? WALLET.address,
+      ensName: session.ensName,
       usdcBalance: WALLET.usdcBalance,
       ethBalance: WALLET.ethBalance,
-      connect: () => setConnected(true),
-      disconnect: () => setConnected(false),
-      isIssuerFor: connected && !signedOut ? WALLET.isIssuerFor : [],
+      connect: session.login,
+      disconnect: session.logout,
+      isIssuerFor: isIssuer ? WALLET.isIssuerFor : [],
       network: { ok: !wrongNetwork, name: WALLET.chainName, chainId: WALLET.chainId },
       switchNetwork: () => setWrongNetwork(false),
       setWrongNetwork,
@@ -160,7 +188,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       sendTx,
       notify,
     }),
-    [connected, signedOut, wrongNetwork, reads, countRead, sendTx, notify],
+    [connected, isIssuer, session.ready, session.address, session.ensName, session.login, session.logout, wrongNetwork, reads, countRead, sendTx, notify],
   );
 
   return (

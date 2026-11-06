@@ -10,7 +10,7 @@ import { useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
 import { useApp } from "@/components/providers";
-import { ConsoleShell, ConsoleSignIn, RunnerStatus } from "@/components/console/shell";
+import { ConsoleShell, ConsoleSignIn } from "@/components/console/shell";
 import { useIssuerSession } from "@/components/console/session";
 import { CircuitBanner } from "@/components/circuit-banner";
 import { PriceChart } from "@/components/time-chart";
@@ -83,10 +83,16 @@ export function ConsoleScreen({ ticker }: { ticker: string }) {
   if (!session.listings.includes(ticker))
     return (
       <ConsoleShell>
-        <h1 className="t-page-title mt-6">{ipo.name}</h1>
-        <p className="t-body mt-2 text-text-2">
-          This console is for the owner of {ensName(ticker)}. Sign out and connect the wallet {shortAddr(ipo.records.addr)} to manage this listing.
-        </p>
+        <div className="max-w-[640px] py-10">
+          <p className="t-label-sm text-text-2">Not your listing</p>
+          <h1 className="t-page-title mt-2 text-text">{ipo.name}</h1>
+          <p className="t-body mt-2 text-text-2">
+            This console is for the owner of {ensName(ticker)}. Sign out and sign in with the wallet {shortAddr(ipo.records.addr)} to manage this listing.
+          </p>
+          <p className="mt-4">
+            <TextLink href="/console">Back to your listings</TextLink>
+          </p>
+        </div>
       </ConsoleShell>
     );
 
@@ -127,7 +133,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   return (
     <ConsoleShell>
       <div>
-        <header className="flex items-start gap-3 pt-6">
+        <header className="flex items-start gap-3 border-b border-line py-5">
           <TickerLogo ipo={ipo} size={40} />
           <div className="min-w-0 flex-1">
             <h1 className="t-page-title text-text">{ipo.name}</h1>
@@ -135,14 +141,13 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
               <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ensName(ipo.ticker)} · {statusLabel(ipo)}
             </p>
           </div>
-          <RunnerStatus className="shrink-0 pt-1" />
         </header>
-        {!online && <p className="t-label mt-1">Exchange actions need the CRE runner on the demo laptop.</p>}
+        {!online && <p className="t-label mt-3 text-loss-text">Exchange actions need the CRE runner on the demo laptop.</p>}
 
-        <div className="lg:grid lg:grid-cols-[240px_minmax(0,1fr)_360px] lg:items-start lg:gap-6">
+        <div className="mt-6 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_300px] lg:items-start lg:gap-6 xl:grid-cols-[240px_minmax(0,1fr)_360px] xl:gap-8">
           {/* Desktop step rail */}
           <nav className="hidden lg:block" aria-label="Listing steps">
-            <p className="t-section-title mt-6 mb-3">Listing</p>
+            <p className="t-section-title mb-2 text-text">Listing</p>
             <ol className="divide-y divide-line">
               {STEPS.map((s, i) => (
                 <li key={s.id}>
@@ -166,7 +171,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 
             <div className="lg:hidden">
               <SectionTitle>Listing</SectionTitle>
-              <p className="t-label">What you, the company, do to bring the shares to market.</p>
+              <p className="t-label -mt-2">What you, the company, do to bring the shares to market.</p>
             </div>
 
             {/* Phone: accordion */}
@@ -197,7 +202,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
             {/* Desktop: the step the rail selected */}
             {open && (
               <div className="hidden lg:block">
-                <p className="t-list-title mt-4 text-text">{STEPS.find((s) => s.id === open)!.title}</p>
+                <p className="t-section-title text-text">{STEPS.find((s) => s.id === open)!.title}</p>
                 <p className="t-label mb-3">{STEPS.find((s) => s.id === open)!.sub}</p>
                 {stepContent(open)}
               </div>
@@ -213,14 +218,15 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 
           {/* Desktop right rail */}
           <aside className="hidden lg:sticky lg:top-20 lg:block">
+            <p className="t-section-title mb-2 text-text">Live</p>
             {liveInset}
             {market ? (
-              <Card className="mt-4 p-4">
+              <Card className="mt-3 p-4">
                 <p className="t-label">Price today</p>
                 <PriceChart data={market.prices.slice(-120)} kind="market" height={140} digits={2} readout={false} labels={false} />
               </Card>
             ) : getClearing(ipo.ticker).length > 0 ? (
-              <Card className="mt-4 p-4">
+              <Card className="mt-3 p-4">
                 <p className="t-label">Price so far</p>
                 <PriceChart
                   data={getClearing(ipo.ticker).map((p) => ({
@@ -236,7 +242,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
                 />
               </Card>
             ) : null}
-            <Card className="mt-4 p-4">
+            <Card className="mt-3 p-4">
               <p className="t-label">Last runner lines</p>
               <div className="t-mono mt-2 space-y-1 text-text">
                 {deskLog.slice(-5).map((l, i) => (
@@ -249,6 +255,10 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
             </Card>
           </aside>
         </div>
+
+        <p className="t-caption mt-8 border-t border-line pt-4">
+          Prices and amounts in USDC per 1,000 shares. Sample data, not live chain reads.
+        </p>
       </div>
     </ConsoleShell>
   );
@@ -273,7 +283,7 @@ function LiveCard({ ipo, inset }: { ipo: Ipo; inset?: boolean }) {
   const raised = ipo.raised ?? 0;
   return (
     <>
-      <Card className="mt-4 p-4">
+      <Card className={cx("p-4", !inset && "mt-4")}>
         <div className="flex items-baseline justify-between gap-3">
           <p className="t-label">{ipo.phase === "live" ? "Current price" : "Last price"}</p>
           <p className="num t-list-title text-text">{last !== null ? `${lotFixed(last)} USDC` : "Not priced yet"}</p>
@@ -291,7 +301,7 @@ function LiveCard({ ipo, inset }: { ipo: Ipo; inset?: boolean }) {
       </Card>
       {market &&
         (inset ? (
-          <div className="mt-4 overflow-hidden px-5">
+          <div className="mt-3 overflow-hidden px-5">
             <CircuitBanner ticker={ipo.ticker} policy={market.policy} />
           </div>
         ) : (
@@ -634,23 +644,38 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
       onClick: () => setMode(policy.mode, true),
       variant: "danger",
     },
+    {
+      label: "Resume trading",
+      consequence: "Lets buying and selling start again. Only available while trading is halted.",
+      onClick: () =>
+        run(
+          {
+            ...policy,
+            version: policy.version + 1,
+            halted: false,
+            mode: policy.mode === "halted" ? "normal" : policy.mode,
+          },
+          "resume",
+        ),
+      disabled: !policy.halted,
+    },
   ];
 
   return (
     <>
       <SectionTitle>Exchange desk</SectionTitle>
-      <p className="t-label">What the exchange does to keep trading orderly. Every action is published to everyone.</p>
+      <p className="t-label -mt-2">What the exchange does to keep trading orderly. Every action is published to everyone.</p>
 
       <Card className="mt-3 p-4">
         <p className="t-list-title text-text">Reference price</p>
         <p className="t-label mt-0.5">Today&apos;s limits are measured from this price. {ruleNow}</p>
-        <div className="mt-3 flex gap-3">
+        <div className="mt-3 flex items-center gap-3">
           <input
             inputMode="decimal"
             value={ref}
             onChange={(e) => setRef(e.target.value.replace(/[^0-9.]/g, ""))}
             aria-label="Reference price in USDC per 1,000 shares"
-            className="field num t-input-value h-12 w-full min-w-0 rounded-[10px] bg-transparent px-3 text-text"
+            className="field num t-input-value h-12 w-full max-w-[180px] min-w-0 rounded-[10px] bg-transparent px-3 text-text"
           />
           <Button
             variant="secondary"
@@ -675,37 +700,21 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
       <Card className="mt-3 p-4">
         <p className="t-list-title text-text">Trading rule</p>
         <p className="t-label mt-0.5">In force now: {ruleNow}</p>
-        <div className="mt-3 grid gap-4 sm:grid-cols-2">
+        <ul className="mt-3 border-t border-line">
           {controls.map((c) => (
-            <div key={c.label}>
-              <Button variant={c.variant ?? "secondary"} className="w-full sm:w-auto sm:min-w-[160px]" disabled={!online || running} onClick={c.onClick}>
+            <li key={c.label} className="flex flex-col gap-2 border-b border-line py-3 sm:flex-row sm:items-center sm:gap-4">
+              <Button
+                variant={c.variant ?? "secondary"}
+                className="w-full shrink-0 sm:w-[172px]"
+                disabled={!online || running || c.disabled}
+                onClick={c.onClick}
+              >
                 {c.label}
               </Button>
-              <p className="t-label mt-1">{c.consequence}</p>
-            </div>
+              <p className="t-label min-w-0">{c.consequence}</p>
+            </li>
           ))}
-          <div>
-            <Button
-              variant="secondary"
-              className="w-full sm:w-auto sm:min-w-[160px]"
-              disabled={!online || running || !policy.halted}
-              onClick={() =>
-                run(
-                  {
-                    ...policy,
-                    version: policy.version + 1,
-                    halted: false,
-                    mode: policy.mode === "halted" ? "normal" : policy.mode,
-                  },
-                  "resume",
-                )
-              }
-            >
-              Resume trading
-            </Button>
-            <p className="t-label mt-1">Lets buying and selling start again. Only available while trading is halted.</p>
-          </div>
-        </div>
+        </ul>
         {phase && (
           <div className="mt-4 border-t border-line pt-3">
             <p className="t-body text-text">{phase.done ? `Applied · ticker status now: ${phase.status}` : `${phase.label}…`}</p>

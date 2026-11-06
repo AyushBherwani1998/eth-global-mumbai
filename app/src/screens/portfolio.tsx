@@ -1,8 +1,11 @@
 "use client";
 
 // Portfolio (UX.md 3.8): what I own, what it's worth, how it did today.
-// Summary 2x2 is the Groww mutual-fund dashboard card (design/reference/
-// groww-mf-dashboard.png): Total value / Today, Invested / Since you bought.
+// Composition follows the Groww mutual-fund dashboard (design/reference/
+// groww-mf-dashboard.png): heading, then the totals band full width, then the
+// holdings. On desktop the totals band spans the whole 1200 container and the
+// page splits into two columns underneath, so both columns start at the same
+// y and nothing is left stranded beside an empty half.
 
 import Link from "next/link";
 import { useState } from "react";
@@ -21,10 +24,10 @@ import {
   KV,
   ListRow,
   SectionTitle,
-  SummaryCard,
   Table,
   TextLink,
   TickerLogo,
+  cx,
   type Column,
 } from "@/components/ui";
 import { changeVs, lotFixed, pct, shares, shortAddr, signed, usdc } from "@/lib/format";
@@ -44,12 +47,65 @@ type Holding = {
 
 const changeText = (abs: number, rel: number) => `${signed(abs)} (${pct(rel).replace("+", "").replace("-", "")})`;
 
+const toneClass = (n: number) => (n >= 0 ? "text-gain-text" : "text-loss-text");
+
+/**
+ * Totals band (UI.md 2.12, UX.md 3.8): the hero of the page. Full width of the
+ * container on desktop so the most important numbers are never squeezed into a
+ * half column. Total value is the 32px hero; the three supporting figures sit
+ * beside it on desktop and under it on phone.
+ */
+function TotalsBand({
+  totalValue,
+  invested,
+  today,
+  since,
+}: {
+  totalValue: number;
+  invested: number;
+  today: { abs: number; rel: number };
+  since: { abs: number; rel: number };
+}) {
+  const cells: { label: string; value: string; tone?: number }[] = [
+    { label: "Invested", value: `${usdc(invested)} USDC` },
+    { label: "Since you bought", value: changeText(since.abs, since.rel), tone: since.abs },
+  ];
+  return (
+    <Card className="mt-3 p-0">
+      <div className="lg:flex lg:items-stretch">
+        <div className="min-w-0 p-4 lg:w-[38%] lg:shrink-0 lg:p-6">
+          <p className="t-label">Total value</p>
+          <p className="num t-price-large mt-1 text-text">{usdc(totalValue)} USDC</p>
+          <p className="mt-2 flex flex-wrap items-baseline gap-x-2">
+            <span className="t-label">Today</span>
+            <Change abs={today.abs} rel={today.rel} size="lg" />
+          </p>
+        </div>
+        <div className="grid grid-cols-2 border-t border-line lg:flex-1 lg:border-t-0">
+          {cells.map((c, i) => (
+            <div
+              key={c.label}
+              className={cx("min-w-0 p-4 lg:flex lg:flex-col lg:justify-center lg:p-6", i === 1 && "text-right", "lg:border-l lg:border-line")}
+            >
+              <p className="t-label">{c.label}</p>
+              <p className={cx("num t-list-title mt-1", c.tone === undefined ? "text-text" : toneClass(c.tone))}>{c.value}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div className="border-t border-line px-4 py-3 lg:px-6">
+        <p className="t-label">Prices in USDC per 1,000 shares. Value uses the last traded price.</p>
+      </div>
+    </Card>
+  );
+}
+
 function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
   const base = total || 1;
   return (
-    <section className="mt-4 lg:max-w-[776px]">
-      <h2 className="t-label">Where the value sits</h2>
-      <div className="mt-2 flex h-2 overflow-hidden bg-line" aria-hidden>
+    <section>
+      <SectionTitle>Where the value sits</SectionTitle>
+      <div className="flex h-2 overflow-hidden bg-line" aria-hidden>
         {rows.map((r) => (
           <span key={r.ipo.ticker} style={{ width: `${(r.value / base) * 100}%`, background: logoColor(r.ipo.ticker) }} />
         ))}
@@ -188,29 +244,10 @@ export function PortfolioScreen() {
       <OfflineStrip className="-mx-5" />
       <main>
         <SectionTitle>Your investments ({rows.length})</SectionTitle>
-        <SummaryCard
-          cells={[
-            { label: "Total value", value: `${usdc(totalValue)} USDC` },
-            {
-              label: "Today",
-              value: changeText(todayAbs, todayRel),
-              tone: todayAbs >= 0 ? "gain" : "loss",
-            },
-            { label: "Invested", value: `${usdc(invested)} USDC` },
-            {
-              label: "Since you bought",
-              value: changeText(since.abs, since.rel),
-              tone: since.abs >= 0 ? "gain" : "loss",
-            },
-          ]}
-          footer={{ left: "Prices in USDC per 1,000 shares" }}
-          className="lg:max-w-[776px]"
-        />
-
-        <Allocation rows={rows} total={totalValue} />
+        <TotalsBand totalValue={totalValue} invested={invested} today={{ abs: todayAbs, rel: todayRel }} since={since} />
 
         {waiting > 0 && (
-          <Link href="/orders" className="mt-3 block lg:max-w-[776px]">
+          <Link href="/orders" className="mt-3 block">
             <Card className="flex min-h-14 items-center gap-3 p-4" interactive>
               <p className="t-body flex-1 text-text">
                 <span className="text-warn">{shares(waiting)} shares waiting.</span> Collect them in Orders.
@@ -220,7 +257,7 @@ export function PortfolioScreen() {
           </Link>
         )}
 
-        <div className="lg:grid lg:grid-cols-[776px_400px] lg:items-start lg:gap-6">
+        <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:items-start lg:gap-6 xl:grid-cols-[minmax(0,1fr)_400px]">
           <div className="min-w-0">
             <SectionTitle>Your shares ({rows.length})</SectionTitle>
             <div className="divide-y divide-line lg:hidden">
@@ -230,11 +267,7 @@ export function PortfolioScreen() {
                   href={`/stock/${r.ipo.ticker}`}
                   logo={<TickerLogo ipo={r.ipo} size={40} />}
                   title={r.ipo.name}
-                  sub={
-                    <>
-                      <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> · {shares(r.qty)} shares · bought at {lotFixed(r.avgCost)}
-                    </>
-                  }
+                  sub={`${shares(r.qty)} shares · bought at ${lotFixed(r.avgCost)}`}
                   sparkline={<Sparkline points={getMarket(r.ipo.ticker)?.prices ?? []} width={56} height={26} up={r.today.abs >= 0} />}
                   right={usdc(r.value)}
                   rightSub={<Change abs={r.today.abs} rel={r.today.rel} />}
@@ -244,6 +277,8 @@ export function PortfolioScreen() {
             <div className="hidden lg:block">
               <Table columns={holdingColumns} rows={rows} rowKey={(r) => r.ipo.ticker} href={(r) => `/stock/${r.ipo.ticker}`} />
             </div>
+
+            <Allocation rows={rows} total={totalValue} />
           </div>
 
           <div className="min-w-0">
@@ -283,7 +318,7 @@ export function PortfolioScreen() {
                       </p>
                       <Button
                         variant="secondary"
-                        className="mt-3 w-full"
+                        className="mt-3 w-full sm:w-auto sm:min-w-[200px]"
                         disabled={gone || busy}
                         busy={busy}
                         onClick={async () => {
@@ -304,12 +339,12 @@ export function PortfolioScreen() {
                 })}
               </>
             )}
-
-            <p className="t-caption mt-6">
-              Value uses the last traded price and includes shares waiting to be collected. NSE-inspired mock, not a regulated product.
-            </p>
           </div>
         </div>
+
+        <p className="t-caption mt-8 border-t border-line pt-4">
+          Value uses the last traded price and includes shares waiting to be collected. NSE-inspired mock, not a regulated product.
+        </p>
         <BottomSpacer />
       </main>
     </>
