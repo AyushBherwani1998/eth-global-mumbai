@@ -5,9 +5,8 @@
 > - **Graduation:** the token moves into a Uniswap v4 pool, where a `ListingHook` enforces NSE-inspired listing-day and circuit rules.
 > - **Policy:** Chainlink CRE posts the listing and incident policy.
 > - **Tickers:** ENSv2 gives every SME a ticker name (`acme.listingday.eth`) whose records point to its auction, pool and policy.
-> - **Fairness:** World ID enforces one human, one application.
+> - **Eligibility:** the only rule is "this wallet belongs to a unique real person". Investors prove it with World ID; a backend-signed, short-lived pass carries it to the auction. One human, one application.
 > - **Privacy:** Anon-RPC carries every app read.
-> - **Jurisdiction (issuer-optional):** an issuer can restrict bidding (and optionally trading) by country; investors prove eligibility with a zkPassport proof and reveal one bit.
 
 | | |
 |---|---|
@@ -19,9 +18,9 @@
 | Client | Mobile-first Next.js PWA, wagmi + viem, MetaMask / WalletConnect |
 | Quote currency | Circle **Sepolia USDC** `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (6 dec); test funds from the [Circle faucet](https://faucet.circle.com/) |
 | Scope | Design only; nothing has been built or deployed |
-| Disclaimer | Every exchange rule is an **NSE-inspired mock**: not a regulated product, no regulatory claims. Jurisdiction gates are an extra privacy layer, **not KYC** |
+| Disclaimer | Every exchange rule is an **NSE-inspired mock**: not a regulated product, no regulatory claims. The World ID check proves uniqueness only; it is **not KYC** |
 
-Last updated Fri Nov 6 2026, ~14:00 IST (v3: validated against primary sources, country restrictions added; see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history.
+Last updated Fri Nov 6 2026, ~14:20 IST (v4: owner decision, eligibility is World ID uniqueness only; v3 was validated against primary sources, see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history.
 
 ---
 
@@ -34,16 +33,15 @@ Last updated Fri Nov 6 2026, ~14:00 IST (v3: validated against primary sources, 
 6. [Components](#6-components)
 7. [ENSv2 ticker namespace](#7-ensv2-ticker-namespace)
 8. [World ID eligibility](#8-world-id-eligibility)
-9. [Country restrictions (issuer-optional)](#9-country-restrictions-issuer-optional)
-10. [Mobile app and screens](#10-mobile-app-and-screens)
-11. [Diagrams](#11-diagrams)
-12. [Rule mapping (NSE-inspired mock)](#12-rule-mapping-nse-inspired-mock)
-13. [Mock and demo plan](#13-mock-and-demo-plan)
-14. [Build plan to Sat 09:00 IST](#14-build-plan-to-sat-0900-ist)
-15. [Risks](#15-risks)
-16. [Prize checklists](#16-prize-checklists)
-17. [Validation notes](#17-validation-notes)
-18. [Reference: addresses and interfaces](#18-reference-addresses-and-interfaces)
+9. [Mobile app and screens](#9-mobile-app-and-screens)
+10. [Diagrams](#10-diagrams)
+11. [Rule mapping (NSE-inspired mock)](#11-rule-mapping-nse-inspired-mock)
+12. [Mock and demo plan](#12-mock-and-demo-plan)
+13. [Build plan to Sat 09:00 IST](#13-build-plan-to-sat-0900-ist)
+14. [Risks](#14-risks)
+15. [Prize checklists](#15-prize-checklists)
+16. [Validation notes](#16-validation-notes)
+17. [Reference: addresses and interfaces](#17-reference-addresses-and-interfaces)
 
 ---
 
@@ -56,9 +54,8 @@ Indian SME IPOs list through a 45-minute call auction followed by tight price ba
 3. **ListingHook = the rulebook.** ±5% listing-day band, 20% normal band, a 5% surveillance mode, a directional mode and a halt. Any swap that lands outside the band reverts. LP exits always work.
 4. **CRE = the exchange notice board.** A signed policy report sets the reference price, mode and halt, and mirrors status onto the ticker's ENS record.
 5. **ENSv2 = the ticker register.** `acme.listingday.eth` is an issuer-controlled subname. Its records are the IPO's single source of truth, and roles decide who may write which record.
-6. **World ID = one human, one application.** A pluggable eligibility module on the auction hook adds a per-human allotment cap, the onchain cousin of NSE application limits.
+6. **World ID = one human, one application.** This is the only eligibility rule. The investor proves World ID, our backend signs a short-lived pass bound to their wallet, the auction and their World ID nullifier, and the auction's validation hook checks that pass on every bid. It also enforces a per-human allotment cap, the onchain cousin of NSE application limits. See [§8](#8-world-id-eligibility).
 7. **Anon-RPC = private browsing.** Investors can check a hot IPO without their IP being tied to the addresses they look up.
-8. **Jurisdiction rule = the offer document's selling restrictions (issuer-optional).** The issuer can limit bidding, and optionally trading on our pool, to (or away from) listed countries. A zkPassport proof, turned into the same backend voucher, reveals only "eligible", never the nationality. It composes with World ID via AND/OR. See [§9](#9-country-restrictions-issuer-optional).
 
 ## 2. Pitch matrix
 
@@ -70,7 +67,7 @@ All five partners are built into the product, but only **3** partners can be cla
 | **Chainlink CRE** | Best workflow with CRE ($1.5k, single prize) | Workflow joins a blockchain with an external API and is meaningfully used; "simulation is enough" | Mock exchange API → report → `ListingPolicyReceiver` → hook policy + ENS status | Issuer taps "Surveillance": CRE sim broadcasts, the band tightens to 5% live | 2 |
 | **EF Anon-RPC** | Best Use of Anon-RPC ($5k: 2.5/1.5/1k). Also select **Best CROPS App** ($3.5k: 2/1/0.5k) under the same EF pick; EF places us in at most one | App routes RPC reads through Anon-RPC **by default**; judged on end-to-end function, UX, share of traffic, shippability, depth. Say which traffic is excluded and why (wallet writes). *CROPS:* OSS licence, a README section titled "CROPS", no trackers, a video showing "the moment it matters" | viem transport = Anon-RPC worker on **Nox** (the only specifier published on Sepolia); tor-js as fallback; badge with a 100% read counter; no silent fallback | Phone shows "Reads via Nox mixnet · 100%" while browsing the IPO list | 2–4 |
 | **ENS** | Best Use of ENSv2 ($7k: 3/2/1/1k) | Built on ENSv2 on mainnet **or Sepolia**; ENSv2 central, not cosmetic; functional, not hard-coded; live demo link; open source. Page names "edit only certain text records", non-transferable subnames and per-subname Permissioned Resolvers; **bonus for AI agents** | Ticker namespace: UserRegistry subnames, issuer Permissioned Resolver records, Enhanced Access Control roles (receiver may write only `listingday.status`) | Type "acme" → app resolves auction, pool and policy from ENS; a CRE halt flips the ENS status record | 3–4.5 |
-| **World** | **World ID Agent Pass ($5k: 2.5/1.5/1k)** and/or Best Use of IDKit ($2.5k, up to 2 teams × $1,250); one World pick covers both, but select only the track you actually built | *Agent Pass:* official Agent Pass integration; full journey; a denied, expired or cancelled path; secure backend validation; debrief. *IDKit:* IDKit + ≥1 credential verified on server or onchain; explain why the credential is the minimum sufficient; success + alternative path; debrief | Eligibility module: bid needs a backend-signed voucher bound to one human (Agent Pass `sub` with Orb `acr`, or IDKit nullifier) with a per-human cap | A second wallet, same human, tries to apply → voucher denied, bid reverts `NotEligible` | 4–8 |
+| **World** | **World ID Agent Pass ($5k: 2.5/1.5/1k)** and/or Best Use of IDKit ($2.5k, up to 2 teams × $1,250); one World pick covers both, but select only the track you actually built | *Agent Pass:* official Agent Pass integration; full journey; a denied, expired or cancelled path; secure backend validation; debrief. *IDKit:* IDKit + ≥1 credential verified on server or onchain; explain why the credential is the minimum sufficient; success + alternative path; debrief | Eligibility module: each bid needs a short-lived backend-signed pass bound to wallet + auction + World ID nullifier (IDKit nullifier, or `hash(iss, sub)` from Agent Pass with Orb `acr`), with a per-human cap | A second wallet, same human, tries to apply → pass denied; a bid without a valid pass reverts `NotEligible` | 4–8 |
 
 **Which World track fits:**
 - **Agent Pass ($5k)** pays more. It provides a stable pairwise identifier per sector plus fresh authentication at the moment of the action, which maps to "protect scarce benefits / claim limits".
@@ -78,7 +75,7 @@ All five partners are built into the product, but only **3** partners can be cla
   - Optional upside: a bidding agent that must pass a World human checkpoint before `submitBid`.
   - The default "Any account" setting admits unverified accounts. One human needs the Orb `acr` (see §8).
 - **IDKit ($2.5k shared)** maps to "fair access to a scarce benefit" with a Proof of Human nullifier.
-- Both run through the same backend voucher, so the module design doesn't change. **Build exactly one path per deployment.** Agent Pass `sub` and IDKit nullifiers live in separate identifier spaces, so offering both would let one person get two vouchers. Pick by which SDK reaches first success faster in the World spike.
+- Both run through the same backend-signed pass, so the module design doesn't change. **Build exactly one path per deployment.** Agent Pass `sub` and IDKit nullifiers live in separate identifier spaces, so offering both would let one person get two passes. Pick by which SDK reaches first success faster in the World spike.
 
 **Strongest 3-combos (decide after the Sat 01:30 IST e2e checkpoint):**
 
@@ -89,7 +86,7 @@ All five partners are built into the product, but only **3** partners can be cla
 | C. Uniswap + EF + World | $20k | Privacy + fairness | Needs World done |
 | D. Uniswap + CRE + ENS | $18.5k | CRE is easy to prove via simulation | Smallest pool |
 
-Default lean is **A**, switching to **B** if World lands cleanly by Sat 05:00 IST. The country module (§9) has no partner prize at Mumbai: there is no Self, zkPassport, Coinbase or Base track. It strengthens the Uniswap story (validation hooks as "compliance gating") and the overall judging, not a separate pick.
+Default lean is **A**, switching to **B** if World lands cleanly by Sat 05:00 IST. World ID is the whole eligibility story, so its pass check also strengthens the Uniswap pitch (validation hooks as "fair access gating") even when World isn't one of the 3 picks.
 
 **Other Mumbai tracks considered:**
 - Hedera "Tokenize Anything" ($5k) and Whitechain "Tokenize · Real World Finance" ($4k) fit tokenized equity, but each needs its own chain.
@@ -117,7 +114,7 @@ Default lean is **A**, switching to **B** if World lands cleanly by Sat 05:00 IS
 | % of raise to LP | e.g. 20% | `lpAllocationSchedule` brackets in MigratorParameters |
 | Graduation threshold | 50% of the target raise: 45 USDC (target = 90,000 × 0.001 = 90 USDC) | CCA `requiredCurrencyRaised` = 45e6 |
 
-**Bids.** Each bid is a **budget** (`amount` in USDC raw units, 6 dec) plus a **max price** (`maxPriceQ96`). The bid sheet converts "I'll pay up to X USDC per lot with Y USDC" into those two fields. The mock is NSE-inspired, but the currency is USDC, not ₹. Bids can name an `owner` and carry `hookData`, which is where the World voucher rides.
+**Bids.** Each bid is a **budget** (`amount` in USDC raw units, 6 dec) plus a **max price** (`maxPriceQ96`). The bid sheet converts "I'll pay up to X USDC per lot with Y USDC" into those two fields. The mock is NSE-inspired, but the currency is USDC, not ₹. Bids can name an `owner` and carry `hookData`, which is where the World ID pass rides.
 
 **Uniform clearing.** Everyone filled pays the same clearing price.
 - Bids above clearing are filled.
@@ -133,7 +130,7 @@ Default lean is **A**, switching to **B** if World lands cleanly by Sat 05:00 IS
 
 Show "unsold → issuer treasury" in the console and still walk the path once in the Gate 0 fork test.
 
-**Per-applicant caps.** `IValidationHook.validate` is **non-view**, so the module can add `amount` to a running total per key (wallet, or human key) and revert past the cap. Exits don't reduce the total; that is deliberately simple. Require `sender == owner`, as Uniswap's own `GatedERC1155ValidationHook` does. Otherwise anyone who copies a voucher from the mempool can spend the victim's cap with their own funds.
+**Per-applicant caps.** `IValidationHook.validate` is **non-view**, so the module can add `amount` to a running total per key (wallet, or human key) and revert past the cap. Exits don't reduce the total; that is deliberately simple. Require `sender == owner`, as Uniswap's own `GatedERC1155ValidationHook` does, and in Phase 2 also `owner == pass.wallet`. Otherwise anyone who copies a pass from the mempool can spend the victim's cap with their own funds.
 
 
 ### Quote currency: Sepolia USDC
@@ -188,8 +185,8 @@ Show "unsold → issuer treasury" in the console and still walk the path once in
 
 | # | Phase | What happens | Enforced by |
 |---|---|---|---|
-| 1 | Draft | Issuer creates the listing in the console (incl. eligibility: World on/off, optional jurisdiction rule), registers `acme.listingday.eth` and publishes policy v1 via CRE sim | Console, ENS, `ListingPolicyReceiver` |
-| 2 | CCA live | Floor 80; bids with `maxPrice` > 190 revert; eligibility module checks the cap (and World voucher, and the issuer's jurisdiction rule if set) | CCA + `AuctionValidationHook` + module |
+| 1 | Draft | Issuer creates the listing in the console (incl. eligibility: World ID "one human, one application" on/off), registers `acme.listingday.eth` and publishes policy v1 via CRE sim | Console, ENS, `ListingPolicyReceiver` |
+| 2 | CCA live | Floor 80; bids with `maxPrice` > 190 revert; the eligibility module checks the World ID pass (Phase 2) and the cap on every bid | CCA + `AuctionValidationHook` + module |
 | 3 | Clears | Graduates if `currencyRaised >= requiredCurrencyRaised`; otherwise refunds | CCA |
 | 4 | Migrate | `LBPStrategy.migrate()` initializes the v4 pool **at the clearing price** (~110) and mints LP; the console writes `listingday.pool` and `listingday.status=listed` to ENS | LBPStrategy + `ListingHook.beforeInitialize` (auth, `view`) / `afterInitialize` (store bands) |
 | 5 | Listing day | ±5% band (104.5–115.5); `afterSwap` reverts swaps that land outside it | `ListingHook` |
@@ -205,10 +202,8 @@ Show "unsold → issuer treasury" in the console and still walk the path once in
 | `ListingPolicyReceiver` | CRE policy store: version, `maxAge`, chain selector, monotonic `asOf`; best-effort ENS status mirror (try/catch). Emits its own `PolicyApplied` event. Hackathon guard: the mock forwarder is permissionless, so also require `tx.origin ==` our CRE broadcaster key | `onReport` → `policy()`; `setText(dnsEncode("acme.listingday.eth"), "listingday.status", …)` | CRE, ENS | 2 |
 | `AuctionValidationHook` | 190% cap + delegates to a pluggable `IEligibilityModule` | `validate(maxPrice, amount, owner, sender, hookData)` | Uni, World | 1.5 |
 | `AllowAllModule` (Phase 1) | Per-wallet cumulative cap only | owner, amount → ok / `CapExceeded` | Uni | 0.5 |
-| `WorldVoucherModule` (Phase 2) | Checks an EIP-712 voucher signed by our verify backend: `{humanKey, owner, auction, cap, expiry, policyHash, claims}`; caps by `humanKey`; one wallet per human per auction | hookData voucher → ok / `NotEligible` / `CapExceeded` | World | 1.5 |
-| `JurisdictionModule` + `AllOfModule` / `AnyOfModule` (optional) | Issuer country rule (allow/block list, `policyHash`), AND/OR composition with World | voucher `claims` + `policyHash` → ok / `JurisdictionBlocked` | Uni (story) | 1.5 |
-| `JurisdictionRegistry` (stretch) | `owner → policyHash, expiry` for swap gating; written on voucher use or `register(voucher)` | voucher → `isEligible(trader, policyHash)` | Uni | 1 |
-| Verify backend (Next.js API routes) | Agent Pass OIDC (or IDKit RP signature + `/v4/verify`), stores the human key, signs vouchers; also runs `zkPassport.verify` for the jurisdiction claim (or the mock-attestation fallback) | World / zkPassport result → voucher | World | 2.5–6 (+2–3 country) |
+| `WorldPassModule` (Phase 2) | Checks an EIP-712 pass signed by our verify backend: `{nullifier, wallet, auction, cap, expiry}`; requires `wallet == owner` and `auction ==` this auction; binds nullifier → wallet once; caps by nullifier | hookData pass → ok / `NotEligible` / `CapExceeded` | World | 1.5 |
+| Verify backend (Next.js API routes) | IDKit RP signature + `/v4/verify` (or Agent Pass OIDC), stores `(nullifier, auction) → wallet`, signs short-lived passes | World ID result → pass | World | 2.5–6 |
 | CCA + LiquidityLauncher + LBPStrategy | Auction → automatic graduation | Params → auction → pool + LP NFT | Uni | 3 |
 | `ListingHook` (inherits `InitializerHook`) | Bands, modes, halt; LP never blocked | `beforeInitialize` (inherited auth check; `view`, so no writes), `afterInitialize` (store listing price + bands), `beforeSwap`, `afterSwap` | Uni | 4 |
 | CRE workflow (TS) | Cron or manual → HTTP GET mock exchange API → `writeReport` with `gasConfig.gasLimit` ≈ 1.5–2M (the ENS mirror is storage-heavy) | JSON → report → receiver | CRE | 2 |
@@ -241,22 +236,19 @@ contract AuctionValidationHook is ValidationHookIntrospection {
     }
 }
 
-// Phase 2 voucher (EIP-712), signed by the verify backend after World (and, if set, jurisdiction) validation
-struct EligibilityVoucher {
-    bytes32 humanKey;   // keccak(Agent Pass iss|sub) or IDKit nullifier, scoped per auction action
-    address owner;      // the bidding wallet; one wallet per humanKey per auction
-    address auction;
+// Phase 2 pass (EIP-712), signed by the verify backend after World ID validation
+struct EligibilityPass {
+    bytes32 nullifier;  // World ID nullifier for action listingday-<ticker> (Agent Pass path: keccak(iss|sub))
+    address wallet;     // the bidding wallet; must equal bid owner and sender; one wallet per nullifier per auction
+    address auction;    // must equal the calling auction
     uint128 cap;        // per-human budget cap (mock application limit)
-    uint64  expiry;     // short-lived → "expired" failure path
-    bytes32 policyHash; // issuer jurisdiction rule satisfied (0 if none), §9
-    uint8   claims;     // bit0 HUMAN, bit1 JURISDICTION
+    uint64  expiry;     // short-lived (~10 min) → "expired" failure path
 }
 
 struct ListingPolicy {
     uint32 version; uint64 asOf; uint64 chainSelector; // 16015286601757825753 (Sepolia)
     uint160 refSqrtPriceX96; uint16 normalBandBps; uint16 survBandBps;
     uint8 mode; bool halted; uint64 coolOffUntil;
-    bytes32 eligibilityHash; // modules + AND/OR + jurisdiction policyHash; frozen after startBlock (§9)
 }
 ```
 
@@ -265,11 +257,11 @@ Note on wiring (verified in source): the CCA factory deploys with CREATE2 over i
 - **Don't bind lazily to the first caller.** Anyone can deploy a CCA through the public factory that points at our hook and claim it first.
 - **Alternative (fragile):** precompute with `factory.getAddress(token, auctionSupply, auctionParams, keccak256(abi.encode(keccak256(abi.encode(launcherCaller, salt)), migrationParams)), LBPStrategy)`. The launcher and strategy each re-hash the salt.
 - Keep the `msg.sender == auction` check. Without it, anyone could call `validate` directly and burn another wallet's cap.
-- The CCA wraps every hook revert as `ValidationHookCallFailed(bytes reason)`. The UI must decode the inner error (`BidAboveCap`, `NotEligible`, `CapExceeded`, `JurisdictionBlocked`).
+- The CCA wraps every hook revert as `ValidationHookCallFailed(bytes reason)`. The UI must decode the inner error (`BidAboveCap`, `NotEligible`, `CapExceeded`).
 
 ListingHook: compare prices in sqrtPriceX96 space with precomputed bounds and mind token order. Use `beforeSwap` to `tstore` the pre-price for directional mode. With no liquidity flags set, LPs are never blocked. `authorized` = LBPStrategy `0x9543…2000` (onchain `authorized()` on the reference hook confirms the strategy is a singleton); mine the address with HookMiner.
 - A hook revert also makes the v4 Quoter revert. The trade sheet's "would revert: outside band" pre-check is just a failed quote.
-- In a hook, `sender` is the router, not the trader. If swap-side jurisdiction gating is on, identify the trader through `IMsgSender(sender).msgSender()` for an allowlist of routers. Universal Router and V4Quoter on Sepolia both implement it. See [Country restrictions](#9-country-restrictions-issuer-optional).
+- Swaps are not identity-gated: eligibility applies to bids only, and secondary trading on the pool is open to any wallet.
 
 ## 7. ENSv2 ticker namespace
 
@@ -291,8 +283,7 @@ listingday.eth                    (ours, registered on Sepolia ENSv2 via ETHRegi
 | `listingday.hook` | ListingHook address | Issuer |
 | `listingday.policy` | `eip155:11155111:<ListingPolicyReceiver>` | Issuer |
 | `listingday.status` | `draft` / `auction` / `listed` / `surveillance` / `halted` | **ListingPolicyReceiver only** (scoped role) |
-| `listingday.eligibility` | `open` / `human` / `human+jurisdiction` / `human\|jurisdiction` | Issuer (before `startBlock`) |
-| `listingday.jurisdiction` | e.g. `allow:nationality:IND` or `block:nationality:<sorted list>`; empty = off | Issuer (before `startBlock`); the app checks its hash equals the module's `policyHash` |
+| `listingday.eligibility` | `open` (Phase 1, per-wallet cap) / `human` (Phase 2, World ID pass required) | Issuer (before `startBlock`); the app checks it matches the module on the validation hook |
 | `description`, `url`, `avatar` | Issuer profile | Issuer |
 
 **Role-scoped records (Enhanced Access Control):**
@@ -320,142 +311,34 @@ Confirm exact function signatures against `ensdomains/contracts-v2` at tag **`v2
 
 ## 8. World ID eligibility
 
+**Owner decision:** investor eligibility is **only** "this wallet belongs to a unique real person", proven with World ID. Nothing else about the investor is checked, stored or revealed.
+
 **Phase 1 (MetaMask e2e first):** `AllowAllModule`, a per-wallet budget cap only. Everything works with plain MetaMask.
 
-**Phase 2 (swap-in, 4–8 h):** `WorldVoucherModule`.
-1. On the bid sheet, the user taps "Verify you're one applicant". This opens **one** of two paths, fixed per deployment: Agent Pass fresh authentication (OIDC), or the IDKit widget (Proof of Human; simulator/staging for the demo). Never offer both for the same auction. The identifier spaces differ, so one person could collect two vouchers.
-2. The backend validates the result:
-   - **Agent Pass:** request `max_age=0` and `claims={"id_token":{"acr":{"essential":true,"values":["https://world.org/oidc/acr/orb"]}}}`. Validate signature, `aud`, `nonce`, `auth_time`, `acr` and `amr`; the default "Any account" setting is **not** one human. Human key = hash(`iss`,`sub`). Use the sandbox IdP (`sandbox.auth.world.org`); hackathon proofs are mocked identities.
-   - **IDKit:** the backend creates the request with `signRequest` (RP signing key, never in the client). Set `signal` = the bidder wallet and check it on the backend. Forward the payload to `POST https://developer.world.org/api/v4/verify/{rp_id}`, assert `environment`, and use human key = the nullifier for action `listingday-<ticker>`. Store it with `UNIQUE(nullifier, action)`.
-3. The backend refuses if that human key is already bound to another wallet for this auction. Otherwise it signs a short-lived EIP-712 voucher.
-4. The voucher rides in `submitBid(maxPriceQ96, amount, owner, prevTickPriceQ96, hookData)`. The module checks the signer and expiry, binds human key → owner, and enforces the per-human cap.
+**Phase 2 (swap-in, 4–8 h):** `WorldPassModule`. The flow is three steps: the investor proves World ID → the backend verifies it and signs a short-lived pass bound to wallet + auction + World ID nullifier → the CCA validation hook checks the pass on each bid.
+1. On the bid sheet, the user taps "Verify you're one applicant". This opens **one** of two paths, fixed per deployment: the IDKit widget (Proof of Human; simulator/staging for the demo), or Agent Pass fresh authentication (OIDC). Never offer both for the same auction. The identifier spaces differ, so one person could collect two passes.
+2. The backend validates the result and derives the **nullifier**:
+   - **IDKit:** the backend creates the request with `signRequest` (RP signing key, never in the client). Set `signal` = the bidder wallet and check it on the backend. Forward the payload to `POST https://developer.world.org/api/v4/verify/{rp_id}`, assert `environment`, and use the nullifier for action `listingday-<ticker>`. Store it with `UNIQUE(nullifier, action)`.
+   - **Agent Pass:** request `max_age=0` and `claims={"id_token":{"acr":{"essential":true,"values":["https://world.org/oidc/acr/orb"]}}}`. Validate signature, `aud`, `nonce`, `auth_time`, `acr` and `amr`; the default "Any account" setting is **not** one human. Nullifier = `keccak(iss, sub)`. Use the sandbox IdP (`sandbox.auth.world.org`); hackathon proofs are mocked identities.
+3. The backend refuses if that nullifier is already bound to another wallet for this auction. Otherwise it signs a short-lived (~10 min) EIP-712 `EligibilityPass {nullifier, wallet, auction, cap, expiry}`. It stores only `(nullifier, auction) → wallet`.
+4. The pass rides in `submitBid(maxPriceQ96, amount, owner, prevTickPriceQ96, hookData)`. On **every** bid, `AuctionValidationHook` → `WorldPassModule` checks the signer, `expiry`, `wallet == owner == sender` and `auction == msg.sender`, binds nullifier → wallet on first use (a different wallet for the same nullifier reverts), and adds `amount` to the per-human total against `cap`.
 
 **Failure paths to demo** (both World tracks require one):
-- The same human tries a second wallet → backend denies, no voucher.
-- A forged or expired voucher → bid reverts `NotEligible`.
+- The same human tries a second wallet → backend denies, no pass.
+- A forged, expired or other-wallet pass → bid reverts `NotEligible`.
 - Cancelled verification → bid button stays disabled.
 
-**Why not verify onchain?** World ID 4.0's `WorldIDVerifier` is on World Chain only (production + staging). Arc has a `WorldIDSatellite` (production only). Ethereum Sepolia has neither. It has only the legacy v3 `WorldIDRouter` (`0x4694…2157`). That router is still live: the testnet identity manager is on Sepolia itself, the group-1 root updated today, and root expiry is 1 h. But it is Orb-only (`groupId = 1`) and takes legacy proofs. Backend validation + a signed voucher is what both World tracks ask for ("validate in a secure backend"). An onchain legacy-router path is a stretch only.
+**Why not verify onchain?** World ID 4.0's `WorldIDVerifier` is on World Chain only (production + staging). Arc has a `WorldIDSatellite` (production only). Ethereum Sepolia has neither. It has only the legacy v3 `WorldIDRouter` (`0x4694…2157`). That router is still live: the testnet identity manager is on Sepolia itself, the group-1 root updated today, and root expiry is 1 h. But it is Orb-only (`groupId = 1`) and takes legacy proofs. Backend validation + a signed pass is what both World tracks ask for ("validate in a secure backend"). An onchain legacy-router path is a stretch only.
 
-**Credential choice (IDKit judging asks for it):** Proof of Human is the minimum sufficient assurance. We need uniqueness per applicant, not identity documents. Generally available World credentials don't prove nationality: the 9303 passport credential carries no nationality field, and Agent Pass ID tokens carry no attributes. Only **Identity Check** (Preview, "contact us") can attest `nationality` / `issuing_country` as a boolean match. Jurisdiction is therefore a separate module ([§9](#9-country-restrictions-issuer-optional)), and Proof of Human stays the "minimum sufficient" credential.
-
-## 9. Country restrictions (issuer-optional)
-
-**Goal:** an issuer can say "this IPO is open only to holders of an Indian passport", or "open to everyone except a sanctions list and the US". The chain enforces that rule. The investor reveals **one bit**, eligible or not, and never their nationality. It is a third pluggable `IEligibilityModule` next to `AllowAllModule` and `WorldVoucherModule`. It is **off by default**.
-
-### 9.1 Issuer choices (console → listing policy)
-
-| Setting | Options | Demo value |
-|---|---|---|
-| Rule | Off · **Allow only** listed countries · **Block** listed countries | Allow only |
-| Basis | **Nationality** (passport) · Issuing country (passport or residence permit) · Residency (stretch: Aadhaar) | Nationality |
-| List | ISO 3166-1 alpha-3, sorted (zkPassport requires sorted lists for exclusion) | `IND` (+ the dev-mode mock country, see 9.3) |
-| Applies to | **Bidding** · Bidding + trading on our pool | Bidding (trading = stretch) |
-| Combine with World ID | **AND** (default) · OR | AND |
-
-How the rule is recorded (one rule, three places, all must agree):
-- **Onchain, immutable:** `JurisdictionModule` is deployed per listing with `policyHash = keccak256(abi.encode(rule, basis, sortedList, appliesToSwaps))`. It can't change mid-auction.
-- **Listing policy:** `ListingPolicy` gains `bytes32 eligibilityHash`, committing to the module set, AND/OR and `policyHash`. The receiver rejects a CRE report that tries to change it after `startBlock`. CRE can still halt trading, but it can't quietly move the jurisdiction goalposts.
-- **ENS:** issuer-written records `listingday.eligibility` = `human+jurisdiction` and `listingday.jurisdiction` = `allow:nationality:IND`. The app shows the rule from ENS and checks that its hash equals the module's `policyHash`.
-
-### 9.2 Attestation sources (what exists on Sepolia today)
-
-| Source | Proves | Ethereum Sepolia | Role here |
-|---|---|---|---|
-| **zkPassport** | Nationality or issuing country in or out of a list (inclusion proof hides *which* country), sanctions, age; proof bound to a wallet | **Yes.** `ZKPassportVerifier` `0x1D00…c0D8` has code. Dev-mode mock passports are rooted in the Sepolia registry. | **Primary.** Backend `verify({ devMode: true })` → voucher. Stretch: verify onchain. |
-| **Backend-signed attestation** (+ optional EAS record) | Whatever our mock "KYC provider" asserts | Our module; EAS `0xC267…815e` has code | **Fallback.** Same voucher, a mock country picker in the demo. |
-| Anon Aadhaar (PSE) | Aadhaar holder = **Indian resident** (not citizen); optional state/pincode | Yes. Test-key verifier `0x6bE8…E281` has code. | Pitch "next module". Low maintenance since 2025, so not tonight. |
-| Self | Nationality denylist (private) or allowlist (**reveals** nationality); OFAC | No. Onchain mode is Celo / Celo Sepolia only; the open SDK is deprecated in favour of Self Enterprise. | Not used. |
-| Coinbase Verified Country | Residence country (public, alpha-2) | No. Base / Base Sepolia only. | Not used. |
-| World ID (Proof of Human) | Uniqueness only | Legacy v3 router only | Composes via AND/OR, not a country source. |
-| World ID **Identity Check** (Preview) | Boolean `identity_attested` for `nationality` / `issuing_country` (alpha-3), `minimum_age`, `document_type`; country not revealed | No (backend verify) | Only if World enables the preview for our app; simulator support unverified. Would make World a single-SDK path for both claims. Ask at the World booth; don't plan on it. |
-
-There is no Self, zkPassport, Coinbase or Base prize at ETHGlobal Mumbai. This feature earns points through the Uniswap and ENS stories and the pitch, not through a separate prize.
-
-### 9.3 Flow
-
-1. The bid sheet shows "Open to: Indian nationals · 1 per human". The user taps **Check eligibility**.
-2. The PWA opens the zkPassport request: a QR code on desktop, or a deep link on the phone. The request uses `scope = listingday-<ticker>`, the query `.in("nationality", ["IND", …])` (or `.out(...)` for a block list), and `.bind("user_address", owner)`.
-3. The verify backend runs `zkPassport.verify({ proofs, queryResult, scope, devMode })`. It checks the bound address is `owner` and the query matches the issuer's `policyHash`. It then signs the **same EIP-712 voucher type** as World, with two new fields:
-
-```solidity
-struct EligibilityVoucher {
-    bytes32 humanKey;    // World key (0 if World not required)
-    address owner;
-    address auction;
-    uint128 cap;
-    uint64  expiry;
-    bytes32 policyHash;  // NEW: the issuer jurisdiction rule this voucher satisfies
-    uint8   claims;      // NEW: bit0 = HUMAN (World verified), bit1 = JURISDICTION
-}
-```
-
-4. The voucher rides in `hookData`. `AuctionValidationHook` → module → reverts `JurisdictionBlocked` if the bit or `policyHash` is missing. The CCA wraps that error as `ValidationHookCallFailed`.
-5. Nationality never reaches the chain or our database. The backend stores only `(policyHash, owner, expiry)`. Calldata carries only the claim bit.
-
-**Dev-mode caveats (Gate 0 item):**
-- All zkPassport mock passports share unique identifier `1`, so **uniqueness must come from World ID, not the passport**.
-- Check which nationality the Zero Knowledge Republic mocks carry, and add that code to the demo allowlist. Label it "mock country" in the UI.
-- Real Indian passports may not all be readable yet (ICAO 9303 chip coverage), so the fallback path matters.
-
-### 9.4 Composition with World ID
-
-```solidity
-contract JurisdictionModule is IEligibilityModule {      // pluggable, like AllowAll / WorldVoucher
-    bytes32 public immutable policyHash;  address public immutable signer;
-    function check(address owner, address sender, uint128, bytes calldata hookData) external; // reverts JurisdictionBlocked
-}
-contract AllOfModule is IEligibilityModule { IEligibilityModule[] public modules; } // AND: every child must pass
-contract AnyOfModule is IEligibilityModule { IEligibilityModule[] public modules; } // OR: first child that doesn't revert (try/catch)
-```
-
-- **AND (default):** `AllOf(WorldVoucher, Jurisdiction)` means one human, one application, and only from allowed countries. One backend issues one voucher with both claim bits, so the bidder signs nothing extra.
-- **OR:** `AnyOf(WorldVoucher, Jurisdiction)` means "a verified human **or** a verified passport holder". It widens access without losing a person check. Because mock passports all share id `1`, OR is a design option only and not demoed.
-- **Off:** `AllowAll` or `WorldVoucher` alone, exactly as in §8.
-- Per-human caps stay in `WorldVoucherModule`. `JurisdictionModule` is stateless apart from replay protection.
-
-### 9.5 Where the check runs
-
-| Action | Enforced by | How |
-|---|---|---|
-| Bid | `AuctionValidationHook` → module | Voucher in `hookData`; `sender == owner` |
-| Claim allotment | CCA | Tokens go to the `owner` already checked at bid time |
-| Swap on our pool (if "bidding + trading") | `ListingHook.beforeSwap` | `trader = IMsgSender(sender).msgSender()` for allowlisted routers (Universal Router `0x3A9D…F98b` and 2.1.2 `0x7E4f…43f3`, V4Quoter `0x68aF…8244`); any other router reverts `UntrustedRouter`. `JurisdictionRegistry.isEligible(trader, policyHash)` must be true. The registry is written when a voucher is consumed, or via `register(voucher)` for secondary buyers. |
-| LP add / remove | Not gated | "LP exits always work" stays true |
+**Credential choice (IDKit judging asks for it):** Proof of Human is the minimum sufficient assurance. We need uniqueness per applicant, not identity documents or any personal attribute, so no other credential is requested.
 
 **Honest limitations (README + UI copy):**
-- **IP/VPN geofencing is not enforcement.** We use the IP country only as a hint ("looks like you're outside India") and never as a gate.
-- **Nationality ≠ residency.** Securities rules usually care about residence. A passport proves citizenship. Aadhaar proves residency (182+ days in India, including resident foreigners) but not citizenship.
-- **Transfers bypass the pool check.** MockSME is a plain ERC-20 (UERC20 from `createToken`). After allotment, a holder can `transfer` to anyone or trade on another pool. Real transfer restrictions need a permissioned token (ERC-3643 style) deposited via `depositToken`. That is out of scope tonight, and we say so.
-- **Wallets aren't people.** An eligible person can bid for someone else. That's why the default is AND with World ID, and why we never claim this is KYC.
-- **The backend is a trust point.** It is the same signer as World: short expiry, key only in the backend env. The onchain zkPassport registry stretch removes it.
+- **Not KYC.** The pass proves "one unique human", not who they are. Hackathon proofs are staging or mocked identities; we never claim production-grade sybil resistance.
+- **A human can still bid for someone else.** World ID stops one person applying twice; it can't stop a verified person lending their wallet.
+- **Only bids are gated.** After allotment MockSME is a plain ERC-20; transfers and swaps are open to any wallet.
+- **The backend is a trust point.** Short expiry, one wallet per nullifier per auction, `sender == owner`, signer key only in the backend env. The onchain legacy-router stretch removes it.
 
-### 9.6 UX
-
-**Issuer console:** a new **Eligibility** step in "Create listing":
-- toggles for "One human, one application (World ID)" and "Jurisdiction rule";
-- a country multi-select with presets ("India only", "Block OFAC + US");
-- a basis selector and an AND/OR switch;
-- "Applies to: Bidding / Bidding + trading";
-- a live preview of what investors see.
-
-On publish, the console writes the ENS records, includes `eligibilityHash` in policy v1 (CRE), and deploys the module. The step shows a fixed note: "Your KYC/AML obligations are unchanged; this is an extra, privacy-preserving gate".
-
-**Mobile PWA:**
-- **IPO list / detail:** a chip such as "IND only · nationality" / "Restricted: 12 countries" plus "1 per human", read from ENS.
-- **Bid sheet:** an eligibility checklist (World ✓, Jurisdiction ✓). Each step deep-links to the World App or zkPassport app and returns to the PWA. Success copy: "Eligible. ACME and the chain learned only that you meet its rule". Denial copy: "This IPO is limited by the issuer to Indian nationals". There is no retry loop and no hint about how to get around the rule.
-- **Trade sheet (if trading is gated):** a pre-check. Not registered gives "Verify to trade ACME"; ineligible gives a disabled button with the issuer's rule.
-
-### 9.7 Pitch angle
-
-- **The issuer chooses the jurisdiction rules; the protocol enforces them; the investor reveals one bit.**
-- India's regulators already draw this line. SEBI's sandbox framework: "no exemptions would be granted from the extant investor protection framework, Know-Your-Customer (KYC) and Anti-Money Laundering (AML) rules" ([SEBI, Jun 2021, ¶24](https://www.sebi.gov.in/sebi_data/attachdocs/jun-2021/1623665266705.pdf)). IFSCA's 2020 sandbox framework has the same sentence ([¶16](https://ifsca.gov.in/Document/Legal/ifsca-circular-regulatory-sandbox_new19102020084227.pdf)). IFSCA's March 2026 FinTech Sandbox Framework replaced that document and doesn't repeat the sentence verbatim, so quote SEBI and present IFSCA as context.
-- Listing Day doesn't relax KYC. It adds an onchain, privacy-preserving enforcement layer for issuer-chosen offering restrictions on top of intermediary KYC. An IFSC (GIFT City) style listing could open to foreign investors, while a domestic SME issue could stay India-only.
-- Everything here is a mock, with no regulatory claims (see the disclaimer).
-
-**Hours:** fallback backend attestation + `JurisdictionModule` + `AllOf` takes 1.5 h. zkPassport backend verify + PWA flow takes 2–3 h. Swap gating + registry takes 1.5 h (stretch). Onchain zkPassport registry is a stretch.
-
-## 10. Mobile app and screens
+## 9. Mobile app and screens
 
 **Stack:**
 - Mobile-first Next.js PWA with wagmi + viem.
@@ -477,19 +360,19 @@ On publish, the console writes the ENS records, includes `eligibilityHash` in po
 | Screen | Content |
 |---|---|
 | IPO list | Tickers from ENS, status chip from `listingday.status`, Anon-RPC badge |
-| IPO detail + bid sheet | Range, clearing chart, budget + max price, cap remaining, eligibility chip from ENS, eligibility checklist (World verify; jurisdiction proof if the issuer set a rule, §9.6) |
+| IPO detail + bid sheet | Range, clearing chart, budget + max price, cap remaining, "1 per human" chip from ENS `listingday.eligibility`, a single "Verify you're one applicant" step (World ID → pass; deep-links to World App and back). Copy: "Verified: one application per person. Only your uniqueness was checked"; denial: "This person already applied with another wallet" |
 | My bids / allotment | Bid states (active, outbid, partial, filled), exit and claim actions, refund amount |
-| Live market chart + trade sheet | Lightweight Charts with band, reference and markers; quote via Quoter; swap via Universal Router; "would revert: outside band" pre-check (decoded Quoter revert); "Verify to trade" if trading is jurisdiction-gated |
+| Live market chart + trade sheet | Lightweight Charts with band, reference and markers; quote via Quoter; swap via Universal Router; "would revert: outside band" pre-check (decoded Quoter revert) |
 | Circuit status banner | Global: Listing band / Normal / Surveillance / Directional / Halted, with the time it changed (IST) |
 | Portfolio | MockSME balance, LP positions, PnL vs issue price |
-| **Issuer console** | Create listing (supply 110,000, issue price, range 80–190%, cap, LP %), **Eligibility step** (World on/off, jurisdiction rule, basis, list, AND/OR, bidding vs trading; §9.6), register ENS ticker, publish policy (CRE sim), launch CCA, monitor bids and clearing, demo buttons (reference update, surveillance, directional, halt, resume) |
+| **Issuer console** | Create listing (supply 110,000, issue price, range 80–190%, cap, LP %), **one eligibility toggle** "One human, one application (World ID)" (on → `WorldPassModule` + ENS `listingday.eligibility=human`; off → `AllowAllModule` + `open`; fixed once the CCA launches), register ENS ticker, publish policy (CRE sim), launch CCA, monitor bids and clearing (incl. passes issued and second-wallet denials), demo buttons (reference update, surveillance, directional, halt, resume) |
 
 The console's demo buttons edit the mock exchange JSON and then run `cre workflow simulate --broadcast --non-interactive --trigger-index 0` from a local runner script. That needs a CRE account, `cre login`, and a funded `CRE_ETH_PRIVATE_KEY`; prebuild with `cre workflow build` to skip recompiling. The judge sees the Sepolia tx. Nothing pretends to be a deployed DON; real DON deployment needs `cre account access` approval.
 - **Don't trust tx status.** The mock forwarder mines a *successful* tx even when `onReport` reverts, recording `ReportProcessed.result = false`. The UI shows "policy applied" only from the receiver's own event.
 
-## 11. Diagrams
+## 10. Diagrams
 
-### 11.1 Architecture
+### 10.1 Architecture
 
 ```mermaid
 flowchart LR
@@ -502,9 +385,8 @@ flowchart LR
     ANON[Anon-RPC worker\nNox mixnet; tor-js fallback]
     API[Mock exchange API]
     CRE[CRE workflow\nsimulate --broadcast]
-    VB[Verify backend\nAgent Pass / IDKit / zkPassport → EIP-712 voucher]
-    WID[World ID\nIdP / Developer Portal]
-    ZKP[zkPassport app + SDK\ndev-mode mock passports]
+    VB[Verify backend\nWorld ID verify → short-lived EIP-712 pass\nwallet + auction + nullifier]
+    WID[World ID\nIDKit / Agent Pass IdP]
   end
   subgraph Sepolia
     FWD[MockKeystoneForwarder]
@@ -514,16 +396,15 @@ flowchart LR
     LL[LiquidityLauncher] --> LBP[LBPStrategy]
     LBP --> CCA[CCA]
     CCA -. validate .-> AVH[AuctionValidationHook]
-    AVH --> MOD["Eligibility module\nAllowAll → AllOf: WorldVoucher + Jurisdiction"]
-    JREG[JurisdictionRegistry\nstretch: swap gating]
+    AVH -- check pass on each bid --> MOD["Eligibility module\nPhase 1 AllowAll → Phase 2 WorldPass"]
     LBP -- migrate --> PM[PoolManager]
     PM --> LH[ListingHook]
   end
   UI & IC & CH -- all reads --> ANON --> UR & CCA & REC & PM
-  UI -- verify --> VB <--> WID
-  UI -- country proof --> ZKP --> VB
-  LH -. trader eligible? .-> JREG
-  UI -- bid + voucher via wallet --> CCA
+  UI -- World ID proof --> WID
+  UI -- proof + wallet + auction --> VB <--> WID
+  VB -. signed pass .-> UI
+  UI -- bid + pass via wallet --> CCA
   UI -- swap via wallet --> PM
   IC -- edit --> API --> CRE --> FWD --> REC
   IC -- register ticker, records --> ENS
@@ -532,7 +413,7 @@ flowchart LR
   UR --> ENS
 ```
 
-### 11.2 Sequence: ticker to listing day
+### 10.2 Sequence: ticker to listing day
 
 ```mermaid
 sequenceDiagram
@@ -545,7 +426,7 @@ sequenceDiagram
   participant A as CCA
   participant V as ValidationHook + module
   participant B as Bidder app
-  participant W as Verify backend (World + zkPassport)
+  participant W as Verify backend (World ID)
   participant P as PoolManager
   participant H as ListingHook
   IS->>E: register acme.listingday.eth (issuer owner, records)
@@ -558,11 +439,10 @@ sequenceDiagram
   IS->>V: setAuction(A) (once, before startBlock)
   IS->>E: setText(listingday.auction=A, status=auction)
   B->>E: resolve acme (via Anon-RPC)
-  B->>W: World verify (Agent Pass / IDKit)
-  B->>W: zkPassport proof (nationality in list, bound to B) if the issuer set a rule
-  W-->>B: EIP-712 voucher {claims, policyHash} (or denied)
-  B->>A: submitBid(maxPriceQ96, amount, owner=B, prevTickPriceQ96, hookData=voucher)
-  A->>V: validate → cap 190, sender==owner, voucher, per-human cap, jurisdiction
+  B->>W: World ID proof (IDKit, signal=B) for action listingday-acme
+  W-->>B: EIP-712 pass {nullifier, wallet=B, auction=A, cap, expiry} (or denied)
+  B->>A: submitBid(maxPriceQ96, amount, owner=B, prevTickPriceQ96, hookData=pass)
+  A->>V: validate → cap 190, sender==owner, pass (signer, expiry, wallet, auction), per-human cap
   Note over A: ends, clears ≈ 110
   IS->>L: migrate(A) (after migrationBlock)
   L->>P: initialize(key{hooks=H}, sqrtP(110))
@@ -575,7 +455,44 @@ sequenceDiagram
   R->>E: setText(status=halted)
 ```
 
-### 11.3 State diagram
+### 10.3 Sequence: World ID eligibility pass
+
+```mermaid
+sequenceDiagram
+  autonumber
+  actor I as Investor (wallet B)
+  participant App as PWA bid sheet
+  participant WID as World ID (IDKit / World App)
+  participant VB as Verify backend
+  participant A as CCA
+  participant V as AuctionValidationHook + WorldPassModule
+  I->>App: tap "Verify you're one applicant"
+  App->>VB: request RP signature (action listingday-acme, signal=B)
+  VB-->>App: signed IDKit request
+  App->>WID: Proof of Human request
+  WID-->>App: proof + nullifier (or cancelled → bid button stays disabled)
+  App->>VB: proof, wallet B, auction A
+  VB->>WID: POST /api/v4/verify/{rp_id}
+  WID-->>VB: valid, nullifier
+  alt nullifier already bound to another wallet for A, or proof invalid
+    VB-->>App: denied, no pass
+  else first wallet for this human
+    VB->>VB: store (nullifier, A) → B
+    VB-->>App: EIP-712 pass {nullifier, wallet=B, auction=A, cap, expiry ≈ 10 min}
+  end
+  I->>A: submitBid(maxPriceQ96, amount, owner=B, prevTickPriceQ96, hookData=pass)
+  A->>V: validate(maxPrice, amount, owner, sender, hookData)
+  V->>V: signer, expiry, wallet == owner == sender, auction == A
+  V->>V: bind nullifier → B once, add amount to per-human total
+  alt pass valid and under cap
+    V-->>A: ok, bid accepted
+  else forged, expired, other wallet or over cap
+    V-->>A: revert NotEligible / CapExceeded (wrapped as ValidationHookCallFailed)
+  end
+  Note over VB,V: Agent Pass path: OIDC id_token with Orb acr instead of IDKit, nullifier = keccak(iss, sub)
+```
+
+### 10.4 State diagram
 
 ```mermaid
 stateDiagram-v2
@@ -597,7 +514,7 @@ stateDiagram-v2
   note right of Halted: swaps revert, LP exits ok, ENS status=halted
 ```
 
-## 12. Rule mapping (NSE-inspired mock)
+## 11. Rule mapping (NSE-inspired mock)
 
 | Real NSE SME rule | Our onchain version | Fidelity |
 |---|---|---|
@@ -612,7 +529,7 @@ stateDiagram-v2
 | — | Timed cool-off, directional mode | Our extensions |
 | Market-wide index circuit breakers | Not modelled | — |
 
-## 13. Mock and demo plan
+## 12. Mock and demo plan
 
 **Example numbers (example data):**
 - 110,000 shares (90,000 auctioned), issue 100, range 80–190. Prices are in points: 100 = 1.00 USDC per 1,000-share lot = 0.001 USDC per share.
@@ -636,8 +553,8 @@ stateDiagram-v2
 1. **0:00 Pitch:** the NSE SME flow on one slide.
 2. **0:20 Issuer console:** create ACME (110,000 shares, 80–190%, 20% to LP) and register `acme.listingday.eth`. The ENS explorer shows the records.
 3. **0:45 Publish policy:** CRE sim `--broadcast`; the Sepolia tx appears and ENS status reads `draft`, then `auction`.
-4. **1:00 Investor phone:** the IPO list resolves from ENS, with the badge "Reads via Nox mixnet · 100%". ACME's chip reads "IND only · 1 per human".
-5. **1:15 Bid:** World verify + zkPassport (mock passport), then a bid. A second wallet for the same human is denied. A mock passport outside the list reverts `JurisdictionBlocked`, and the issuer's rule shows. A bid at 200 reverts `BidAboveCap`.
+4. **1:00 Investor phone:** the IPO list resolves from ENS, with the badge "Reads via Nox mixnet · 100%". ACME's chip reads "1 per human".
+5. **1:15 Bid:** World ID verify (IDKit simulator) → the backend signs a pass for this wallet and auction → the bid goes through. A second wallet for the same human is denied a pass. Replaying an expired pass reverts `NotEligible`. A bid at 200 reverts `BidAboveCap`.
 6. **1:50 Clearing:** the clearing chart moves per block. Graduation (pre-run) opens the pool at 110.
 7. **2:10 Trade:** an in-band buy passes; a buy to 117 reverts, with a marker on the chart.
 8. **2:35 Console:** reference 90 + directional mode. The widening buy reverts and the arb sell passes.
@@ -646,47 +563,43 @@ stateDiagram-v2
 
 Pre-record the auction phase: Sepolia blocks take ~12 s.
 
-## 14. Build plan to Sat 09:00 IST
+## 13. Build plan to Sat 09:00 IST
 
-Re-based at **Fri ~14:00 IST: about 19 h remain** (was 21.5 h from 11:30). The original Gate 0 deadline of 13:30 has passed with nothing built, so every block before the Sat 01:30 checkpoint is 2.5 h shorter. **Order: MetaMask e2e first, then ENS, then the World ID swap-in, then the country module.** The total effort (~36.5–47.5 h with country; the faucet-token row is gone now that we use Sepolia USDC) needs **two parallel lanes**. A solo builder should cut World and the country module, keep combo A, and describe §9 as design.
+Re-based at **Fri ~14:00 IST: about 19 h remain** (was 21.5 h from 11:30). The original Gate 0 deadline of 13:30 has passed with nothing built, so every block before the Sat 01:30 checkpoint is 2.5 h shorter. **Order: MetaMask e2e first, then ENS, then the World ID swap-in.** The total effort (~32–42 h; the faucet-token row is gone now that we use Sepolia USDC, and World ID is the only eligibility work) needs **two parallel lanes**. A solo builder should cut World, keep combo A, and describe §8 as design.
 
 **Gate 0 (Fri 14:00–16:00 IST):** all of these must pass before anything else.
 1. Nox Anon-RPC worker → Sepolia read from a phone. Try the MetaMask in-app browser first (WebRTC inside a sandboxed iframe), then a regular mobile browser + WalletConnect.
 2. CRE `simulate --broadcast` → `onReport` on a stub receiver. Check `ReportProcessed.result == true` and the receiver event, not just tx status.
 3. Fork test: Launcher multicall → CCA → `setAuction` → bids → `migrate()` into a pool with a mined InitializerHook-derived hook. Confirm `sweepUnsoldTokens` to the issuer `tokensRecipient`.
 4. Register `listingday.eth` on Sepolia ENSv2: mint + approve ENS's test MockUSDC (not Circle USDC), commit, wait 60 s, register.
-6. **Start USDC pre-funding:** first Circle faucet round for ~8 demo addresses (20 USDC each), repeated every 2 h until ≈ 260 USDC is in place by the Sat 01:30 checkpoint. Check that a bid runs end to end with real USDC: `approve(Permit2)` → `Permit2.approve(USDC, auction, …)` → `submitBid`.
-5. (Lane B, 20 min) zkPassport dev mode: a mock-passport proof verifies on our backend with `devMode: true`. Note which nationality the mocks carry.
+5. **Start USDC pre-funding:** first Circle faucet round for ~8 demo addresses (20 USDC each), repeated every 2 h until ≈ 260 USDC is in place by the Sat 01:30 checkpoint. Check that a bid runs end to end with real USDC: `approve(Permit2)` → `Permit2.approve(USDC, auction, …)` → `submitBid`.
+6. (Lane B, 20 min) World spike: an IDKit simulator proof (or Agent Pass sandbox login) verifies on our backend and yields a nullifier. Pick the World path from whichever reaches first success faster.
 
 | Time (IST) | Lane A: contracts, CRE, ENS | Lane B: app, Anon-RPC, World |
 |---|---|---|
-| Fri 14:00–16:00 | Gate 0 (fork test with Sepolia USDC, CRE stub, ENS name) | Gate 0 (Nox spike on a phone, zkPassport dev-mode spike, first USDC faucet round) |
+| Fri 14:00–16:00 | Gate 0 (fork test with Sepolia USDC, CRE stub, ENS name) | Gate 0 (Nox spike on a phone, World spike, first USDC faucet round) |
 | 16:00–18:00 | MockSME token (salt so MockSME > USDC), receiver (+ hackathon `tx.origin` guard), validation hook + `setAuction` + `AllowAllModule` + tests (6-dec USDC price math) | PWA shell, wagmi, Nox transport + badge |
 | 18:00–21:30 | `ListingHook` (`afterInitialize` bands) + HookMiner + fork tests | IPO list, detail + bid sheet, My bids |
 | 21:30–23:30 | Launch script on Sepolia (params, bids, migrate) | Chart (Lightweight Charts) + trade sheet + circuit banner |
 | 23:30–Sat 01:00 | CRE workflow + console runner | Issuer console (create, launch, monitor, demo buttons) |
 | **Sat 01:30** | **Checkpoint: MetaMask e2e on Sepolia (bid → clear → trade → revert → halt)** | |
 | 01:00–03:30 | ENS: UserRegistry, ticker, records, scoped status role, receiver mirror | ENS resolution in the UI; portfolio |
-| 01:30–05:00 | — | World verify backend + `WorldVoucherModule` swap-in (cap 3.5 h; stop at 05:00) |
-| 03:30–05:00 | `JurisdictionModule` + `AllOfModule` + mock-attestation fallback; ENS `listingday.eligibility` / `.jurisdiction` records | — |
-| 05:00–05:45 | Support | zkPassport backend verify + bid-sheet step (hard stop 05:45; otherwise demo the fallback, labelled "mock attestation") |
-| 05:45–07:30 | Joint: rehearsal, video (screen capture, not a phone), README line pointers, FEEDBACK.md + form, World/ENS debriefs, AI-use note, CROPS README section, licence | |
+| 01:30–05:00 | — | World verify backend (nullifier store, pass signer) + bid-sheet verify step (cap 3.5 h; stop at 05:00) |
+| 03:30–05:00 | `WorldPassModule` swap-in + fork tests (signer, expiry, wallet/auction binding, second wallet for one nullifier reverts, per-human cap); ENS `listingday.eligibility=human` | — |
+| 05:00–07:30 | Joint: World failure-path polish, rehearsal, video (screen capture, not a phone), README line pointers, FEEDBACK.md + form, World/ENS debriefs, AI-use note, CROPS README section, licence | |
 | 07:30–08:15 | Pick 3 partners and submit | |
 | 08:15–09:00 | Buffer | |
 
 **Cut list, in order:**
 1. Ex-dividend (already cut).
-2. Swap-side jurisdiction gating + `JurisdictionRegistry` (keep bid-side gating).
-3. Real zkPassport proofs (keep the backend mock-attestation fallback, labelled honestly).
-4. Country module entirely (keep §9 as design + console mock-up; no prize depends on it).
-5. World ID: fall back to `AllowAllModule` per-wallet cap, combo A.
-6. Directional mode.
-7. Timed cool-off.
-8. Portfolio screen.
-9. Receiver's ENS status mirror (the console writes status instead).
-10. Previous-close roll.
+2. World ID: fall back to `AllowAllModule` per-wallet cap, combo A (keep §8 as design).
+3. Directional mode.
+4. Timed cool-off.
+5. Portfolio screen.
+6. Receiver's ENS status mirror (the console writes status instead).
+7. Previous-close roll.
 
-## 15. Risks
+## 14. Risks
 
 See [`VALIDATION.md`](VALIDATION.md#3-top-risks) for the ranked top risks.
 
@@ -711,20 +624,18 @@ See [`VALIDATION.md`](VALIDATION.md#3-top-risks) for the ranked top risks.
 | ENS scoped roles span all bundles in a resolver | One resolver per issuer |
 | ENSv2 contract API unfamiliar; `main` branch ABIs don't match Sepolia | Use tag `v2-mainnet-deployment-1` ABIs; DNS-encoded names; MockUSDC payment; budget 4.5 h; cut the status mirror first |
 | ENS token ids regenerate on role changes | Index by labelhash, `findTokenId(label)` |
-| World: no ID 4.0 verifier on Ethereum Sepolia | Backend validation + EIP-712 voucher (what the prize asks); onchain legacy router only as a stretch |
-| World: Agent Pass default admits unverified accounts; offering Agent Pass *and* IDKit gives one person two vouchers | Require Orb `acr` + `max_age=0` and validate claims; one World path per deployment |
+| World: no ID 4.0 verifier on Ethereum Sepolia | Backend validation + short-lived EIP-712 pass (what the prize asks); onchain legacy router only as a stretch |
+| World: Agent Pass default admits unverified accounts; offering Agent Pass *and* IDKit gives one person two passes | Require Orb `acr` + `max_age=0` and validate claims; one World path per deployment |
 | World integration 4–8 h; Agent Pass proofs are mocked identities | Hard stop Sat 05:00 IST; never claim production-grade sybil resistance |
-| Voucher signer key is a trust point (World and jurisdiction) | Short expiry, one wallet per human key, `sender == owner`, key only in backend env; stated in README |
-| Jurisdiction gate bypassed by ERC-20 transfers or other pools; nationality ≠ residency; IP geofencing is not enforcement | State plainly in UI + README; gate only bids (and optionally our pool); permissioned token is future work |
-| zkPassport mocks all share unique id `1`; mock nationality may not be `IND`; real Indian passport coverage is partial | Uniqueness from World only; add the mock country to the demo list, labelled; backend mock-attestation fallback |
-| World Identity Check (nationality) is preview-only | Not on the plan's critical path; zkPassport is primary |
+| Pass signer key is a trust point | Short expiry (~10 min), pass bound to wallet + auction + nullifier, one wallet per nullifier, `sender == owner`, key only in backend env; stated in README |
+| Overclaiming the World ID check (it proves uniqueness, not identity; only bids are gated, not transfers or swaps) | "Not KYC" disclaimer; limitations in UI + README (§8) |
 | CRE mock forwarder is permissionless (anyone can push a fake halt) and swallows `onReport` reverts | Hackathon `tx.origin` guard + README note; UI reads `ReportProcessed.result` / receiver event; prod path = KeystoneForwarder + workflow owner/name checks |
 | CRE ENS mirror is storage-heavy; Sepolia gas repricing (Glamsterdam) | `gasConfig.gasLimit` ≈ 1.5–2M; keep try/catch; measure on Sepolia, not only a fork |
 | Reverted swaps emit no logs | Chart markers come from app-observed receipts and demo hashes; label "rejected attempts seen by this app" |
 | Lightweight Charts licence | NOTICE text on an About page + `attributionLogo` link to tradingview.com |
 | ETHGlobal disqualifiers: phone-recorded video, big single commits, missing AI attribution / spec files | Screen capture ≥720p 2–4 min; commit steadily; AI-use section in README; keep `plan.md` + `VALIDATION.md` in the repo |
 
-## 16. Prize checklists
+## 15. Prize checklists
 
 Pick 3 at submission; prepare all 5 so the choice stays open.
 
@@ -762,10 +673,10 @@ Pick 3 at submission; prepare all 5 so the choice stays open.
 **World ($5k Agent Pass and/or $2.5k IDKit; one pick)**
 - [ ] Official integration (Agent Pass with Orb `acr`, or IDKit + Proof of Human with `signal` = wallet); only the one built is selected
 - [ ] Full journey: request → completion → backend-validated → bid accepted
-- [ ] Failure path: second wallet denied / expired voucher / cancelled
+- [ ] Failure path: second wallet denied / expired pass / cancelled
 - [ ] No client secrets; no trust in unvalidated client responses
 - [ ] Debrief: time to first success, friction, missing docs, top improvement
-- [ ] (IDKit) Explain why Proof of Human is the minimum sufficient credential, and why country is a separate module (no GA World credential proves nationality)
+- [ ] (IDKit) Explain why Proof of Human is the minimum sufficient credential (we need uniqueness per applicant and nothing else)
 
 **ETHGlobal**
 - [ ] Up to 3 partners selected (multi-track partners count once)
@@ -773,9 +684,9 @@ Pick 3 at submission; prepare all 5 so the choice stays open.
 - [ ] README: AI-tool attribution (which files and assets); spec files kept (`plan.md`, `VALIDATION.md`, prompts)
 - [ ] Steady commit history (no single giant commit)
 - [ ] Demo wallets funded with USDC + Sepolia ETH before recording and again before judging
-- [ ] Country module (if built): README "limitations" section (transfers, nationality ≠ residency, VPN, not KYC)
+- [ ] README "limitations" section for the World ID check (uniqueness only, not KYC; only bids are gated; backend signer is a trust point)
 
-## 17. Validation notes
+## 16. Validation notes
 
 Round 1 was checked Fri Nov 6 ~10:20 IST at Sepolia block 12,074,309. Round 2 was checked ~11:20 IST at block 12,074,560. **Round 3** (primary-source validation, ~13:30–14:00 IST, block ~12,075,280) is summarised below; the full claim-by-claim table with sources is in [`VALIDATION.md`](VALIDATION.md). Items corrected in Round 3 are marked *(corrected)* inline.
 
@@ -813,9 +724,9 @@ Round 1 was checked Fri Nov 6 ~10:20 IST at Sepolia block 12,074,309. Round 2 wa
     - The $2,500 Agent Pass and "[Cont] IDKit" tracks are Continuity-only.
 23. **Agent Pass is OIDC-based** (World IdP, pairwise `sub` per sector, fresh authentication). It is not IDKit. Agent Pass proofs use mocked identities for the hackathon.
 24. **World requirements (both tracks):** backend validation, no client secrets, a demonstrated failed/denied/expired/cancelled path, and an integration debrief. IDKit also asks you to justify the minimum sufficient credential.
-25. **World ID 4.0 onchain `WorldIDVerifier`** is deployed on World Chain (prod + staging). *(corrected)* Arc has `WorldIDSatellite` (prod only). **Ethereum Sepolia has only the legacy v3 `WorldIDRouter` `0x469449f2…2157`** (code present; Orb-only, legacy proofs). The design therefore uses backend validation (`POST /api/v4/verify/{rp_id}` or Agent Pass OIDC) plus an EIP-712 voucher checked onchain.
+25. **World ID 4.0 onchain `WorldIDVerifier`** is deployed on World Chain (prod + staging). *(corrected)* Arc has `WorldIDSatellite` (prod only). **Ethereum Sepolia has only the legacy v3 `WorldIDRouter` `0x469449f2…2157`** (code present; Orb-only, legacy proofs). The design therefore uses backend validation (`POST /api/v4/verify/{rp_id}` or Agent Pass OIDC) plus a short-lived EIP-712 pass checked onchain on each bid.
 26. **IDKit 4.x needs a backend RP signature** (`signRequest` with the secret signing key). Use the simulator with `environment: "staging"` for the demo. The nullifier must be stored and checked for uniqueness.
-27. **`IValidationHook.validate` is non-view,** so per-applicant cumulative caps can be stored. CCA `submitBid` carries `owner` and `hookData`, which is the voucher channel.
+27. **`IValidationHook.validate` is non-view,** so per-applicant cumulative caps can be stored. CCA `submitBid` carries `owner` and `hookData`, which is the pass channel.
 28. **CCA unsold tokens go to `tokensRecipient`.** Exits use `exitBid` / `exitPartiallyFilledBid`, and claims happen after `claimBlock`. *(corrected)* LBPStrategy **forbids** being `tokensRecipient` and **requires** being `fundsRecipient`. The issuer sweeps unsold tokens with `sweepUnsoldTokens()`.
 29. **Lightweight Charts** (v5.2.1) is Apache-2.0 and requires the NOTICE attribution plus a link to tradingview.com. `attributionLogo` satisfies the link only; the NOTICE text must still be shown. Advanced Charts needs license approval, so it is out.
 30. **Reverted transactions emit no logs.** Chart markers for reverted swaps can only come from receipts the app or scripts observed.
@@ -825,15 +736,14 @@ Round 1 was checked Fri Nov 6 ~10:20 IST at Sepolia block 12,074,309. Round 2 wa
 31. **The validation hook ↔ auction address is circular.** The CCA factory CREATE2 init code includes `AuctionParameters.validationHook`. Use a one-time `setAuction`. The factory view is `getAddress(token, amount, configData, salt, sender)`.
 32. **The CCA wraps hook reverts** as `ValidationHookCallFailed(bytes)`. Uniswap ships `GatedERC1155ValidationHook` (`sender == owner` + soulbound pass) as a reference.
 33. **`InitializerHook._beforeInitialize` is `view`.** ListingHook writes its bands in `afterInitialize`.
-34. **v4 Quoter and Universal Router implement `IMsgSender.msgSender()`** on Sepolia, so swap-side identity gating is possible.
+34. **v4 Quoter and Universal Router implement `IMsgSender.msgSender()`** on Sepolia, so swap-side identity gating would be possible. Not used: eligibility gates bids only.
 35. **Anon-RPC:** only Nox's specifier is on Sepolia. tor-js (`0x700d…659e`) and Nym specifiers are on mainnet; no code at the tor-js address on Sepolia. Install `@anon-rpc/browser-harness`.
 36. **ENSv2 Sepolia:** registration is paid in ERC-20 (MockUSDC/MockDAI), minimum 28 days, commit 60 s–24 h. Setters take DNS-encoded names. `grantSetterRoles(bytes setter, address)` needs `ROLE_SET_TEXT_ADMIN`. Token ids regenerate on role changes. Live ABIs are at tag `v2-mainnet-deployment-1`.
-37. **World:** Agent Pass needs Orb `acr` + `max_age=0` for one-human; don't offer Agent Pass and IDKit on the same auction. Identity Check (Preview) is the only World credential that matches nationality.
-38. **Country attestation:** zkPassport `ZKPassportVerifier` `0x1D00…c0D8` is live on Ethereum Sepolia; dev-mode mocks are rooted there and all share unique id `1`. Self onchain is Celo-only and its open SDK is deprecated. Coinbase Verified Country is Base-only. Anon Aadhaar test verifier `0x6bE8…E281` is on Sepolia. EAS `0xC267…815e` is on Sepolia.
-39. **ETHGlobal rules:** no phone-recorded video; 2–4 min ≥720p; AI attribution and spec files required; large single commits risk disqualification.
-40. **EF CROPS track** ($3.5k) can be selected with Anon-RPC under one EF pick (placed in at most one).
+37. **World:** Agent Pass needs Orb `acr` + `max_age=0` for one-human; don't offer Agent Pass and IDKit on the same auction.
+38. **ETHGlobal rules:** no phone-recorded video; 2–4 min ≥720p; AI attribution and spec files required; large single commits risk disqualification.
+39. **EF CROPS track** ($3.5k) can be selected with Anon-RPC under one EF pick (placed in at most one).
 
-## 18. Reference: addresses and interfaces
+## 17. Reference: addresses and interfaces
 
 **Uniswap / CRE / Anon-RPC (Sepolia)**
 
@@ -876,24 +786,12 @@ ABIs: `ensdomains/contracts-v2` tag `v2-mainnet-deployment-1`, `contracts/deploy
 
 **World ID (Ethereum Sepolia):** legacy v3 `WorldIDRouter` `0x469449f251692e0779667583026b5a1e99512157`. This is a stretch only; the plan uses backend verify.
 
-**Country attestation (Ethereum Sepolia)**
-
-| Contract | Address |
-|---|---|
-| zkPassport `ZKPassportVerifier` (same address on mainnet, Sepolia, Base) | `0x1D000001000EFD9a6371f4d90bB8920D5431c0D8` |
-| Anon Aadhaar v2 (test key; next module) | `0x6bE8Cec7a06BA19c39ef328e8c8940cEfeF7E281` |
-| Anon Aadhaar v2 (production key) | `0xd59C20F74056080e5ac4B0f55bBd77ff75E7a16e` |
-| EAS (fallback attestation record) | `0xC2679fBD37d54388Ce493F1DB75320D236e1815e` |
-| EAS SchemaRegistry | `0x0a7E2Ff54e76B8E6659aedc9103FB21c038050D0` |
-
 **Sources**
 - Uniswap: https://docs.uniswap.org/contracts/v4/deployments · https://docs.uniswap.org/contracts/liquidity-launchpad/deployments · https://github.com/Uniswap/liquidity-launcher · https://github.com/Uniswap/continuous-clearing-auction
 - CRE: https://docs.chain.link/cre/guides/workflow/using-evm-client/onchain-write/building-consumer-contracts · https://docs.chain.link/cre/guides/workflow/using-evm-client/forwarder-directory-ts · https://github.com/smartcontractkit/chainlink-evm/blob/main/contracts/cre/src/dev/MockKeystoneForwarder.sol
 - Anon-RPC: https://ethereum.github.io/anon-rpc/wallets/
 - ENS: https://docs.ens.domains/learn/deployments · https://docs.ens.domains/ensv2/subnames · https://docs.ens.domains/ensv2/enhanced-access-control/ · https://docs.ens.domains/ensv2/tutorial-contract-developers/
-- World: https://docs.world.org/world-id/idkit/integrate · https://docs.world.org/world-id/idkit/onchain-verification · https://auth.world.org/docs
+- World: https://docs.world.org/world-id/idkit/integrate · https://docs.world.org/world-id/idkit/onchain-verification · https://auth.world.org/docs · https://docs.world.org/world-id/idkit/credentials
 - Prizes and rules: https://ethglobal.com/events/mumbai/prizes · https://ethglobal.com/events/mumbai/prizes/ens · https://ethglobal.com/events/mumbai/prizes/world · https://ethglobal.com/events/mumbai/info/details
-- Country attestation: https://docs.zkpassport.id/getting-started/onchain · https://docs.zkpassport.id/getting-started/dev-mode · https://docs.self.xyz/docs/self-enterprise/flows/verification-modes/ · https://github.com/coinbase/verifications · https://documentation.anon-aadhaar.pse.dev/docs/proof · https://docs.world.org/world-id/idkit/credentials
-- Regulatory framing: https://www.sebi.gov.in/sebi_data/attachdocs/jun-2021/1623665266705.pdf (¶24) · https://ifsca.gov.in/Document/Legal/ifsca-circular-regulatory-sandbox_new19102020084227.pdf (¶16)
 - Charts: https://github.com/tradingview/lightweight-charts
 - NSE: https://www.nseindia.com/static/products-services/equity-market-special-pre-open-session
