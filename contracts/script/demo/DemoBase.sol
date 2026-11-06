@@ -152,6 +152,18 @@ abstract contract DemoBase is Script {
         return vm.keyExistsJson(json, key) ? vm.parseJsonUint(json, key) : 0;
     }
 
+    function _ensureParentDir(string memory path) internal {
+        bytes memory p = bytes(path);
+        uint256 slash = p.length;
+        while (slash > 0 && p[slash - 1] != "/") slash--;
+        if (slash <= 1) return;
+        bytes memory dir = new bytes(slash - 1);
+        for (uint256 i; i < dir.length; i++) {
+            dir[i] = p[i];
+        }
+        if (!vm.exists(string(dir))) vm.createDir(string(dir), true);
+    }
+
     /// @dev Replaces one top-level section of the deployments file.
     function _writeSection(string memory section, string memory sectionJson) internal {
         vm.writeJson(sectionJson, _file(), string.concat(".", section));
