@@ -97,9 +97,8 @@ contract DemoBid is DemoBase {
         }
         _tx("CCA.submitBid(maxPrice, amount, owner = wallet, prevTick = floor, \"\")");
         // Fixed gas: estimate under-shoots as the CCA tree grows (see SUBMIT_BID_GAS).
-        uint256 bidId = d.auction.submitBid{gas: SUBMIT_BID_GAS}(
-            maxPrice, amount, wallet, ListingPrice.FLOOR_PRICE_Q96, ""
-        );
+        uint256 bidId =
+            d.auction.submitBid{gas: SUBMIT_BID_GAS}(maxPrice, amount, wallet, ListingPrice.FLOOR_PRICE_Q96, "");
         vm.stopBroadcast();
         console2.log("  bidId", bidId);
         require(d.module.committed(wallet) == amount, "budget committed in the AllowAllModule");
