@@ -1,13 +1,14 @@
 # Listing Day contracts
 
 Foundry project for the Listing Day CCA + v4 IPO (design: [`../plan.md`](../plan.md)). This covers build chunks 0
-to 5:
+to 6:
 
 - Chunks 0 and 1: the scaffold, the price math, `MockSME`, `AuctionValidationHook` and `AllowAllModule`.
 - Chunk 2: the full launch-to-trading lifecycle on a Sepolia fork, through the deployed Uniswap contracts.
 - Chunk 3: `ListingHook`.
 - Chunk 4: the Chainlink CRE consumer `ListingPolicyReceiver`, which feeds the hook its policy. The workflow that writes to it lives in [`../cre`](../cre), and the exchange API it reads from in [`../services/mock-exchange`](../services/mock-exchange).
 - Chunk 5: the Sepolia demo scripts (`script/demo/`, `make demo-fork` / `make demo-sepolia`): fund the demo wallets, deploy, launch, bid, settle, trade, halt. They write `deployments/sepolia.json` and the frontend ABIs live in `abis/`. See [`DEPLOY.md`](DEPLOY.md).
+- Chunk 6: the ENSv2 ticker namespace (`script/ens/`, `make ens-fork` / `make ens-sepolia`): `listingday.eth`, our UserRegistry, the issuer-owned `acme.listingday.eth` with the IPO records, and the receiver's scoped `listingday.status` role. See [ENSv2 ticker namespace](#ensv2-ticker-namespace-chunk-6), including the [frontend read guide](#frontend-read-guide).
 
 Nothing is deployed yet: the scripts run on a Sepolia fork in CI, and the real broadcast is a manual step
 ([`DEPLOY.md`](DEPLOY.md)).
@@ -50,7 +51,9 @@ A public RPC works fine for these tests, e.g. `export SEPOLIA_RPC_URL=https://et
 
 | Path | What |
 |---|---|
-| `src/libraries/Constants.sol` | `Sepolia` addresses (plan.md §17, each checked onchain) and `ListingDay` demo parameters |
+| `src/libraries/Constants.sol` | `Sepolia` addresses (plan.md §17, each checked onchain), `SepoliaEns` (ENSv2 at contracts-v2 tag `v2-mainnet-deployment-1`, checked onchain) and `ListingDay` demo parameters |
+| `src/libraries/EnsV2.sol` | `EnsRoles` (ENSv2 role bitmaps, Listing Day role sets) and `EnsNames` (DNS encoding, namehash) |
+| `src/interfaces/IEnsV2.sol` | The ENSv2 calls we make: registrar, registries, PermissionedResolver, VerifiableFactory, Universal Resolver |
 | `src/libraries/ListingPrice.sol` | Points ↔ CCA Q96 price math and tick-spacing helper. Use it everywhere (hook cap, launch script, UI) |
 | `src/MockSME.sol` | Fixed-supply share token, 110,000e18 minted once in the constructor, no mint function |
 | `src/AuctionValidationHook.sol` | CCA `IValidationHook`: only the bound auction, `sender == owner`, `maxPrice <= capQ96`, then the module |
@@ -59,14 +62,15 @@ A public RPC works fine for these tests, e.g. `export SEPOLIA_RPC_URL=https://et
 | `src/libraries/ListingBand.sol` | Share-price bands in sqrtPriceX96 space, orientation-aware |
 | `src/ListingPolicyReceiver.sol` | Chainlink CRE consumer (`IReceiver.onReport`) that stores the `ListingPolicy` and serves it to the hook as its `IListingPolicy`; best-effort ENS status mirror |
 | `src/mocks/MockListingPolicy.sol` | Owner-settable `IListingPolicy` for tests and manual demos without CRE |
-| `src/mocks/MockStatusResolver.sol` | `IStatusResolver` stand-in for the ENS resolver (can be told to revert or burn gas) until chunk 6 |
+| `src/mocks/MockStatusResolver.sol` | `IStatusResolver` stand-in for the ENS resolver in unit tests (can be told to revert or burn gas); the real one is the issuer's ENSv2 PermissionedResolver |
 | `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IListingHook`, `IListingPolicy`, `IListingPolicyReceiver`, `IReceiver` (Chainlink-compatible), `IStatusResolver` (errors, events and reads for the frontend ABI) |
 | `script/DeployListingPolicyReceiver.s.sol` | Deploys the receiver; optionally points a hook at it and sets the ENS mirror |
-| `script/demo/` | The demo steps (`FundDemoWallets`, `DemoDeploy`, `DemoLaunch`, `DemoBid`, `DemoSettle`, `DemoTrade`, `DemoHalt`, `ExportDeployments`), each idempotent against the deployments file; `DemoFork` runs them all on a fork with asserts; `anvil-rehearsal.sh` runs them as broadcasts against anvil. Entry points in the `Makefile`, walkthrough in [`DEPLOY.md`](DEPLOY.md) |
+| `script/demo/` | The demo steps (`FundDemoWallets`, `DemoDeploy`, `DemoLaunch`, `DemoBid`, `DemoSettle`, `DemoTrade`, `DemoHalt`, `ExportDeployments`), each idempotent against the deployments file; `DemoFork` runs them all on a fork with asserts; `anvil-rehearsal.sh` runs them (and the ENS steps) as broadcasts against anvil. Entry points in the `Makefile`, walkthrough in [`DEPLOY.md`](DEPLOY.md) |
+| `script/ens/` | The ENSv2 steps (`EnsName`, `EnsRegistry`, `EnsTicker`, `EnsRecords`, `EnsStatusRole`, `EnsRead`), each idempotent; `EnsFork` runs them on a fork with asserts; `wait-for-commit.sh` waits out the 60 s commit age |
 | `deployments/` | `sepolia.json` after the real run (committed); fork and anvil rehearsals write git-ignored files next to it |
-| `abis/` | Frontend ABI arrays, regenerated with `make abis` (CI checks they're current) |
-| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), the CRE report vectors shared with the TypeScript workflow, and the tx-hash export on a trimmed real broadcast log (`test/fixtures/broadcast/`) |
-| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`), and the demo scripts end to end (`DemoScripts.fork.t.sol`) |
+| `abis/` | Frontend ABI arrays, regenerated with `make abis` (CI checks they're current); `abis/ensv2/` holds the official ENSv2 ABIs from the tag (`make abis-ensv2`) |
+| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), the CRE report vectors shared with the TypeScript workflow, the tx-hash export on a trimmed real broadcast log (`test/fixtures/broadcast/`), and ENS name encoding (`EnsNames.t.sol`) |
+| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`), the ENSv2 namespace against the live ENS contracts (`EnsNamespace.fork.t.sol`), and the demo + ENS scripts end to end (`DemoScripts.fork.t.sol`) |
 
 ## Price math
 
@@ -246,6 +250,130 @@ CRE_BROADCASTER=<address of CRE_ETH_PRIVATE_KEY> LISTING_HOOK=<hook, if you own 
 
 The forwarder defaults to the Sepolia `MockKeystoneForwarder` and `maxAge` to 1 day; see the script header for the
 other variables. Then set `receiverAddress` in `../cre/listing-policy/config.staging.json`.
+
+## ENSv2 ticker namespace (chunk 6)
+
+Each SME ticker is an ENSv2 subname that the issuer controls, and the app reads everything about an IPO from it
+(plan.md §7). Built against the live Sepolia ENSv2 deployment, ensdomains/contracts-v2 tag
+**`v2-mainnet-deployment-1`** (commit `62778d8`), not `main`. Addresses are in `SepoliaEns` (`Constants.sol`) and are
+re-checked onchain by `SepoliaAddresses.fork.t.sol`; the official ABIs are in `abis/ensv2/`.
+
+```
+ETHRegistry (.eth)
+└─ listingday.eth            owner: the exchange (ENS_OWNER_KEY). ETHRegistrar commit/reveal, paid in ENS MockUSDC
+   │                         (0x240b…14aa, public mint; ~8.0 USDC/yr). Roles from registration: SET_SUBREGISTRY(+admin),
+   │                         SET_RESOLVER(+admin), CAN_TRANSFER_ADMIN
+   └─ subregistry: UserRegistry   VerifiableFactory proxy of UserRegistryImpl; root roles of the exchange:
+      │                           REGISTRAR | UNREGISTER | SET_PARENT (no admin, no upgrade); canonical parent set
+      └─ acme.listingday.eth      owner: the issuer (ERC-1155 token); roles SET_RESOLVER | RENEW only, no
+                                  CAN_TRANSFER_ADMIN; expiry = the parent's
+         resolver: the issuer's PermissionedResolver (VerifiableFactory proxy, issuer holds ALL_ROLES, one per ticker)
+```
+
+**Records on `acme.listingday.eth`.** All written by the issuer (`EnsRecords`) except `listingday.status`:
+
+| Key | Value |
+|---|---|
+| `addr` (coin type 60) | MockSME |
+| `listingday.auction` | CCA address (after `make launch`; re-run `make ens-records`) |
+| `listingday.pool` | v4 PoolId, `0x` + 64 hex (fixed at deploy: the hook pins the pool key) |
+| `listingday.hook` | ListingHook |
+| `listingday.policy` | `eip155:<chainId>:<ListingPolicyReceiver>` |
+| `listingday.status` | `listed` / `surveillance` / `halted` (or what the CRE report sends). **Only the receiver writes it**, on every accepted report. Empty until the first report: show "draft" |
+| `listingday.eligibility` | `open` (default, `ENS_ELIGIBILITY`); `human` once the World ID module (chunk 7) is the validation hook's module |
+| `description`, `url`, `avatar` | Issuer profile; avatar defaults to an inline `data:image/svg+xml;base64,…` (ENSIP-12) |
+
+**The receiver's write power.** The issuer calls `resolver.grantSetterRoles(abi.encodeCall(setText, (name,
+"listingday.status", "")), receiver)`. That grants `ROLE_SET_TEXT` on the resource `uint256(keccak256("listingday.status"))`
+(needs `ROLE_SET_TEXT_ADMIN`; `grantRoles` is disabled on the resolver). The role is per key across every name in that
+resolver, which is why each ticker gets its own resolver. Then the receiver owner calls `setStatusMirror(resolver,
+dnsEncode("acme.listingday.eth"))`. Any other write from the receiver reverts `EACUnauthorizedAccountRoles`. Gas for a
+report through the MockKeystoneForwarder with the mirror: ~199k in the fork tests (`evm_version = cancun`; ~46k of it
+the first `setText`, ~29k after), and 351k (halt) / 241k (resume) on the anvil rehearsal, which runs Sepolia's current
+schedule (a USDC `approve` there is ~128k, as on live Sepolia). Either way well inside the workflow's 1.8M `gasLimit`.
+
+**Scripts** (`script/ens/`, each idempotent, `.ens` in the deployments file rebuilt from chain state every time):
+
+| Step | Script | Signer | What |
+|---|---|---|---|
+| 1 | `EnsName.s.sol` (run twice) | `ENS_OWNER_KEY` | Mint + approve MockUSDC, `commit`; after 60 s `register("listingday", owner, secret, 0, 0, ENS_DURATION, MockUSDC, 0)` |
+| 2 | `EnsRegistry.s.sol` | `ENS_OWNER_KEY` | `VerifiableFactory.deployProxy(UserRegistryImpl, salt, initialize([(owner, roles)]))`, `setParent`, `ETHRegistry.setSubregistry(findTokenId("listingday"), registry)` |
+| 3 | `EnsTicker.s.sol` | `ISSUER_KEY`, `ENS_OWNER_KEY` | Issuer deploys its PermissionedResolver proxy; exchange `register("acme", issuer, 0, resolver, SET_RESOLVER \| RENEW, parentExpiry)` |
+| 4 | `EnsRecords.s.sol` | `ISSUER_KEY` | One `multicall` of the changed records |
+| 5 | `EnsStatusRole.s.sol` | `ISSUER_KEY`, `PRIVATE_KEY` | `grantSetterRoles` for the receiver, `setStatusMirror`, `syncStatus()` if a report already landed |
+| 6 | `EnsRead.s.sol` | none | Every record through the Universal Resolver, as the frontend reads them |
+
+`EnsFork.s.sol` (`make ens-fork`) runs all of it on a Sepolia fork with asserts, plus three CRE-style reports;
+`make ens-sepolia` is the live run ([`DEPLOY.md`](DEPLOY.md#5-ensv2-ticker-namespace-chunk-6)).
+
+### Frontend read guide
+
+The UI hard-codes only the parent name. viem's `sepolia` chain already has `ensUniversalResolver =
+0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe`. All records are onchain, so turn CCIP-Read off: no gateway call can leak
+around Anon-RPC. `getEnsText` / `getEnsAddress` call `resolveWithGateways(dnsName, data, ["x-batch-gateway:true"])`,
+which `EnsRead.s.sol` reproduces. Tested against the anvil rehearsal chain with viem 2.57:
+
+```ts
+import { createPublicClient, http, parseAbi, parseAbiItem } from "viem";
+import { sepolia } from "viem/chains";
+import { normalize } from "viem/ens";
+
+const client = createPublicClient({ chain: sepolia, transport: http(RPC_URL), ccipRead: false });
+
+const name = normalize("acme.listingday.eth");
+const KEYS = ["listingday.auction", "listingday.pool", "listingday.hook", "listingday.policy",
+  "listingday.status", "listingday.eligibility", "description", "url", "avatar"] as const;
+const [token, ...texts] = await Promise.all([
+  client.getEnsAddress({ name }), // MockSME
+  ...KEYS.map((key) => client.getEnsText({ name, key })), // null when unset
+]);
+const status = texts[4] ?? "draft";
+
+// The IPO list: tickers under listingday.eth, from the UserRegistry's events.
+const registryAbi = parseAbi([
+  "function getSubregistry(string label) view returns (address)",
+  "function findOwner(string label) view returns (address)",
+  "function findTokenId(string label) view returns (uint256)",
+]);
+const registry = await client.readContract({
+  address: "0xD4eBcbBdF463C9c45784603Db0dDD499BC44A8B4", // ETHRegistry
+  abi: registryAbi, functionName: "getSubregistry", args: ["listingday"],
+});
+const listed = await client.getLogs({
+  address: registry,
+  event: parseAbiItem("event LabelRegistered(uint256 indexed tokenId, bytes32 indexed labelHash, string label, address owner, uint64 expiry, address indexed sender)"),
+  fromBlock: ENS_FROM_BLOCK, // deployments/sepolia.json .txs.ensRegistry[0].block
+});
+// Delisted tickers have findOwner == 0x0 (also LabelUnregistered events). Never cache token ids:
+// they change on role changes (TokenRegenerated) and relists; use findTokenId(label).
+```
+
+Don't call the resolver's `text(node, key)` / `addr(node)` directly: the PermissionedResolver has no such views and
+reverts. Reads go through `resolve(dnsName, abi.encodeCall(text, (node, key)))` (ENSIP-10), which the Universal
+Resolver, and so viem, already does.
+
+Then check the records against each other: `listingday.hook` should be the hook whose `policySource()` is the
+receiver in `listingday.policy`, and `listingday.eligibility` should match the validation hook's module.
+
+### Where ENSv2 differs from plan.md §7
+
+- **Universal Resolver.** `0xeEeE…EeEe` (`UpgradableUniversalResolverProxy`) points at
+  `ManagedUniversalResolverProxy` `0x6d80…e6F1`, which then points at `UniversalResolverV2` `0x24E1…2D72`: one more hop
+  than the plan says. Transparent to viem.
+- **Transfer reverts.** `safeTransferFrom` of a ticker reverts `TransferUnsafeUntilRegistryIsEmancipated` before the
+  transfer-role check, because a registry whose root holds `ROLE_UNREGISTER` is not emancipated. Only
+  `unsafeTransfer` reaches `TransferDisallowed`. Both block the transfer.
+- **Token id regeneration on `acme`.** Token admin roles can only be granted at registration, and the issuer gets none,
+  so nobody can change `acme`'s roles: its id only changes on delist/relist (`unregister` + `register`, records kept).
+  The tests show `TokenRegenerated` on `listingday.eth`, where we hold admin roles from registration.
+- **Extra root role.** `ROLE_SET_PARENT` besides `ROLE_REGISTRAR` and `ROLE_UNREGISTER`, to set the registry's
+  canonical parent (`getParent()` = ETHRegistry, `"listingday"`).
+- **One resolver per ticker** (salt = the ticker name), not per issuer account, so the receiver's scoped role covers
+  exactly one name.
+- **`listingday.pool` at deploy**, not after migrate: the pool id is fixed once the hook exists.
+- **Payment token.** The rent oracle also accepts Circle's Sepolia USDC; we pay in ENS MockUSDC as planned (mintable).
+- **Reads are `resolve()`-only.** The PermissionedResolver exposes no `text` / `addr` views, only ENSIP-10
+  `resolve(dnsName, data)`. The Universal Resolver path the plan uses is unaffected.
 
 ## Pinned dependencies
 

@@ -189,6 +189,9 @@ interface IEnsUniversalResolver {
     function findResolver(bytes calldata name) external view returns (address resolver, bytes32 node, uint256 offset);
 }
 
+// The PermissionedResolver has no direct `addr` / `text` views: these profiles are only ever ABI-encoded as the
+// `data` of `resolve(dnsName, data)` (ENSIP-10) or `UniversalResolver.resolveWithGateways`.
+
 /// @notice ENSIP-1 `addr(bytes32)`: viem `getEnsAddress` without a `coinType`. Encoded into `resolveWithGateways`.
 interface IEnsAddrProfile {
     function addr(bytes32 node) external view returns (address);

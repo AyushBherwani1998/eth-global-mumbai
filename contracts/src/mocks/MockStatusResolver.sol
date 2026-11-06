@@ -4,8 +4,9 @@ pragma solidity 0.8.26;
 import {IStatusResolver} from "../interfaces/IStatusResolver.sol";
 
 /// @title MockStatusResolver
-/// @notice Stand-in for the issuer's ENSv2 Permissioned Resolver until the ENS wiring (chunk 6). Stores
-///         `setText` writes and can be told to fail, to exercise `ListingPolicyReceiver`'s best-effort mirror.
+/// @notice Unit-test stand-in for the issuer's ENSv2 Permissioned Resolver (the real one is covered by
+///         `EnsNamespace.fork.t.sol`). Stores `setText` writes and can be told to fail, to exercise
+///         `ListingPolicyReceiver`'s best-effort mirror.
 /// @dev Like the real resolver's scoped role, only `writer` may set records (once `writer` is set).
 contract MockStatusResolver is IStatusResolver {
     enum FailMode {
