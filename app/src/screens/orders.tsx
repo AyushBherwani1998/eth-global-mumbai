@@ -15,7 +15,7 @@ import { OfflineStrip } from "@/components/states";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, EmptyState, SectionTitle, Table, TextLink, TickerLogo, UnderlineTabs, cx, type Column } from "@/components/ui";
 import { blocksToCountdown, dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
-import { BIDS, CURRENT_BLOCK, IPOS, getIpo, getMarket, type Bid, type BidState, type Ipo, type Policy } from "@/lib/mock";
+import { BIDS, CURRENT_BLOCK, IPOS, bidKey, getIpo, getMarket, type Bid, type BidState, type Ipo, type Policy } from "@/lib/mock";
 import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
 import { BottomSpacer } from "./common";
 
@@ -150,7 +150,7 @@ function useOrderRows(): OrderRow[] {
 // ---------------------------------------------------------------------------
 
 type Tab = "applications" | "trades";
-type Override = Partial<Record<number, BidState>>;
+type Override = Partial<Record<string, BidState>>;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "applications", label: "IPO applications" },
@@ -160,10 +160,10 @@ const TABS: { id: Tab; label: string }[] = [
 export function OrdersScreen() {
   const { connected, connect, sendTx } = useApp();
   const [over, setOver] = useState<Override>({});
-  const [busy, setBusy] = useState<number | "all" | null>(null);
+  const [busy, setBusy] = useState<string | "all" | null>(null);
   const trades = useOrderRows();
 
-  const stateOf = (b: Bid) => over[b.id] ?? b.state;
+  const stateOf = (b: Bid) => over[bidKey(b)] ?? b.state;
   const groups = useMemo(() => {
     const tickers = [...new Set(BIDS.map((b) => b.ticker))];
     return tickers.map((t) => ({
@@ -199,7 +199,7 @@ export function OrdersScreen() {
 
   const act = async (bid: Bid, verb: Verb) => {
     const ipo = getIpo(bid.ticker)!;
-    setBusy(bid.id);
+    setBusy(bidKey(bid));
     const r = await sendTx(
       verb === "collect"
         ? {
@@ -220,7 +220,7 @@ export function OrdersScreen() {
     if (r.ok)
       setOver((o) => ({
         ...o,
-        [bid.id]: verb === "collect" ? "claimed" : verb === "settle" ? "claimed" : "exited",
+        [bidKey(bid)]: verb === "collect" ? "claimed" : verb === "settle" ? "claimed" : "exited",
       }));
   };
 
@@ -242,7 +242,7 @@ export function OrdersScreen() {
     if (r.ok)
       setOver((o) => ({
         ...o,
-        ...Object.fromEntries(list.map((b) => [b.id, verb === "collect" ? "claimed" : "exited"])),
+        ...Object.fromEntries(list.map((b) => [bidKey(b), verb === "collect" ? "claimed" : "exited"])),
       }));
   };
 
@@ -369,7 +369,7 @@ function ApplicationGroup({
   ipo: Ipo;
   bids: Bid[];
   stateOf: (b: Bid) => BidState;
-  busy: number | "all" | null;
+  busy: string | "all" | null;
   onAct: (b: Bid, v: Verb) => void;
 }) {
   const applied = bids.reduce((s, b) => s + b.budget, 0);
@@ -397,7 +397,7 @@ function ApplicationGroup({
         {bids.map((b) => {
           const s = statusOf(b, ipo, stateOf(b));
           return (
-            <div key={b.id} className="py-3">
+            <div key={bidKey(b)} className="py-3">
               <div className="flex min-h-12 items-start gap-3">
                 <span className="min-w-0 flex-1">
                   <span className="num t-body block text-text">
@@ -413,11 +413,11 @@ function ApplicationGroup({
                   variant="secondary"
                   size="sm"
                   className="mt-2"
-                  busy={busy === b.id}
-                  disabled={busy === b.id}
+                  busy={busy === bidKey(b)}
+                  disabled={busy === bidKey(b)}
                   onClick={() => onAct(b, s.verb!)}
                 >
-                  {busy === b.id ? "Check your wallet app" : VERB_LABEL[s.verb]}
+                  {busy === bidKey(b) ? "Check your wallet app" : VERB_LABEL[s.verb]}
                 </Button>
               )}
             </div>
@@ -447,7 +447,7 @@ function ApplicationTable({
 }: {
   groups: { ipo: Ipo; bids: Bid[] }[];
   stateOf: (b: Bid) => BidState;
-  busy: number | "all" | null;
+  busy: string | "all" | null;
   onAct: (b: Bid, v: Verb) => void;
 }) {
   const rows: FlatBid[] = groups.flatMap(({ ipo, bids }) => bids.map((bid) => ({ bid, ipo, status: statusOf(bid, ipo, stateOf(bid)) })));
@@ -495,15 +495,15 @@ function ApplicationTable({
       align: "right",
       render: (r) =>
         r.status.verb ? (
-          <Button variant="secondary" size="sm" busy={busy === r.bid.id} disabled={busy === r.bid.id} onClick={() => onAct(r.bid, r.status.verb!)}>
-            {busy === r.bid.id ? "Check your wallet app" : VERB_LABEL[r.status.verb]}
+          <Button variant="secondary" size="sm" busy={busy === bidKey(r.bid)} disabled={busy === bidKey(r.bid)} onClick={() => onAct(r.bid, r.status.verb!)}>
+            {busy === bidKey(r.bid) ? "Check your wallet app" : VERB_LABEL[r.status.verb]}
           </Button>
         ) : (
           <span className="t-label">—</span>
         ),
     },
   ];
-  return <Table columns={columns} rows={rows} rowKey={(r) => String(r.bid.id)} className="mt-4" />;
+  return <Table columns={columns} rows={rows} rowKey={(r) => bidKey(r.bid)} className="mt-4" />;
 }
 
 function TradeRow({ row }: { row: OrderRow }) {

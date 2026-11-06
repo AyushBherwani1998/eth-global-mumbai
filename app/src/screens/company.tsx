@@ -40,6 +40,7 @@ import {
   NOW,
   OFFER,
   PORTFOLIO,
+  bidKey,
   bidsFor,
   ensName,
   getClearing,
@@ -641,7 +642,7 @@ function IpoCompany({ ipo }: { ipo: Ipo }) {
               ) : (
                 <ul className="divide-y divide-line">
                   {myBids.map((b) => (
-                    <li key={b.id} className="flex min-h-16 items-center justify-between gap-4 py-3">
+                    <li key={bidKey(b)} className="flex min-h-16 items-center justify-between gap-4 py-3">
                       <span>
                         <span className="t-list-title block text-text">
                           {usdc(b.budget)} USDC up to {lotFixed(b.maxPrice)}
