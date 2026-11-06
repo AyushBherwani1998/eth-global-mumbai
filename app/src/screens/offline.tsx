@@ -17,7 +17,7 @@ export function OfflineScreen() {
       <Button className="mt-6 w-full sm:w-auto sm:self-start" onClick={() => location.reload()}>
         Try again
       </Button>
-      <p className="t-caption mt-6">Thamba · NSE-inspired mock, not a regulated product.</p>
+      <p className="t-caption mt-6">thaamba · NSE-inspired mock, not a regulated product.</p>
     </main>
   );
 }

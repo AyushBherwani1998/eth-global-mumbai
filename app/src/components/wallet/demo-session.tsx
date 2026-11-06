@@ -199,7 +199,7 @@ function SignInSheet({ open, onClose, onSignIn }: { open: boolean; onClose: () =
   };
 
   return createPortal(
-    <Sheet open={open} onClose={onClose} title="Sign in to Thamba">
+    <Sheet open={open} onClose={onClose} title="Sign in to thaamba">
       <p className="t-body text-text-2">
         Sign in with your email and we make you a secure wallet. Nothing to install, nothing to remember.
       </p>

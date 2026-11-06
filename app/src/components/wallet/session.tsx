@@ -11,7 +11,7 @@
 // The branch is on a build-time constant, so only one of the two is ever
 // mounted for a given build and no hook order changes at runtime.
 
-import { useContext, useMemo, type ReactNode } from "react";
+import { useContext, useEffect, useMemo, type ReactNode } from "react";
 import { PrivyProvider, usePrivy, useWallets, type ConnectedWallet, type PrivyClientConfig } from "@privy-io/react-auth";
 import { sepolia } from "viem/chains";
 import type { Eip1193, WalletSigner } from "@/lib/tx";
@@ -44,32 +44,66 @@ export function WalletSessionProvider({ children }: { children: ReactNode }) {
 // scoped overrides in privy-theme.css.
 // ---------------------------------------------------------------------------
 
-const PALETTE: Record<ResolvedTheme, { surface: `#${string}`; accent: `#${string}`; brand: string }> = {
-  light: { surface: "#FFFFFF", accent: "#00805F", brand: "#5367FF" },
-  dark: { surface: "#1A1A1A", accent: "#0FCB9A", brand: "#7B8BFF" },
+const PALETTE: Record<ResolvedTheme, { surface: `#${string}`; accent: `#${string}`; ink: string }> = {
+  // --surface, --buy and --text from globals.css, one theme per row.
+  light: { surface: "#EDEDEB", accent: "#007553", ink: "#111113" },
+  dark: { surface: "#16161A", accent: "#00805F", ink: "#EDEDEB" },
 };
 
-/** The Thamba mark as a data URI, so Privy can render it as a plain <img>. */
-function logoDataUri(brand: string) {
+/**
+ * The octagon, copied verbatim from design/brand/thaamba-logo.svg.
+ *
+ * components/brand keeps its own copy of this path private and draws it in
+ * `currentColor`, which is right for every other place the mark appears.
+ * Privy takes a URL rather than a node, so this one has to be a literal.
+ */
+const OCTAGON =
+  "M34.7273 6.29842C37.7433 4.84597 41.2567 4.84596 44.2727 6.29842L62.4823 15.0677C65.4984 16.5201 67.6889 19.267 68.4338 22.5306L72.9312 42.235C73.6761 45.4986 72.8943 48.9239 70.8071 51.5411L58.2057 67.3428C56.1185 69.96 52.9531 71.4844 49.6056 71.4844H29.3945C26.0469 71.4844 22.8815 69.96 20.7943 67.3428L8.19289 51.5411C6.10571 48.9239 5.32392 45.4986 6.06882 42.235L10.5662 22.5306C11.3111 19.267 13.5016 16.5201 16.5177 15.0677L34.7273 6.29842Z";
+
+/** The thaamba mark as a data URI, in this theme's ink, for Privy's <img>. */
+function logoDataUri(ink: string) {
   const svg =
-    `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 32 32">` +
-    `<circle cx="16" cy="16" r="16" fill="${brand}"/>` +
-    `<path d="M7 21.5 L13 15 L17 18.5 L25 10" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` +
-    `<path d="M20.5 10 H25 V14.5" stroke="#fff" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<svg xmlns="http://www.w3.org/2000/svg" width="56" height="56" viewBox="0 0 80 80">` +
+    `<path transform="translate(0.5 1.835)" d="${OCTAGON}" fill="none" stroke="${ink}" stroke-width="8" stroke-linejoin="round" stroke-linecap="round"/>` +
     `</svg>`;
   return `data:image/svg+xml,${encodeURIComponent(svg)}`;
 }
 
+/**
+ * The one piece of Privy theming that cannot live in privy-theme.css.
+ *
+ * Privy blurs the page behind its modal (`backdrop-filter: blur(3px)`), and
+ * UI.md 2.15 has a flat overlay and nothing else: this app has no blur and no
+ * elevation anywhere. The override belongs in the stylesheet, but every *.css
+ * in this project is compiled by @tailwindcss/turbopack (next.config.ts) and
+ * that pass drops a `backdrop-filter` declaration whatever its value, even
+ * behind a var(). A stylesheet created at runtime never goes through the
+ * build, so this one rule is appended to the head instead. Everything else
+ * Privy paints is themed from privy-theme.css.
+ */
+const FLAT_BACKDROP_ID = "thamba-privy-flat-backdrop";
+
+function useFlatBackdrop() {
+  useEffect(() => {
+    if (document.getElementById(FLAT_BACKDROP_ID)) return;
+    const el = document.createElement("style");
+    el.id = FLAT_BACKDROP_ID;
+    el.textContent = "#privy-dialog-backdrop{backdrop-filter:none!important;-webkit-backdrop-filter:none!important}";
+    document.head.append(el);
+  }, []);
+}
+
 function PrivySession({ children }: { children: ReactNode }) {
   const { resolved } = useTheme();
+  useFlatBackdrop();
   const p = PALETTE[resolved];
   const config = useMemo<PrivyClientConfig>(
     () => ({
       appearance: {
         theme: p.surface,
         accentColor: p.accent,
-        logo: logoDataUri(p.brand),
-        landingHeader: "Sign in to Thamba",
+        logo: logoDataUri(p.ink),
+        landingHeader: "Sign in to thaamba",
         loginMessage: "Sign in with your email and we make you a secure wallet. Or use one you already have.",
         showWalletLoginFirst: false,
         walletChainType: "ethereum-only",
@@ -80,7 +114,7 @@ function PrivySession({ children }: { children: ReactNode }) {
       supportedChains: [sepolia],
       defaultChain: sepolia,
     }),
-    [p.surface, p.accent, p.brand],
+    [p.surface, p.accent, p.ink],
   );
 
   return (

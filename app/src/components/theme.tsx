@@ -12,10 +12,10 @@ export type ThemeSetting = "system" | "light" | "dark";
 export type ResolvedTheme = "light" | "dark";
 
 export const THEME_KEY = "theme";
-export const THEME_COLORS: Record<ResolvedTheme, string> = { light: "#FFFFFF", dark: "#121212" };
+export const THEME_COLORS: Record<ResolvedTheme, string> = { light: "#EDEDEB", dark: "#0E0E10" };
 
 /** Inline, pre-paint. Keep in sync with applyTheme() below. */
-export const THEME_SCRIPT = `(function(){try{var q=new URLSearchParams(location.search).get("theme");var t=q==="light"||q==="dark"?q:localStorage.getItem("theme");var d=document.documentElement;if(t==="light"||t==="dark"){d.setAttribute("data-theme",t)}else{d.removeAttribute("data-theme")}var r=t==="light"||t==="dark"?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var ms=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<ms.length;i++){var m=ms[i].getAttribute("media");if(t==="light"||t==="dark"){ms[i].setAttribute("content",r==="dark"?"#121212":"#FFFFFF")}else if(m&&m.indexOf("dark")>-1){ms[i].setAttribute("content","#121212")}else{ms[i].setAttribute("content","#FFFFFF")}}}catch(e){}})()`;
+export const THEME_SCRIPT = `(function(){try{var q=new URLSearchParams(location.search).get("theme");var t=q==="light"||q==="dark"?q:localStorage.getItem("theme");var d=document.documentElement;if(t==="light"||t==="dark"){d.setAttribute("data-theme",t)}else{d.removeAttribute("data-theme")}var r=t==="light"||t==="dark"?t:(matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light");var ms=document.querySelectorAll('meta[name="theme-color"]');for(var i=0;i<ms.length;i++){var m=ms[i].getAttribute("media");if(t==="light"||t==="dark"){ms[i].setAttribute("content",r==="dark"?"#0E0E10":"#EDEDEB")}else if(m&&m.indexOf("dark")>-1){ms[i].setAttribute("content","#0E0E10")}else{ms[i].setAttribute("content","#EDEDEB")}}}catch(e){}})()`;
 
 function readStored(): ThemeSetting {
   try {

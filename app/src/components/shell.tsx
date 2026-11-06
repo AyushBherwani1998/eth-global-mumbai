@@ -11,9 +11,10 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import { ArrowLeft, Briefcase, ListOrdered, Search, Share2, TrendingUp, type LucideIcon } from "lucide-react";
 import { useApp } from "./providers";
 import { useTheme, type ThemeSetting } from "./theme";
+import { Logo as BrandLockup, Mark } from "@/components/brand";
 import { TickerMark } from "@/components/company/logos";
 import { EditAvatarSheet, UserAvatar } from "@/components/avatar";
-import { Button, Change, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
+import { Button, Card, Change, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
 import { blocksToCountdown, changeVs, lotFixed, shortAddr, usdc } from "@/lib/format";
 import { FAUCET_URL } from "@/lib/mock";
 import { COPY, dayOpenOf, flagFor, lastPriceOf, nowSeconds, orCopy, pricePoints } from "@/lib/adapt";
@@ -21,17 +22,18 @@ import type { Listing, MarketView } from "@/lib/api";
 import { useBids, useListings, useQuotes } from "@/lib/live";
 
 // ---------------------------------------------------------------------------
-// Logo: flat brand circle, white step-up glyph. No gradient.
+// The brand mark (components/brand, design/brand/TOKENS.md). The old inline
+// blue disc with a white tick is gone: the mark is an outlined octagon drawn
+// in currentColor, so it follows the palette and the theme on its own.
 // ---------------------------------------------------------------------------
 
+/**
+ * @deprecated Square brand glyph, kept because `screens/offline.tsx` and the
+ * issuer console ask for one by `size`. New code imports `Mark`, `Wordmark` or
+ * `Logo` from `@/components/brand`.
+ */
 export function Logo({ size = 34, className }: { size?: number; className?: string }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 32 32" aria-hidden className={cx("shrink-0", className)}>
-      <circle cx="16" cy="16" r="16" fill="var(--brand)" />
-      <path d="M7 21.5 L13 15 L17 18.5 L25 10" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-      <path d="M20.5 10 H25 V14.5" stroke="#fff" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
+  return <Mark size={size} className={className} />;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,27 +83,41 @@ function useScrolled() {
 }
 
 // ---------------------------------------------------------------------------
-// Labelled icon button (UI.md 7.3): icon 24 over a 13/500 label, 48x56 target.
+// Header action (UI.md 7.2, 7.3).
+//
+// Icon and label on ONE line inside a 40px pill with a 48px hit area. The
+// label is still compulsory, but stacking a caption under a bare glyph was the
+// wrong way to honour that: it gave the header two species of control, two
+// baselines and no clean bottom edge. Search, Share, Back and Account are now
+// the same pill, and `strong` draws the hairline that marks the one primary
+// action of the pair.
 // ---------------------------------------------------------------------------
+
+/** 40px visual, 48px target: the pill plus 4px of invisible reach above and below. */
+const BAR_ACTION =
+  "t-chip relative inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 whitespace-nowrap text-text transition-colors duration-120 hover:bg-surface-2 active:bg-surface-2 after:absolute after:inset-x-0 after:-top-1 after:-bottom-1 after:content-['']";
 
 export function IconButton({
   label,
   icon: Icon,
   onClick,
   href,
+  strong,
   className,
 }: {
   label: string;
   icon: LucideIcon;
   onClick?: () => void;
   href?: string;
+  /** Adds the hairline that makes this the header's primary action. */
+  strong?: boolean;
   className?: string;
 }) {
-  const cls = cx("flex h-14 min-w-12 flex-col items-center justify-center gap-0.5 rounded-[10px] px-2 text-text transition-colors duration-120 hover:bg-surface-2 active:bg-surface-2", className);
+  const cls = cx(BAR_ACTION, strong && "border border-line px-4", className);
   const body = (
     <>
-      <Icon className="size-6" strokeWidth={1.75} />
-      <span className="t-nav-label">{label}</span>
+      <Icon className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
+      <span>{label}</span>
     </>
   );
   if (href)
@@ -127,8 +143,13 @@ function Avatar({ size = 36 }: { size?: number }) {
   return <UserAvatar address={address} size={size} />;
 }
 
-export function AccountControl({ compact }: { compact?: boolean }) {
-  const { connected, sessionReady } = useApp();
+/**
+ * The account control: one 40px pill in every state and at every width, so it
+ * pairs with Search in the app bar and sits level in the desktop nav. The old
+ * `compact` flag is gone with the two shapes it used to switch between.
+ */
+export function AccountControl() {
+  const { connected, sessionReady, connect } = useApp();
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pathWhenOpen, setPathWhenOpen] = useState(pathname);
@@ -144,23 +165,114 @@ export function AccountControl({ compact }: { compact?: boolean }) {
   };
   // The session is read after mount, so hold the space until it is known
   // rather than showing "Sign in" and swapping it for the picture a tick later.
-  if (!sessionReady)
-    return <span aria-hidden className={cx("block", compact ? "h-12 w-[34px]" : "h-14 w-12")} />;
+  if (!sessionReady) return <span aria-hidden className="block h-10 w-[88px]" />;
+
+  // Signed out there is nothing to put in an account sheet, so the control is
+  // the sign-in itself: one tap, straight into the sign-in dialog. The two
+  // settings that need no account (Appearance, About) moved to the foot of
+  // Portfolio; see AppSettingsRows.
+  //
+  // Either way this is the one hairlined control in the header: the same pill
+  // as Search beside it, drawn as the primary of the pair.
+  if (!connected)
+    return (
+      <button type="button" onClick={connect} className={cx(BAR_ACTION, "border border-line px-4")}>
+        Sign in
+      </button>
+    );
 
   return (
     <>
-      {connected ? (
-        <button type="button" onClick={show} className={cx("flex items-center rounded-[10px] text-text hover:bg-surface-2", compact ? "h-12 gap-2 px-2" : "h-14 min-w-12 flex-col justify-center gap-0.5 px-2")}>
-          <Avatar size={compact ? 34 : 36} />
-          <span className="t-nav-label">Account</span>
-        </button>
-      ) : (
-        <button type="button" onClick={show} className="t-chip inline-flex h-10 items-center rounded-full border border-line px-4 text-text hover:bg-surface-2">
-          Sign in
-        </button>
-      )}
+      <button type="button" onClick={show} className={cx(BAR_ACTION, "border border-line pr-4 pl-1.5")}>
+        <Avatar size={28} />
+        <span>Account</span>
+      </button>
       <AccountSheet open={open} onClose={() => setOpen(false)} />
     </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// The one sign-in affordance (UI.md 7.7).
+//
+// Every signed-out surface in the app uses one of these two: the button, or
+// the card that explains what signing in puts on the screen. Both call
+// `connect()` directly, so signing in is always one tap and always lands in
+// the same dialog. Nothing in the app asks twice, and nothing says "connect"
+// or "wallet".
+// ---------------------------------------------------------------------------
+
+/** "Sign in", filled, straight into the sign-in dialog. */
+export function SignInButton({
+  label = "Sign in",
+  size = "default",
+  className,
+}: {
+  label?: string;
+  size?: "bar" | "default" | "sm";
+  className?: string;
+}) {
+  const { connect } = useApp();
+  return (
+    <Button variant="buy" size={size} className={className} onClick={connect}>
+      {label}
+    </Button>
+  );
+}
+
+/**
+ * The signed-out block: what this screen shows once you are signed in, the
+ * list of what appears (optional), and one filled "Sign in".
+ */
+export function SignInCard({
+  title,
+  body,
+  points,
+  label = "Sign in",
+  quiet,
+  className,
+}: {
+  title: string;
+  body: string;
+  /** Named, in the words the signed-in screen uses. Omit for in-page slots. */
+  points?: string[];
+  label?: string;
+  /**
+   * The screen already carries a filled "Sign in" somewhere it can't miss (the
+   * action bar, the sticky panel). Same words, same one tap, lighter shape, so
+   * the screen keeps one filled action (UI.md 7.4).
+   */
+  quiet?: boolean;
+  className?: string;
+}) {
+  const { connect, network } = useApp();
+  return (
+    <Card className={cx("p-5", className)}>
+      <h2 className="t-card-title text-text">{title}</h2>
+      <p className="t-body mt-1 text-text-2">{body}</p>
+      {points && points.length > 0 && (
+        <ul className="mt-4 divide-y divide-line border-y border-line">
+          {points.map((p) => (
+            <li key={p} className="t-body flex min-h-12 items-center py-2 text-text">
+              {p}
+            </li>
+          ))}
+        </ul>
+      )}
+      {quiet ? (
+        <button type="button" onClick={connect} className="prose-link t-change-sm mt-1 text-gain-text underline-offset-[3px] hover:underline focus-visible:underline">
+          {label}
+        </button>
+      ) : (
+        <>
+          <SignInButton label={label} size="bar" className="mt-4 w-full sm:w-auto sm:min-w-[240px]" />
+          <p className="t-caption mt-3">
+            Use your email and we make you a secure wallet, or sign in with one you already have. Everything here runs on the {network.name} test
+            network and nothing is charged.
+          </p>
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -172,10 +284,13 @@ export function AppBar({ title, right, below }: { title: string; right?: ReactNo
   const scrolled = useScrolled();
   return (
     <header className={cx("sticky top-0 z-30 -mx-5 bg-bg px-5 pt-[max(0px,env(safe-area-inset-top))] lg:hidden", scrolled ? "border-b border-line" : "border-b border-transparent")}>
-      <div className="flex h-14 items-center gap-3">
-        <Logo size={34} />
+      <div className="flex h-14 items-center gap-2.5">
+        {/* 30, not the old disc's 34: an outlined octagon with a 10%-of-size
+            stroke carries more weight than a flat circle at the same box, and
+            30 sits level with the 20px title's cap height. */}
+        <Mark size={30} className="text-text" />
         <h1 className="text-[20px] leading-7 font-medium">{title}</h1>
-        <div className="ml-auto flex items-center gap-1">
+        <div className="ml-auto flex items-center gap-2">
           {right}
           <SearchButton />
           <AccountControl />
@@ -202,12 +317,19 @@ export function TopNav() {
   if (path.startsWith("/console")) return null;
   return (
     <nav className="sticky top-0 z-30 hidden h-14 border-b border-line bg-bg lg:block" aria-label="Main">
-      <Container className="flex h-full items-center gap-8">
-        <Link href="/" className="flex items-center gap-3 text-text">
-          <Logo size={34} />
-          <span className="text-[20px] leading-7 font-medium">Thamba</span>
+      <Container className="flex h-full items-center">
+        {/* The lockup rather than the mark plus typed text: the wordmark is
+            drawn letterforms from the brand file, and typing the name in the
+            UI face would drift the moment the typeface changes. One SVG also
+            keeps the mark-to-word spacing the brand file specifies. */}
+        <Link href="/" className="mr-11 flex items-center text-text" aria-label="thaamba, home">
+          <BrandLockup height={28} />
         </Link>
-        <ul className="flex h-full items-stretch gap-6">
+        {/* 44px of clear space after the lockup against 28px between the links:
+            the brand and the navigation have to read as two things, not one
+            run of words. Both hold at 1024, where the row still has ~130px
+            spare before the search field. */}
+        <ul className="flex h-full items-stretch gap-7">
           {NAV.map((it) => {
             const active = it.match(path);
             return (
@@ -231,7 +353,9 @@ export function TopNav() {
         >
           <Search className="size-[18px] text-text-2" /> Search companies
         </button>
-        <AccountControl compact />
+        <div className="ml-4 flex items-center">
+          <AccountControl />
+        </div>
       </Container>
       <SearchSheet open={searchOpen} onClose={() => setSearchOpen(false)} />
     </nav>
@@ -275,17 +399,16 @@ export function BottomNav() {
 export function DetailBar({ fallback = "/", right }: { fallback?: string; right?: ReactNode }) {
   const router = useRouter();
   return (
-    <header className="sticky top-0 z-30 -mx-5 flex h-14 items-center bg-bg px-3 pt-[max(0px,env(safe-area-inset-top))]">
+    <header className="sticky top-0 z-30 -mx-5 flex h-14 items-center bg-bg px-5 pt-[max(0px,env(safe-area-inset-top))]">
       <button
         type="button"
-        aria-label="Back"
         onClick={() => (window.history.length > 1 ? router.back() : router.push(fallback))}
-        className="flex h-12 items-center gap-1 rounded-[10px] px-2 text-text hover:bg-surface-2"
+        className={cx(BAR_ACTION, "-ml-3")}
       >
-        <ArrowLeft className="size-6" />
-        <span className="t-chip">Back</span>
+        <ArrowLeft className="size-[18px] shrink-0" strokeWidth={1.75} aria-hidden />
+        <span>Back</span>
       </button>
-      <div className="ml-auto flex items-center gap-1">{right}</div>
+      <div className="ml-auto flex items-center gap-2">{right}</div>
     </header>
   );
 }
@@ -580,7 +703,7 @@ function InstallSheet({ open, onClose }: { open: boolean; onClose: () => void })
   return (
     <SheetPortal>
       <Sheet open={open} onClose={onClose} title="Add to home screen">
-        <p className="t-body text-text-2">Two steps in Safari, and Thamba opens like any other app.</p>
+        <p className="t-body text-text-2">Two steps in Safari, and thaamba opens like any other app.</p>
         <ol className="t-body mt-3 list-decimal space-y-2 pl-5 text-text">
           <li>Tap the Share button at the bottom of Safari.</li>
           <li>Scroll down and tap &ldquo;Add to Home Screen&rdquo;, then tap Add.</li>
@@ -596,6 +719,24 @@ const THEME_OPTIONS: { id: ThemeSetting; label: string }[] = [
   { id: "dark", label: "Dark" },
 ];
 
+/**
+ * Appearance and About: the only two settings that work without an account.
+ *
+ * Signed in they sit in the Account sheet. Signed out there is no account
+ * sheet any more (the header control signs you in directly), so they live at
+ * the foot of Portfolio, the "you" tab, one tap away from every screen in the
+ * bottom nav and the desktop top nav.
+ */
+export function AppSettingsRows({ className }: { className?: string }) {
+  const { theme, setTheme } = useTheme();
+  return (
+    <section className={cx("border-t border-line", className)}>
+      <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
+      <AccountRow title="About thaamba" sub="What this is, the mock disclaimer, credits" href="/about" />
+    </section>
+  );
+}
+
 export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const app = useApp();
   const { theme, setTheme } = useTheme();
@@ -604,35 +745,9 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   const [avatarOpen, setAvatarOpen] = useState(false);
   const { canInstall, needsSteps, install } = useInstallPrompt();
 
-  if (!open) return null;
-
-  if (!app.connected)
-    return (
-      <SheetPortal>
-        <Sheet open={open} onClose={onClose} title="Sign in">
-          <p className="t-body text-text-2">
-            Sign in with your email and we make you a secure wallet. Already have one? Sign in with that instead. We
-            never move your money without asking.
-          </p>
-          <Button
-            variant="buy"
-            size="bar"
-            className="mt-4 w-full"
-            onClick={() => {
-              onClose();
-              app.connect();
-            }}
-          >
-            Sign in
-          </Button>
-          <p className="t-caption mt-3">Everything here runs on the {app.network.name} test network. Nothing is charged.</p>
-          <div className="mt-4 border-t border-line">
-            <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
-            <AccountRow title="About Thamba" href="/about" onNavigate={onClose} />
-          </div>
-        </Sheet>
-      </SheetPortal>
-    );
+  // Signed out this sheet has nothing to say: the header control is the sign
+  // in. It is never opened in that state, and never renders one.
+  if (!open || !app.connected) return null;
 
   const low = app.usdcBalance !== null && app.usdcBalance < 20;
   return (
@@ -707,7 +822,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             <AccountRow title="Add to home screen" sub="Opens like an app, works offline" onClick={() => (needsSteps ? setInstallOpen(true) : install())} />
           )}
 
-          <AccountRow title="About Thamba" sub="What this is, the mock disclaimer, credits" href="/about" onNavigate={onClose} />
+          <AccountRow title="About thaamba" sub="What this is, the mock disclaimer, credits" href="/about" onNavigate={onClose} />
         </div>
       </Sheet>
       <PrivacySheet open={privacyOpen} onClose={() => setPrivacyOpen(false)} />

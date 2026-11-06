@@ -110,7 +110,7 @@ export function StocksBody() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <IndexCard
-          label="Thamba SME"
+          label="thaamba SME"
           value={index === null ? COPY.noPrice : index.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           change={
             indexChange ? (
@@ -216,6 +216,13 @@ export function StocksBody() {
 // Columns
 // ---------------------------------------------------------------------------
 
+// One rule, and it holds in both the desktop and the tablet set: the company
+// is the only column that starts at the left, and everything after it ends at
+// the right. "Rule today" is the column that used to break it -- it reads like
+// prose, so it had no align and fell back to left, stranded between the day
+// range and the allowed band -- but its values are state labels carrying a
+// percentage ("Under watch ±5%", "Halted"), not sentences, and a table whose
+// every value column shares one edge reads as one system instead of six.
 function columns(full: boolean): Column<Row>[] {
   const out: Column<Row>[] = [
     {
@@ -238,13 +245,21 @@ function columns(full: boolean): Column<Row>[] {
     {
       key: "spark",
       label: "",
+      align: "right",
       width: "84px",
-      render: (r) =>
-        r.points.length > 1 ? (
-          <Sparkline points={r.points} width={72} height={28} up={(r.last ?? 0) >= (r.open ?? 0)} />
-        ) : (
-          <span className="t-label">{DASH}</span>
-        ),
+      // The chart is an svg, and an svg is a block, so the cell's text-align
+      // cannot move it. It is pushed to the same right edge as every value
+      // beside it instead, which matters at tablet width where the column is
+      // wider than the 72px drawing.
+      render: (r) => (
+        <span className="flex justify-end">
+          {r.points.length > 1 ? (
+            <Sparkline points={r.points} width={72} height={28} up={(r.last ?? 0) >= (r.open ?? 0)} />
+          ) : (
+            <span className="t-label">{DASH}</span>
+          )}
+        </span>
+      ),
     },
     {
       key: "price",
@@ -279,6 +294,7 @@ function columns(full: boolean): Column<Row>[] {
     {
       key: "rule",
       label: "Rule today",
+      align: "right",
       width: full ? "14%" : "16%",
       render: (r) => (
         <span className={r.flag?.tone === "loss" ? "text-loss-text" : r.flag ? "text-warn" : undefined}>{ruleWords(r)}</span>

@@ -5,6 +5,9 @@
 //
 // Rules the hook keeps:
 // - the first load shows a skeleton; later loads never blank the screen;
+// - an answer this session already has comes back immediately, even in a body
+//   that has just mounted, so swapping a tab never re-flashes a skeleton for
+//   data the app is holding (see CACHE below);
 // - a failed poll keeps the last good data on screen and raises the error, so
 //   a blip does not throw away a working page;
 // - polling stops while the tab is hidden and catches up when it comes back;
@@ -35,6 +38,38 @@ export function refreshLive() {
 /** What the last completed read returned, and which request it answered. */
 type Entry<T> = { key: string | null; data: T | null; error: ApiFailure | null; updatedAt: number | null };
 
+// ---------------------------------------------------------------------------
+// The answers this session already has
+// ---------------------------------------------------------------------------
+
+// A screen's state dies with the screen, but the answer to "what are the
+// listings" does not. Switching a tab unmounts one body and mounts another, so
+// without this every hook in the incoming body starts from nothing and the
+// screen flashes skeletons for data the app is already holding -- the worst of
+// it on the way *back*, where every byte is known.
+//
+// Keyed by the same request key the hook polls on, so an entry can only ever
+// answer the question it was asked. A new mount shows the last answer at once
+// and the poll it starts refreshes it in place, the same as any other tick.
+const CACHE = new Map<string, Entry<unknown>>();
+
+// Enough for the tickers one session touches; the oldest question goes first.
+const CACHE_MAX = 64;
+
+function remember<T>(entry: Entry<T>) {
+  if (entry.key === null) return;
+  CACHE.delete(entry.key);
+  CACHE.set(entry.key, entry as Entry<unknown>);
+  if (CACHE.size > CACHE_MAX) {
+    const oldest = CACHE.keys().next();
+    if (!oldest.done) CACHE.delete(oldest.value);
+  }
+}
+
+function recall<T>(key: string | null): Entry<T> | undefined {
+  return key === null ? undefined : (CACHE.get(key) as Entry<T> | undefined);
+}
+
 /**
  * Poll one resource. `key` identifies the request (pass null to stand down,
  * e.g. while signed out); `load` is read from a ref so an inline arrow
@@ -49,7 +84,7 @@ export function useLive<T>(key: string | null, load: () => Promise<T>, intervalM
     loadRef.current = load;
   });
 
-  const [entry, setEntry] = useState<Entry<T>>({ key: null, data: null, error: null, updatedAt: null });
+  const [entry, setEntry] = useState<Entry<T>>(() => recall<T>(key) ?? { key: null, data: null, error: null, updatedAt: null });
   const [attempt, setAttempt] = useState(0);
   const [retrying, setRetrying] = useState(false);
 
@@ -61,13 +96,20 @@ export function useLive<T>(key: string | null, load: () => Promise<T>, intervalM
       try {
         const data = await loadRef.current();
         if (!alive) return;
-        setEntry({ key, data, error: null, updatedAt: Date.now() });
+        const next = { key, data, error: null, updatedAt: Date.now() };
+        remember(next);
+        setEntry(next);
         setRetrying(false);
       } catch (e) {
         if (!alive) return;
         const error = asApiFailure(e);
         // A failed poll keeps whatever is already on screen for this key.
-        setEntry((prev) => (prev.key === key ? { ...prev, error } : { key, data: null, error, updatedAt: null }));
+        setEntry((prev) => {
+          const kept = prev.key === key ? prev : (recall<T>(key) ?? { key, data: null, error: null, updatedAt: null });
+          const next = { ...kept, key, error };
+          remember(next);
+          return next;
+        });
         setRetrying(false);
       }
     };
@@ -95,14 +137,18 @@ export function useLive<T>(key: string | null, load: () => Promise<T>, intervalM
     setAttempt((a) => a + 1);
   }, []);
 
-  const answered = key !== null && entry.key === key;
+  // The key can change under a mounted hook too (a different ticker, a
+  // different segment). That is the same situation as a fresh mount, so it
+  // reads the same answer rather than falling back to a skeleton.
+  const shown = entry.key === key ? entry : (recall<T>(key) ?? entry);
+  const answered = key !== null && shown.key === key;
   return {
-    data: answered ? entry.data : null,
-    error: answered ? entry.error : null,
+    data: answered ? shown.data : null,
+    error: answered ? shown.error : null,
     loading: key !== null && !answered,
     refreshing: retrying,
     retry,
-    updatedAt: answered ? entry.updatedAt : null,
+    updatedAt: answered ? shown.updatedAt : null,
   };
 }
 

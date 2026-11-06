@@ -101,7 +101,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
       <header className="sticky top-0 z-30 border-b border-line bg-bg">
         <ConsoleContainer className="flex h-14 items-center gap-3">
           <Logo size={28} />
-          <span className="t-list-title text-text">Thamba</span>
+          <span className="t-list-title text-text">thaamba</span>
           <span aria-hidden className="hidden h-5 w-px bg-line sm:block" />
           <span className="t-card-title hidden text-text sm:block">Issuer console</span>
           <div className="ml-auto flex items-center gap-4">
@@ -200,7 +200,7 @@ export function ConsoleSignIn() {
     <div className="flex min-h-dvh flex-col bg-bg">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-5 lg:px-10 xl:px-16">
         <Logo size={28} />
-        <span className="t-list-title text-text">Thamba</span>
+        <span className="t-list-title text-text">thaamba</span>
         <span aria-hidden className="h-5 w-px bg-line" />
         <span className="t-card-title text-text">Issuer console</span>
         <Link href="/" className="t-change-sm ml-auto flex h-12 items-center text-text-2 hover:text-text">
@@ -216,7 +216,7 @@ export function ConsoleSignIn() {
             <p className="t-label-sm text-text-2">For companies listing shares</p>
             <h1 className="t-price-large mt-2 text-text">Take your company to market.</h1>
             <p className="t-body mt-3 text-text-2">
-              The issuer side of Thamba. Everything a company does after the paperwork, in plain English, with a receipt for every step.
+              The issuer side of thaamba. Everything a company does after the paperwork, in plain English, with a receipt for every step.
             </p>
             <ol className="mt-7 border-t border-line">
               {CAN_DO.map((c, i) => (
@@ -259,7 +259,7 @@ export function ConsoleSignIn() {
             <p className="t-caption mt-3">
               Buying and selling shares happens in the{" "}
               <Link href="/" className="text-gain-text">
-                Thamba app
+                thaamba app
               </Link>
               , not in this console.
             </p>

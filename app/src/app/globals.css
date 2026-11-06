@@ -1,75 +1,87 @@
 @import "tailwindcss";
 
 /*
- * Tokens follow design/UI.md section 1 (Groww parity) and section 7 (legibility).
+ * Tokens carry the thaamba design system (design/brand/TOKENS.md) at the values
+ * only: the names, the roles and everything downstream are unchanged.
+ * Dark is the system as published: Ink #0E0E10, Surface #16161A, Raised
+ * #1F1F24, Hairline #2C2C32, Muted #9A9AA2, with Paper #EDEDEB as the
+ * foreground. Light is the paper half: Paper #EDEDEB, Paper ink #111113,
+ * Paper muted #56565E. Steps the deck does not publish (line-strong, text-3,
+ * surface-2 on paper) are derived from it and marked below.
+ *
+ * The deck has no red and no green because a deck has no prices in it. The
+ * semantic pair stays, re-tuned for a #EDEDEB ground rather than pure white.
+ *
  * Light lives on bare :root. Dark is the same set twice: once under the system
  * media query (guarded so an explicit data-theme="light" wins) and once under
  * data-theme="dark" so the in-app toggle wins in both directions.
  */
 :root {
-  /* ground */
-  --bg: #ffffff;
-  --surface: #ffffff;
-  --surface-2: #f5f5f5;
-  --line: #e8e8e8;
-  --line-strong: #d0d0d0;
-  /* text */
-  --text: #000000;
-  --text-2: #767676;
-  --text-3: #919191;
-  /* money: Groww hue for lines and fills, darker step for text */
-  --gain: #00b386;
-  --loss: #f35d5d;
-  --gain-text: #00805f;
-  --loss-text: #d23232;
-  --buy: #00805f;
-  --sell: #d23232;
-  /* brand: nav and logo only */
-  --brand: #5367ff;
-  --brand-text: #4556e6;
-  --warn: #a66200;
-  /* company marks as text: the tile colour where it clears 4.5:1, otherwise darkened */
+  /* ground: Paper, with derived recessed and hairline steps */
+  --bg: #ededeb;
+  --surface: #ededeb;
+  --surface-2: #e4e4e1;
+  --line: #dcdcd8;
+  --line-strong: #c2c2be;
+  /* text: Paper ink, Paper muted, and a derived tertiary */
+  --text: #111113;
+  --text-2: #56565e;
+  --text-3: #7a7a82;
+  /* money: the one pair the system leaves to us. Darkened one step from the
+     white-ground values so they still clear on Paper: gain-text 4.88:1,
+     loss-text 4.74:1, and the chart hues 3.10:1 and 3.07:1 for a graphic. */
+  --gain: #00996f;
+  --loss: #ea5252;
+  --gain-text: #007553;
+  --loss-text: #c42e2e;
+  --buy: #007553;
+  --sell: #c42e2e;
+  /* brand: the system is monochrome, so "current" is ink, not blue */
+  --brand: #111113;
+  --brand-text: #111113;
+  --warn: #9c5c00;
+  /* company marks as text: the tile colour where it clears 4.5:1 on Paper, otherwise darkened */
   --mark-acme: #1c4e89;
-  --mark-kesar: #b06028;
+  --mark-kesar: #a05824;
   --mark-tara: #7a3e5c;
-  --mark-masala: #a15c1a;
+  --mark-masala: #985317;
   --mark-nirmaan: #3e4c6b;
   --mark-vayu: #1f6a6a;
   --mark-lotus: #8e3d55;
   --mark-prakriti: #3e6b4f;
   /* chips */
-  --chip-on-bg: #ebebeb;
-  --chip-on-line: #222222;
+  --chip-on-bg: #dfdfdb;
+  --chip-on-line: #111113;
   /* chart-only soft fills */
-  --gain-fill: rgb(0 179 134 / 0.1);
-  --loss-fill: rgb(243 93 93 / 0.08);
-  --band-fill: rgb(0 0 0 / 0.06);
-  --overlay: rgb(0 0 0 / 0.5);
-  --inverse-bg: #000000;
-  --inverse-text: #ffffff;
-  /* second line on the toast: a real token, so nothing needs an opacity trick. 9.1:1 on #000 */
-  --inverse-text-2: #b5b5b5;
+  --gain-fill: rgb(0 153 111 / 0.1);
+  --loss-fill: rgb(234 82 82 / 0.08);
+  --band-fill: rgb(17 17 19 / 0.06);
+  --overlay: rgb(14 14 16 / 0.5);
+  --inverse-bg: #0e0e10;
+  --inverse-text: #ededeb;
+  /* second line on the toast: a real token, so nothing needs an opacity trick. 6.9:1 on Ink */
+  --inverse-text-2: #9a9aa2;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #121212;
-    --surface: #1a1a1a;
-    --surface-2: #242424;
-    --line: #2c2c2c;
-    --line-strong: #3a3a3a;
-    --text: #ffffff;
-    --text-2: #8f8f8f;
-    --text-3: #6b6b6b;
+    --bg: #0e0e10;
+    --surface: #16161a;
+    --surface-2: #1f1f24;
+    --line: #2c2c32;
+    --line-strong: #3c3c44;
+    --text: #ededeb;
+    --text-2: #9a9aa2;
+    --text-3: #70707a;
     --gain: #0fcb9a;
     --loss: #ff6b6b;
     --gain-text: #0fcb9a;
     --loss-text: #ff6b6b;
-    --buy: #00805f;
-    --sell: #d23232;
-    --brand: #7b8bff;
-    --brand-text: #7b8bff;
+    --buy: #007553;
+    --sell: #c42e2e;
+    --brand: #ededeb;
+    --brand-text: #ededeb;
     --warn: #f5a623;
     /* same marks, lightened so they clear 4.5:1 on both dark grounds */
     --mark-acme: #6b8cb2;
@@ -80,37 +92,38 @@
     --mark-vayu: #578f8f;
     --mark-lotus: #b07788;
     --mark-prakriti: #6e907b;
-    --chip-on-bg: #2a2a2a;
-    --chip-on-line: #e6e6e6;
+    --chip-on-bg: #2c2c32;
+    --chip-on-line: #ededeb;
     --gain-fill: rgb(15 203 154 / 0.12);
     --loss-fill: rgb(255 107 107 / 0.1);
-    --band-fill: rgb(255 255 255 / 0.07);
-    --overlay: rgb(0 0 0 / 0.65);
-    --inverse-bg: #2c2c2c;
-    --inverse-text: #ffffff;
-    --inverse-text-2: #a8a8a8; /* 5.2:1 on #2c2c2c */
+    --band-fill: rgb(237 237 235 / 0.07);
+    --overlay: rgb(14 14 16 / 0.65);
+    --inverse-bg: #2c2c32;
+    --inverse-text: #ededeb;
+    --inverse-text-2: #9a9aa2; /* 5.0:1 on #2C2C32 */
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #121212;
-  --surface: #1a1a1a;
-  --surface-2: #242424;
-  --line: #2c2c2c;
-  --line-strong: #3a3a3a;
-  --text: #ffffff;
-  --text-2: #8f8f8f;
-  --text-3: #6b6b6b;
+  --bg: #0e0e10;
+  --surface: #16161a;
+  --surface-2: #1f1f24;
+  --line: #2c2c32;
+  --line-strong: #3c3c44;
+  --text: #ededeb;
+  --text-2: #9a9aa2;
+  --text-3: #70707a;
   --gain: #0fcb9a;
   --loss: #ff6b6b;
   --gain-text: #0fcb9a;
   --loss-text: #ff6b6b;
-  --buy: #00805f;
-  --sell: #d23232;
-  --brand: #7b8bff;
-  --brand-text: #7b8bff;
+  --buy: #007553;
+  --sell: #c42e2e;
+  --brand: #ededeb;
+  --brand-text: #ededeb;
   --warn: #f5a623;
+  /* same marks, lightened so they clear 4.5:1 on both dark grounds */
   --mark-acme: #6b8cb2;
   --mark-kesar: #c46b2c;
   --mark-tara: #a2788d;
@@ -119,15 +132,15 @@
   --mark-vayu: #578f8f;
   --mark-lotus: #b07788;
   --mark-prakriti: #6e907b;
-  --chip-on-bg: #2a2a2a;
-  --chip-on-line: #e6e6e6;
+  --chip-on-bg: #2c2c32;
+  --chip-on-line: #ededeb;
   --gain-fill: rgb(15 203 154 / 0.12);
   --loss-fill: rgb(255 107 107 / 0.1);
-  --band-fill: rgb(255 255 255 / 0.07);
-  --overlay: rgb(0 0 0 / 0.65);
-  --inverse-bg: #2c2c2c;
-  --inverse-text: #ffffff;
-  --inverse-text-2: #a8a8a8;
+  --band-fill: rgb(237 237 235 / 0.07);
+  --overlay: rgb(14 14 16 / 0.65);
+  --inverse-bg: #2c2c32;
+  --inverse-text: #ededeb;
+  --inverse-text-2: #9a9aa2; /* 5.0:1 on #2C2C32 */
   color-scheme: dark;
 }
 
@@ -154,13 +167,20 @@
   --color-inverse-bg: var(--inverse-bg);
   --color-inverse-text: var(--inverse-text);
   --color-inverse-text-2: var(--inverse-text-2);
-  --font-sans: var(--font-roboto), Roboto, system-ui, -apple-system, sans-serif;
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-sans: var(--font-figtree), Figtree, system-ui, -apple-system, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* radius: 10 for cards/buttons/inputs/sheets, 8 for tiles/toast, 999 for chips/avatars */
   --radius-card: 10px;
   --radius-sm: 8px;
   --radius-chip: 999px;
   --breakpoint-lg: 1024px;
+  /*
+   * The app's one decelerating curve: easeOutCubic, 1 - (1 - t)^3, the same
+   * curve the chart's range tween runs on (components/chart/series.ts). Used
+   * by the tab underline and by the view it switches to, so a tab change is
+   * one movement rather than two.
+   */
+  --ease-swap: cubic-bezier(0.215, 0.61, 0.355, 1);
 }
 
 html {
@@ -283,6 +303,22 @@ h3 {
   font-size: 14px;
   line-height: 20px;
   font-weight: 400;
+}
+/*
+ * The system's label: mono, uppercase, +0.08em (TOKENS.md). The app's existing
+ * `.t-label` is not this role: 55 of its uses are running secondary copy
+ * ("Prices in USDC per 1,000 shares."), so uppercasing it would be a redesign.
+ * This is the role the deck's cell labels use; adopt it where a real label sits
+ * at the top of a hairline cell.
+ */
+.t-label-mono {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 16px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-2);
 }
 
 .num {
@@ -508,6 +544,14 @@ input[type="range"].slider:focus-visible::-moz-range-thumb {
   animation: number-tick 160ms ease-out;
 }
 
+/*
+ * View swap: one body replacing another under a tab row (Stocks|IPO, the IPO
+ * segments, UnderlineTabs and Segmented everywhere else). 200ms on --ease-swap,
+ * fading in and travelling 8px from the side the tab row moved towards. It is
+ * played from JS (components/ui.tsx) because the direction is only known at the
+ * moment of the tap, and it is skipped entirely under reduced motion, which the
+ * rule below cannot do for a scripted animation.
+ */
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
