@@ -16,7 +16,7 @@ import { CircuitBanner } from "@/components/circuit-banner";
 import { PriceChart } from "@/components/time-chart";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
-import { blockNo, dateTimeIST, lotFixed, shares, shortAddr, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
+import { blockNo, dateTimeIST, lotFixed, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
 import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo, type Mode, type Policy } from "@/lib/mock";
 import { band, bandDigits } from "@/lib/policy";
 
@@ -85,7 +85,7 @@ export function ConsoleScreen({ ticker }: { ticker: string }) {
       <ConsoleShell>
         <h1 className="t-page-title mt-6">{ipo.name}</h1>
         <p className="t-body mt-2 text-text-2">
-          This console is for the owner of {ensName(ticker)}. Sign out and connect the wallet {shortAddr(ipo.records.addr)} to manage this listing.
+          This console is for the owner of {ensName(ticker)}. Sign out and connect the wallet that owns that name to manage this listing.
         </p>
       </ConsoleShell>
     );
@@ -346,8 +346,7 @@ function CreateStep({ ipo }: { ipo: Ipo }) {
 }
 
 const RECORD_LABEL: Record<string, string> = {
-  addr: "Owner wallet",
-  token: "Shares",
+  addr: "Share token",
   auction: "IPO contract",
   pool: "Market",
   hook: "Rule enforcer",

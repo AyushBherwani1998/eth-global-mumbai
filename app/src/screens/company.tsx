@@ -108,8 +108,7 @@ function UnitLine() {
 
 function EnsRows({ ipo }: { ipo: Ipo }) {
   const rows: [string, string | null][] = [
-    ["Company account", ipo.records.addr],
-    ["Share token", ipo.records.token],
+    ["Share token", ipo.records.addr],
     ["IPO auction", ipo.records.auction],
     ["Trading rule hook", ipo.records.hook],
     ["Policy contract", ipo.records.policy],
