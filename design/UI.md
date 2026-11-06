@@ -813,7 +813,7 @@ Balance row: "Available to spend  1,234.00 USDC". Network and privacy details li
 Approval stepper (each step one sentence, shown under the step title):
 1. "Allow this app to use your USDC. One-time, you can turn it off later."
 2. "Allow this auction to take up to 5.00 USDC from you."
-3. "Place your bid. You can take it back any time before the auction ends."
+3. "Place your bid. It can't be cancelled: your USDC stays with the auction until it ends."
 Trading: 1. "Allow this app to sell your ACME shares." 2. "Confirm the sale."
 Button labels: "Allow USDC", "Allow 5.00 USDC", "Place bid", "Buy for 5.00 USDC", "Sell 1,000 shares".
 Busy label: "Check your wallet app". Done toast: "Bid placed", "Bought 980 ACME shares".
