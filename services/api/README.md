@@ -8,6 +8,8 @@ This is the thin HTTP layer the app calls instead of `app/src/lib/mock.ts`. Desi
 
 It runs on Hono and `@hono/node-server`. Node 22.18 or newer runs the TypeScript directly (type stripping), as in `services/mock-exchange`.
 
+**Hosting.** Local / Docker / Railway use `npm start` (`src/index.ts` + `@hono/node-server`). Vercel uses the repo-root `api/index.ts` entry (same Hono app, no listen) — see [`DEPLOY-VERCEL.md`](../../DEPLOY-VERCEL.md). Railway steps are in [`DEPLOY-RAILWAY.md`](../../DEPLOY-RAILWAY.md).
+
 ## Run it
 
 ```bash
