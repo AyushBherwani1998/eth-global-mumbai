@@ -10,12 +10,13 @@
 // POST /v1/prepare/bid (the server simulates the bid with its approvals, so
 // "auction over" or "above your cap" shows before anything is sent).
 
+import { approvalTitle } from "@/lib/trade-copy";
 import { useState, type ReactNode } from "react";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/providers";
 import { TickerMark } from "@/components/company/logos";
-import { AmountField, Button, Details, KV, Sheet, Slider, Stepper, TickerLogo, cx } from "@/components/ui";
-import { lotFixed, perShare, shares, usdc } from "@/lib/format";
+import { AmountField, Button, CopyAddress, Details, KV, Sheet, Slider, Stepper, TickerLogo, cx } from "@/components/ui";
+import { dateTimeIST, lotFixed, perShare, shares, usdc } from "@/lib/format";
 import { FAUCET_URL, type Ipo } from "@/lib/mock";
 import { api, type BidDetails, type Offer } from "@/lib/api";
 import { bidRoom } from "@/lib/adapt";
@@ -81,7 +82,7 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
   const blocked = warnings.some((w) => w.blocking);
   const approvals = prepared ? prepared.steps.filter((s) => s.needed && s.kind !== "submitBid") : [];
   const steps = [
-    ...approvals.map((s) => ({ title: s.description, sub: "A one-time approval in your wallet so the IPO can take your USDC." })),
+    ...approvals.map((s) => ({ title: approvalTitle(s.kind, "USDC"), sub: s.kind === "permit2Approve" ? "Only for this application amount. See Details for the contract and expiry." : "Approve once so applications can use your USDC." })),
     { title: "Apply", sub: "Place your application. It can't be cancelled: your USDC stays with the IPO until it closes." },
   ];
   const current = busy && progress && progress.phase !== "preparing" ? Math.min(steps.length, progress.index + 1) : 1;
@@ -223,7 +224,11 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
       <Details className="mt-4">
         <div className="divide-y divide-line">
           {maxPrice !== null && <KV k="Your price limit" v={`${lotFixed(maxPrice)} per 1,000 shares`} sub={`= ${perShare(maxPrice)} USDC per share`} />}
-          <KV k="Auction contract" v={ipo.records.auction ? `${ipo.records.auction.slice(0, 10)}…${ipo.records.auction.slice(-6)}` : "Not set yet"} mono />
+          {prepared?.permit2 && <>
+            <KV k="Spending contract" v={<CopyAddress value={prepared.permit2.spender} />} />
+            <KV k="Permission ends" v={dateTimeIST(prepared.permit2.expiration)} />
+          </>}
+          <KV k="Auction contract" v={<CopyAddress value={ipo.records.auction} />} />
           {simError && <KV k="Reason code" v={simError.name} mono />}
           {prepared && <KV k="Checked with" v={`${prepared.simulate.method} at block ${prepared.simulate.block}`} mono />}
         </div>

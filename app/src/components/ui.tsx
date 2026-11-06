@@ -10,7 +10,7 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, useTransition, typ
 import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Loader2, X } from "lucide-react";
 import { CompanyLogo } from "@/components/company/logos";
 import type { Ipo } from "@/lib/mock";
-import { addrUrl, shortAddr } from "@/lib/format";
+import { txUrl, addrUrl, shortAddr } from "@/lib/format";
 
 export function cx(...c: (string | false | null | undefined)[]) {
   return c.filter(Boolean).join(" ");
@@ -677,8 +677,8 @@ export function ListRow({
     <>
       {logo}
       <span className="min-w-0 flex-1">
-        <span className="t-list-title block truncate text-text">{title}</span>
-        {sub && <span className="t-label block truncate">{sub}</span>}
+        <span className="t-list-title block [overflow-wrap:anywhere] text-text">{title}</span>
+        {sub && <span className="t-label block [overflow-wrap:anywhere]">{sub}</span>}
       </span>
       {sparkline && <span className="hidden shrink-0 min-[360px]:block">{sparkline}</span>}
       {(right || rightSub || flag) && (
@@ -742,7 +742,7 @@ export function CompanyCard({
   return (
     <Link href={href} className="block min-h-[160px] rounded-[10px] border border-line bg-surface p-4 transition-colors duration-120 hover:border-line-strong active:bg-surface-2">
       {logo}
-      <span className="t-card-title mt-5 block truncate text-text">{name}</span>
+      <span className="t-card-title mt-5 block [overflow-wrap:anywhere] text-text">{name}</span>
       <span className="num t-price-row mt-2 block text-text">{price}</span>
       {change && <span className="num mt-1 block">{change}</span>}
       {sub && <span className="t-caption mt-1 block">{sub}</span>}
@@ -769,7 +769,7 @@ export function IndexCard({
   const body = (
     <>
       <span className="min-w-0 flex-1">
-        <span className="t-label-sm block truncate text-text">{label}</span>
+        <span className="t-label-sm block [overflow-wrap:anywhere] text-text">{label}</span>
         <span className="num mt-1 flex flex-wrap items-baseline gap-x-2">
           <span className="text-[16px] leading-[22px] text-text">{value}</span>
           {change && <span className="t-change-sm">{change}</span>}
@@ -983,11 +983,11 @@ function SheetPanel({ onClose, title, children, footer }: Omit<SheetProps, "open
         >
           <div
             className={cx(
-              "flex h-14 shrink-0 items-center justify-between gap-3 border-b pr-3 pl-5 transition-colors duration-120",
+              "flex min-h-14 shrink-0 items-center justify-between gap-3 border-b py-2 pr-3 pl-5 transition-colors duration-120",
               scrolled ? "border-line" : "border-transparent",
             )}
           >
-            <h2 id={id} className="t-section-title min-w-0 truncate">
+            <h2 id={id} className="t-section-title min-w-0 [overflow-wrap:anywhere]">
               {title}
             </h2>
             <SheetClose onClose={onClose} />
@@ -1253,8 +1253,8 @@ export function Stepper({ steps, current, className }: { steps: { title: string;
           );
         })}
       </ol>
-      {now && <p className="t-list-title mt-3 text-text">{now.title}</p>}
-      {now?.sub && <p className="t-body mt-1 text-text-2">{now.sub}</p>}
+      {now && <p className="t-list-title mt-3 [overflow-wrap:anywhere] text-text">{now.title}</p>}
+      {now?.sub && <p className="t-body mt-1 [overflow-wrap:anywhere] text-text-2">{now.sub}</p>}
     </div>
   );
 }
@@ -1305,7 +1305,7 @@ export function Pill({ children }: { tone?: string; dot?: boolean; children: Rea
 // Rule strip (UI.md 2.19 / UX.md 3.3): flat full-bleed strip, no border, no animation.
 // ---------------------------------------------------------------------------
 
-export type RuleKind = "listing" | "surveillance" | "one-way" | "halted";
+export type RuleKind = "normal" | "listing" | "surveillance" | "one-way" | "halted";
 
 export function RuleStrip({
   kind,
@@ -1321,8 +1321,8 @@ export function RuleStrip({
   onDetails?: () => void;
   className?: string;
 }) {
-  const square = kind === "halted" ? "bg-loss" : kind === "listing" ? "bg-brand" : "bg-warn";
-  const word = kind === "halted" ? "text-loss-text" : kind === "listing" ? "text-brand-text" : "text-warn";
+  const square = kind === "halted" ? "bg-loss" : kind === "normal" ? "bg-gain" : kind === "listing" ? "bg-brand" : "bg-warn";
+  const word = kind === "halted" ? "text-loss-text" : kind === "normal" ? "text-gain-text" : kind === "listing" ? "text-brand-text" : "text-warn";
   const rest = label && text.startsWith(label) ? text.slice(label.length).replace(/^[.\s]+/, "") : text;
   const Tag = onDetails ? "button" : "div";
   return (
@@ -1354,6 +1354,15 @@ export function RuleStrip({
 // Toast (UI.md 2.20): inverse colours, bottom, one at a time.
 // ---------------------------------------------------------------------------
 
+/** Keep full identifiers in links rather than letting server prose overflow a toast. */
+function IdentifierText({ text }: { text: string }) {
+  return text.split(/(0x[a-fA-F0-9]{64}\b|0x[a-fA-F0-9]{40}\b)/g).map((part, i) =>
+    /^0x(?:[a-fA-F0-9]{40}|[a-fA-F0-9]{64})$/.test(part)
+      ? <a key={i} href={part.length === 42 ? addrUrl(part) : txUrl(part)} title={part} target="_blank" rel="noreferrer" className="underline underline-offset-2">{shortAddr(part)}</a>
+      : part,
+  );
+}
+
 export function Toast({
   status,
   title,
@@ -1375,10 +1384,10 @@ export function Toast({
       {status === "pending" && <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />}
       {status === "success" && <Check className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} />}
       {status === "error" && <X className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} />}
-      <span className="min-w-0 flex-1">
-        <span className="block text-[14px] leading-5 font-medium">{title}</span>
+      <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">
+        <span className="block text-[14px] leading-5 font-medium"><IdentifierText text={title} /></span>
         {/* --inverse-text-2 instead of an opacity trick (UI.md 2, states legend). */}
-        {detail && <span className="mt-0.5 block text-[13px] leading-[18px] text-inverse-text-2">{detail}</span>}
+        {detail && <span className="mt-0.5 block text-[13px] leading-[18px] text-inverse-text-2"><IdentifierText text={detail} /></span>}
         {link && (
           <a href={link.href} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[13px] leading-[18px] underline underline-offset-2">
             {link.label} <ExternalLink className="size-3" />
@@ -1464,8 +1473,8 @@ export function KV({ k, v, sub, mono }: { k: ReactNode; v: ReactNode; sub?: Reac
     <div className="flex min-h-12 items-start justify-between gap-4 py-2.5">
       {/* The key is 14/20 against a 16/22 value: 1px of top padding puts the
           two on the same baseline. */}
-      <span className="t-label shrink-0 pt-px">{k}</span>
-      <span className="min-w-0 text-right">
+      <span className="t-label min-w-0 max-w-[48%] pt-px [overflow-wrap:anywhere]">{k}</span>
+      <span className="min-w-0 flex-1 text-right [overflow-wrap:anywhere]">
         {/* Only a hash or an address may break mid-token; ordinary words wrap. */}
         <span className={cx("num block text-text", mono ? "t-mono break-all" : "t-list-title break-words")}>{v}</span>
         {sub && <span className="t-caption mt-0.5 block">{sub}</span>}
@@ -1721,25 +1730,35 @@ const INLINE_ACTION =
 
 export function CopyAddress({ value, label }: { value: string | null; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const [copyFailed, setCopyFailed] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   if (!value) return <span className="t-label">Not set yet</span>;
   return (
     <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
-      <span className="num t-mono text-text">{label ?? shortAddr(value)}</span>
+      <span className="num t-mono [overflow-wrap:anywhere] text-text" title={value}>{label ?? shortAddr(value)}</span>
       <button
         type="button"
-        onClick={() => {
-          navigator.clipboard?.writeText(value).catch(() => {});
+        onClick={async () => {
+          setCopyFailed(false);
+          try {
+            if (!navigator.clipboard) throw new Error("Clipboard unavailable");
+            await navigator.clipboard.writeText(value);
+          } catch {
+            setCopyFailed(true);
+            return;
+          }
           setCopied(true);
           if (timer.current) clearTimeout(timer.current);
           timer.current = setTimeout(() => setCopied(false), 1200);
         }}
         className={INLINE_ACTION}
+        aria-label={value.length === 42 ? "Copy full address" : "Copy full identifier"}
       >
         {copied ? <Check className="size-4 text-gain-text" strokeWidth={2.25} /> : <Copy className="size-4" />}
-        {copied ? "Copied" : "Copy"}
+        <span aria-live="polite">{copied ? "Copied" : "Copy"}</span>
       </button>
+      {copyFailed && <span role="status" className="t-caption">Could not copy. Select this full value instead: {value}</span>}
       {value.length === 42 && (
         <a href={addrUrl(value)} target="_blank" rel="noreferrer" className={INLINE_ACTION}>
           <ExternalLink className="size-4" /> View

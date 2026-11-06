@@ -71,7 +71,7 @@ export function RangeChipRow<T extends string>({
   return (
     <div role="radiogroup" aria-label={label} className={cx("flex items-center gap-1.5 py-1", className)}>
       {options.map((o) => (
-        <Chip key={o.id} variant="range" selected={value === o.id} onClick={() => onChange(o.id)} className="min-w-0 flex-1 px-1">
+        <Chip key={o.id} variant="range" selected={value === o.id} onClick={() => onChange(o.id)} className="min-w-0! flex-1 px-1!">
           {o.label}
         </Chip>
       ))}

@@ -16,14 +16,15 @@ import { useState, type ReactNode } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { useApp } from "@/components/providers";
 import { TickerMark } from "@/components/company/logos";
-import { AmountField, Button, Details, KV, Segmented, Sheet, Stepper, TickerLogo, cx } from "@/components/ui";
-import { lotFixed, shares, usdc } from "@/lib/format";
+import { AmountField, Button, CopyAddress, Details, KV, Segmented, Sheet, Stepper, TickerLogo, cx } from "@/components/ui";
+import { dateTimeIST, lotFixed, shares, usdc } from "@/lib/format";
 import type { Ipo, Market, Rejected } from "@/lib/mock";
 import { band, bandDigits } from "@/lib/policy";
 import { api, type DecodedError, type Prepared, type SwapDetails } from "@/lib/api";
 import { sharesHeld } from "@/lib/adapt";
 import { useQuote } from "@/lib/use-quote";
 import { SHARE_DECIMALS, USDC_DECIMALS, formatRaw, parseAmount, slippageToBps } from "@/lib/units";
+import { approvalTitle, bandRejection } from "@/lib/trade-copy";
 import type { TxProgress } from "@/lib/tx";
 
 export type TradeSide = "buy" | "sell";
@@ -51,10 +52,11 @@ function verdictOf(market: Market, p: Prepared<SwapDetails>): Verdict {
   if (err) {
     const after = q.priceAfter;
     if ((err.name === "OutOfBand" || err.name === "DirectionalWidening") && after !== null) {
-      const above = after > hi;
       return {
         ok: false,
-        text: `Not allowed: this trade would push the price to ${after.toFixed(3)}, ${above ? "above" : "below"} today's limit of ${lotFixed(above ? hi : lo, d)}.`,
+        text: err.name === "DirectionalWidening"
+          ? "Not allowed: this trade moves the price further from the reference, beyond today's tighter limit. Prices shown are rounded; the exchange checks the full on-chain price."
+          : bandRejection(`${lotFixed(lo, d)} to ${lotFixed(hi, d)}`, after),
         fix: err.name === "DirectionalWidening" ? "Try a smaller amount or the other side." : "Try a smaller amount.",
       };
     }
@@ -64,7 +66,7 @@ function verdictOf(market: Market, p: Prepared<SwapDetails>): Verdict {
   return { ok: true, text: `Allowed · within today's limits ${lotFixed(lo, d)} to ${lotFixed(hi, d)}` };
 }
 
-const pct = (bps: number | null) => (bps === null ? "Not available" : `${bps >= 0 ? "+" : "-"}${(Math.abs(bps) / 100).toFixed(2)}%`);
+const pct = (bps: number | null) => (bps === null ? "No quote yet" : `${bps >= 0 ? "+" : "-"}${(Math.abs(bps) / 100).toFixed(2)}%`);
 
 export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }: Opts): { body: ReactNode; footer: ReactNode } {
   const { connected, connect, address, portfolio, usdcBalance, runTx, canSign, txBusy, demoData } = useApp();
@@ -157,7 +159,7 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
     if (quote.status === "ready" && !q) return <KV k="You'll get about" v="No quote" sub={demoData ? "Quotes need the live exchange server, not demo data." : "The exchange sent no quote for this."} />;
     if (!q || !prepared) return null;
     if (!q.ok || q.amountOut === null)
-      return <KV k="You'll get about" v="Nothing: not allowed" sub={q.priceAfter !== null ? `The price would end at ${q.priceAfter.toFixed(3)}` : undefined} />;
+      return <KV k="You'll get about" v="Trade blocked" sub="No tokens will move. Try a smaller amount or check the trading rule below." />;
     return (
       <>
         <KV
@@ -167,7 +169,7 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
         />
         <KV
           k="Price after your trade"
-          v={q.priceAfter === null ? "Not available" : q.priceAfter.toFixed(3)}
+          v={q.priceAfter === null ? "Could not estimate" : q.priceAfter.toFixed(3)}
           sub={`Price now ${lotFixed(q.priceBefore ?? lastPrice)}${q.avgPrice !== null ? ` · you pay on average ${lotFixed(q.avgPrice)}` : ""}`}
         />
       </>
@@ -227,7 +229,7 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
       ))}
 
       <Details title="More options" className="mt-2">
-        <div className="flex min-h-12 items-center justify-between gap-4 py-2">
+        <div className="flex min-h-12 flex-wrap items-center justify-between gap-3 py-2">
           <span className="t-label">Price movement I accept</span>
           <Segmented
             value={slippage}
@@ -241,16 +243,23 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
           />
         </div>
         <div className="divide-y divide-line">
-          <KV k="Effect on the price" v={pct(q?.priceImpactBps ?? null)} />
-          <KV k="Average price vs price now" v={pct(q?.avgPriceVsSpotBps ?? null)} />
+          {q?.ok ? <>
+            <KV k="Effect on the price" v={pct(q.priceImpactBps)} />
+            {q.avgPriceVsSpotBps !== null && <KV k="Average price vs price now" v={pct(q.avgPriceVsSpotBps)} />}
+          </> : <p className="t-label py-3">Price comparisons appear once you have an allowed quote.</p>}
         </div>
       </Details>
 
       <Details className="mt-2">
         <div className="divide-y divide-line">
+          {prepared?.permit2 && <>
+            <KV k="Token contract" v={<CopyAddress value={prepared.permit2.token} />} />
+            <KV k="Trade contract" v={<CopyAddress value={prepared.permit2.spender} />} />
+            <KV k="Trade permission ends" v={dateTimeIST(prepared.permit2.expiration)} />
+          </>}
           <KV k="Route" v="Universal Router · Uniswap v4 pool" />
           <KV k="Quote source" v="Exchange server · V4Quoter (exact in)" />
-          <KV k="Pool id" v={ipo.records.pool ? `${ipo.records.pool.slice(0, 10)}…${ipo.records.pool.slice(-6)}` : "Not set yet"} mono />
+          <KV k="Pool id" v={<CopyAddress value={ipo.records.pool} />} />
           {q?.priceAfter != null && <KV k="Raw price after" v={`${q.priceAfter.toFixed(6)} (${q.priceAfterSource ?? "unknown"})`} mono />}
           {prepared && <KV k="Checked with" v={`${prepared.simulate.method} at block ${prepared.simulate.block}`} mono />}
           {(q?.error ?? prepared?.simulate.error) && <KV k="Reason code" v={(q?.error ?? prepared?.simulate.error)?.name} mono />}
@@ -260,7 +269,7 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
     </>
   );
 
-  const stepTitles = [...approvals.map((s) => s.description), side === "buy" ? "Buy" : "Sell"];
+  const stepTitles = [...approvals.map((s) => approvalTitle(s.kind, side === "buy" ? "USDC" : "shares")), side === "buy" ? "Buy" : "Sell"];
   const current = progress && progress.phase !== "preparing" ? Math.min(stepTitles.length, progress.index + 1) : 1;
   const canSend = connected && canSign && !!prepared && verdict?.ok !== false && !shortOfMoney && !busy && !txBusy;
 
@@ -272,7 +281,11 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
           current={busy ? current : 1}
           steps={stepTitles.map((title, i) => ({
             title,
-            sub: i < approvals.length ? "A one-time approval in your wallet. It lets this trade move your tokens." : "Confirm the trade. You get at least the minimum shown.",
+            sub: i < approvals.length
+              ? approvals[i].kind === "permit2Approve"
+                ? "Only for this trade amount. See Details for the contract and expiry."
+                : `Approve once so trades can move your ${side === "buy" ? "USDC" : "shares"}.`
+              : "Confirm the trade. You get at least the minimum shown.",
           }))}
         />
       )}

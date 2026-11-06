@@ -116,7 +116,7 @@ function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
         {rows.map((r) => (
           <li key={r.ticker} className="flex h-12 items-center gap-3">
             <CompanyLogo ticker={r.ticker} size={20} />
-            <span className="t-body min-w-0 flex-1 truncate text-text">{r.listing?.name ?? r.ticker.toUpperCase()}</span>
+            <span className="t-body min-w-0 flex-1 [overflow-wrap:anywhere] text-text">{r.listing?.name ?? r.ticker.toUpperCase()}</span>
             <span className="num t-body font-medium" style={{ color: markVar(r.ticker) }}>
               {Math.round(((r.value ?? 0) / base) * 100)}%
             </span>
@@ -262,7 +262,7 @@ export function PortfolioScreen() {
         <span className="flex items-center gap-3">
           <TickerLogo ipo={r.listing ?? { ticker: r.ticker }} size={28} />
           <span className="min-w-0">
-            <span className="block truncate text-text">{r.listing?.name ?? r.ticker.toUpperCase()}</span>
+            <span className="block [overflow-wrap:anywhere] text-text">{r.listing?.name ?? r.ticker.toUpperCase()}</span>
             <span className="num t-label block">
               {r.listing && <TickerMark ticker={r.ticker} symbol={r.listing.symbol} />} {r.listing ? "· " : ""}
               {holdingSub(r)}
