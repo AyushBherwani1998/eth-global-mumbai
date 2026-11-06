@@ -12,7 +12,12 @@ bytecode_hash = "none"
 # Nested submodules of the pinned deps are not checked out; use only remappings.txt.
 auto_detect_remappings = false
 # CreReportFixture.t.sol reads the report vectors pinned by the CRE workflow's tests.
-fs_permissions = [{ access = "read", path = "../cre/listing-policy/fixtures" }]
+fs_permissions = [
+  { access = "read", path = "../cre/listing-policy/fixtures" },
+  { access = "read-write", path = "./deployments" },
+  { access = "read", path = "./broadcast" },
+  { access = "read", path = "./test/fixtures" },
+]
 
 # Same split as the CCA repo: the factory needs via-IR, everything else compiles without it.
 additional_compiler_profiles = [{ name = "via_ir", optimizer_runs = 11111, via_ir = true }]
