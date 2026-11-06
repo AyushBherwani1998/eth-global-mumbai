@@ -3,7 +3,7 @@ import { randomBytes } from "node:crypto";
 import { createMockExchange } from "./server.ts";
 
 const port = Number(process.env.PORT ?? 8787);
-const host = process.env.HOST ?? "127.0.0.1";
+const host = process.env.HOST ?? (process.env.PORT ? "0.0.0.0" : "127.0.0.1");
 let secret = process.env.MOCK_EXCHANGE_SECRET ?? "";
 if (!secret) {
   secret = randomBytes(16).toString("hex");

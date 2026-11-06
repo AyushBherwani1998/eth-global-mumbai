@@ -20,7 +20,7 @@ npm run typecheck
 | --- | --- | --- |
 | `MOCK_EXCHANGE_SECRET` | random, printed at startup | Shared secret for every write |
 | `PORT` | `8787` | |
-| `HOST` | `127.0.0.1` | Use `0.0.0.0` to expose it (for example behind a tunnel for a deployed workflow) |
+| `HOST` | `127.0.0.1` (or `0.0.0.0` when `PORT` is set) | Use `0.0.0.0` to expose it; hosts that inject `PORT` (Railway, …) bind `0.0.0.0` automatically |
 | `TICKER` | `ACME` | Initial ticker |
 | `STATE_FILE` | unset (in-memory) | JSON file loaded at start and rewritten after every edit |
 

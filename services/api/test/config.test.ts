@@ -19,6 +19,12 @@ test("loadConfig defaults to Sepolia and the committed deployments file", () => 
   assert.deepEqual(c.corsOrigins, ["http://localhost:3000", "http://127.0.0.1:3000"]);
 });
 
+test("loadConfig binds 0.0.0.0 when a host injects PORT and HOST is unset", () => {
+  assert.equal(loadConfig({ PORT: "4100" }).host, "0.0.0.0");
+  assert.equal(loadConfig({ PORT: "4100" }).port, 4100);
+  assert.equal(loadConfig({ PORT: "4100", HOST: "127.0.0.1" }).host, "127.0.0.1");
+});
+
 test("loadConfig treats empty values (a sourced .env.example) as unset", () => {
   const empty = { DEPLOYMENTS_FILES: "", RPC_URL: "", SEPOLIA_RPC_URL: "", CHAIN_ID: "", PORT: "", HOST: "", CORS_ORIGINS: "", LOGS_MAX_RANGE: "", USDC_ADDRESS: "" };
   assert.deepEqual(loadConfig(empty), loadConfig({}));
