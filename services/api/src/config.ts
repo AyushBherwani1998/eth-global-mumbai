@@ -176,7 +176,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return {
     port: Number(env.PORT || 8788),
-    host: env.HOST || "127.0.0.1",
+    host: env.HOST || (env.PORT ? "0.0.0.0" : "127.0.0.1"),
     rpcUrl: env.RPC_URL || env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     chainId,
     corsOrigins: envList(env.CORS_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000"),

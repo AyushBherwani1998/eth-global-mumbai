@@ -490,7 +490,7 @@ docker run --rm -p 8788:8788 \
   listing-day-api
 ```
 
-Any container host that terminates TLS and injects `PORT` (Render, Railway, Fly.io, Cloud Run) then serves it over HTTPS: point it at the repo with Dockerfile path `services/api/Dockerfile` and build context `.`. Set:
+Any container host that terminates TLS and injects `PORT` (Render, Railway, Fly.io, Cloud Run) then serves it over HTTPS: point it at the repo with Dockerfile path `services/api/Dockerfile` and build context `.`. For Railway specifically (root directory, env vars, and how to wire the app), see [DEPLOY-RAILWAY.md](../../DEPLOY-RAILWAY.md). Set:
 
 - **`SEPOLIA_RPC_URL`**: a provider with full log history (see the env table: publicnode's log window is about 1.5 days). It's a server-side secret: never put it in `NEXT_PUBLIC_*`.
 - **`CORS_ORIGINS`**: the app's production origin, plus `https://*.vercel.app` for preview deploys if wanted.
