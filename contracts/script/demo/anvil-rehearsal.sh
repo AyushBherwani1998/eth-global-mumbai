@@ -4,13 +4,19 @@
 # collects real tx hashes. Uses throwaway keys funded through anvil cheats; nothing touches Sepolia.
 # `make -e`: these throwaway keys win over a .env the Makefile would otherwise load.
 #   SEPOLIA_RPC_URL=<rpc> script/demo/anvil-rehearsal.sh      (or: make demo-anvil; KEEP_ANVIL=1 leaves it running)
+# ELIGIBILITY=human rehearses a World ID listing (throwaway pass signer; writes deployments/anvil-human.json).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 : "${SEPOLIA_RPC_URL:?set SEPOLIA_RPC_URL}"
 port="${ANVIL_PORT:-8546}"
 export RPC_URL="http://127.0.0.1:${port}"
-export DEPLOYMENTS_FILE="deployments/anvil.json"
+export ELIGIBILITY="${ELIGIBILITY:-open}"
+if [[ "$ELIGIBILITY" == "human" ]]; then
+  export DEPLOYMENTS_FILE="deployments/anvil-human.json"
+else
+  export DEPLOYMENTS_FILE="deployments/anvil.json"
+fi
 export ANVIL_MINE=1
 export DEMO_LABEL="anvil-$(date +%s)"
 # Each rehearsal is a new throwaway chain that reuses block numbers, so earlier rehearsals' logs would pass the
@@ -22,6 +28,8 @@ export PRIVATE_KEY="$(key deployer)"
 export FUNDER_KEY="$PRIVATE_KEY"
 export TREASURY_KEY="$(key treasury)"
 export CRE_BROADCASTER_KEY="$(key creBroadcaster)"
+export PASS_SIGNER_KEY="$(key passSigner)"
+unset PASS_SIGNER_ADDRESS ENS_ELIGIBILITY
 wallets=()
 for i in 0 1 2 3 4 5 6 7; do wallets+=("$(key "wallet$i")"); done
 DEMO_WALLET_KEYS="$(IFS=,; echo "${wallets[*]}")"
@@ -58,6 +66,8 @@ fi
 make -e ens-sepolia RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE" ENS_READ_STRICT=true
 status="$(jq -r '.ens.records["listingday.status"]' "$DEPLOYMENTS_FILE")"
 [[ "$status" == "listed" ]] || { echo "expected listingday.status = listed, got '$status'" >&2; exit 1; }
+eligibility="$(jq -r '.ens.records["listingday.eligibility"]' "$DEPLOYMENTS_FILE")"
+[[ "$eligibility" == "$ELIGIBILITY" ]] || { echo "expected listingday.eligibility = $ELIGIBILITY, got '$eligibility'" >&2; exit 1; }
 
 make -e export-json DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
 echo "anvil rehearsal done: $DEPLOYMENTS_FILE"

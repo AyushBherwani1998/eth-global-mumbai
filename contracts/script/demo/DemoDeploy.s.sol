@@ -5,11 +5,13 @@ import {AuctionValidationHook} from "../../src/AuctionValidationHook.sol";
 import {ListingHook} from "../../src/ListingHook.sol";
 import {ListingPolicyReceiver} from "../../src/ListingPolicyReceiver.sol";
 import {MockSME} from "../../src/MockSME.sol";
+import {IEligibilityModule} from "../../src/interfaces/IEligibilityModule.sol";
 import {ListingHookConfig} from "../../src/interfaces/IListingHook.sol";
 import {IListingPolicy} from "../../src/interfaces/IListingPolicy.sol";
 import {ListingDay, Sepolia} from "../../src/libraries/Constants.sol";
 import {ListingPrice} from "../../src/libraries/ListingPrice.sol";
 import {AllowAllModule} from "../../src/modules/AllowAllModule.sol";
+import {WorldPassModule} from "../../src/modules/WorldPassModule.sol";
 import {DemoBase} from "./DemoBase.sol";
 import {console2} from "forge-std/Script.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
@@ -18,12 +20,17 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 import {PoolId} from "v4-core/src/types/PoolId.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 
-/// @notice Step 1: MockSME (CREATE2-salted above USDC, so USDC is currency0), AllowAllModule + AuctionValidationHook,
-///         a mined ListingHook, the CRE ListingPolicyReceiver (Sepolia MockKeystoneForwarder, configurable
-///         broadcaster), then `hook.setPolicySource(receiver)`. Writes the deployments file skeleton.
+/// @notice Step 1: MockSME (CREATE2-salted above USDC, so USDC is currency0), the eligibility module +
+///         AuctionValidationHook, a mined ListingHook, the CRE ListingPolicyReceiver (Sepolia MockKeystoneForwarder,
+///         configurable broadcaster), then `hook.setPolicySource(receiver)`. Writes the deployments file skeleton.
 ///
 ///   PRIVATE_KEY=0x… [CRE_BROADCASTER_KEY=0x…] [TREASURY_KEY=0x…] [DEMO_LABEL=acme-v1] \
+///   [ELIGIBILITY=open|human] [PASS_SIGNER_ADDRESS=0x…] \
 ///   forge script script/demo/DemoDeploy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --slow
+///
+/// ELIGIBILITY=open (default): AllowAllModule, 20 USDC per wallet. ELIGIBILITY=human: WorldPassModule, every bid
+/// needs an EligibilityPass signed by PASS_SIGNER_ADDRESS (services/verify), 20 USDC per human. The hook's module is
+/// immutable, so a human listing is its own launch (default label `acme-human-v1`).
 ///
 /// Idempotent: MockSME, ListingHook and the receiver sit at CREATE2 addresses derived from DEMO_LABEL, so a re-run
 /// finds them; the module and validation hook are reused from the deployments file. Use a new DEMO_LABEL for a
@@ -31,7 +38,7 @@ import {PoolKey} from "v4-core/src/types/PoolKey.sol";
 contract DemoDeploy is DemoBase {
     struct Deployed {
         MockSME token;
-        AllowAllModule module;
+        IEligibilityModule module;
         AuctionValidationHook validationHook;
         ListingHook hook;
         ListingPolicyReceiver receiver;
@@ -81,7 +88,7 @@ contract DemoDeploy is DemoBase {
     ///      the issuer EOA, the only account allowed to `setAuction`.
     function _deployValidation(address deployer, MockSME token)
         internal
-        returns (AllowAllModule module, AuctionValidationHook validationHook)
+        returns (IEligibilityModule module, AuctionValidationHook validationHook)
     {
         string memory j = vm.exists(_file()) ? vm.readFile(_file()) : "{}";
         validationHook = AuctionValidationHook(_jsonAddress(j, ".contracts.auctionValidationHook"));
@@ -89,17 +96,28 @@ contract DemoDeploy is DemoBase {
             address(validationHook).code.length != 0 && validationHook.token() == address(token)
                 && validationHook.deployer() == deployer
         ) {
-            module = AllowAllModule(address(validationHook.module()));
+            module = validationHook.module();
+            require(
+                (_jsonAddress(j, ".contracts.worldPassModule") == address(module)) == _human(),
+                "this DEMO_LABEL was deployed with the other ELIGIBILITY: use a new DEMO_LABEL (module is immutable)"
+            );
             console2.log("AuctionValidationHook", address(validationHook), "(exists)");
             return (module, validationHook);
         }
         address predicted = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 1);
-        _tx("AllowAllModule (20 USDC per wallet)");
-        module = new AllowAllModule(predicted, ListingDay.APPLICANT_CAP);
+        if (_human()) {
+            address passSigner = _passSigner();
+            _tx("WorldPassModule (World ID pass per bid, signer = verify backend)");
+            module = new WorldPassModule(predicted, passSigner);
+            console2.log("WorldPassModule", address(module), "(deployed), pass signer", passSigner);
+        } else {
+            _tx("AllowAllModule (20 USDC per wallet)");
+            module = new AllowAllModule(predicted, ListingDay.APPLICANT_CAP);
+            console2.log("AllowAllModule", address(module), "(deployed)");
+        }
         _tx("AuctionValidationHook (cap 190 points)");
         validationHook = new AuctionValidationHook(module, address(token), Sepolia.USDC, ListingPrice.CAP_PRICE_Q96);
         require(address(validationHook) == predicted, "validation hook address prediction");
-        console2.log("AllowAllModule", address(module), "(deployed)");
         console2.log("AuctionValidationHook", address(validationHook), "(deployed)");
     }
 
@@ -173,11 +191,14 @@ contract DemoDeploy is DemoBase {
         string memory contracts = _contractsJson(c);
         string memory pool = _poolJson(c);
         string memory receiver = _receiverJson(c);
+        string memory eligibility = _eligibilityJson(c);
 
         if (sameListing) {
             _writeSection("contracts", contracts);
             _writeSection("pool", pool);
             _writeSection("receiverConfig", receiver);
+            if (!vm.keyExistsJson(vm.readFile(path), ".eligibility")) vm.writeJson("{}", path, ".eligibility");
+            _writeSection("eligibility", eligibility);
             vm.writeJson(string.concat("\"", vm.toString(broadcaster), "\""), path, ".creBroadcaster");
             console2.log("updated", path);
             return;
@@ -195,6 +216,7 @@ contract DemoDeploy is DemoBase {
         vm.serializeString(root, "contracts", contracts);
         vm.serializeString(root, "pool", pool);
         vm.serializeString(root, "receiverConfig", receiver);
+        vm.serializeString(root, "eligibility", eligibility);
         vm.serializeString(root, "params", _paramsJson());
         vm.serializeString(root, "auction", "{}");
         vm.serializeString(root, "bids", "{}");
@@ -211,10 +233,25 @@ contract DemoDeploy is DemoBase {
     function _contractsJson(Deployed memory c) internal returns (string memory o) {
         o = "contracts";
         vm.serializeAddress(o, "mockSME", address(c.token));
-        vm.serializeAddress(o, "allowAllModule", address(c.module));
+        vm.serializeAddress(o, _human() ? "worldPassModule" : "allowAllModule", address(c.module));
+        vm.serializeAddress(o, "eligibilityModule", address(c.module));
         vm.serializeAddress(o, "auctionValidationHook", address(c.validationHook));
         vm.serializeAddress(o, "listingHook", address(c.hook));
         o = vm.serializeAddress(o, "listingPolicyReceiver", address(c.receiver));
+    }
+
+    /// @dev What the frontend and services/verify need: the mode (= ENS `listingday.eligibility`), the module, and
+    ///      for a human listing the pass signer and World ID action.
+    function _eligibilityJson(Deployed memory c) internal returns (string memory o) {
+        o = "eligibility";
+        vm.serializeString(o, "mode", _eligibility());
+        vm.serializeAddress(o, "module", address(c.module));
+        if (_human()) {
+            vm.serializeAddress(o, "passSigner", WorldPassModule(address(c.module)).signer());
+            vm.serializeString(o, "worldAction", _worldAction());
+            vm.serializeUint(o, "passTtlSeconds", PASS_TTL);
+        }
+        o = vm.serializeUint(o, "cap", ListingDay.APPLICANT_CAP);
     }
 
     function _poolJson(Deployed memory c) internal returns (string memory o) {

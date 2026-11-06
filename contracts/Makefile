@@ -4,6 +4,7 @@
 #   make demo-sepolia     the real thing: every step with --broadcast on Sepolia, waiting for the auction blocks
 #   make ens-fork         ENSv2 ticker namespace (listingday.eth -> acme) on a Sepolia fork, nothing broadcast
 #   make ens-sepolia      the ENS steps with --broadcast on Sepolia (after deploy + launch; manual, needs funded keys)
+#   ELIGIBILITY=human     any of the above for a World ID listing (WorldPassModule; DEPLOY.md "Human listing")
 # Every step target can be run on its own and re-run after a failure (each step skips what is already done).
 
 # .env holds plain KEY=value lines (no quotes). Only its variables are exported, never the derived ones below:
@@ -14,21 +15,27 @@ export $(shell sed -n 's/^\([A-Za-z_][A-Za-z0-9_]*\)=.*/\1/p' .env)
 endif
 
 RPC_URL ?= $(SEPOLIA_RPC_URL)
+# open: AllowAllModule (per wallet). human: WorldPassModule (per World ID human, passes from services/verify). The
+# validation hook's module is immutable, so a human listing is its own launch with its own deployments file.
+ELIGIBILITY ?= open
+ifeq ($(ELIGIBILITY),human)
+DEPLOYMENTS_FILE ?= deployments/sepolia-human.json
+endif
 DEPLOYMENTS_FILE ?= deployments/sepolia.json
-export RPC_URL DEPLOYMENTS_FILE
+export RPC_URL DEPLOYMENTS_FILE ELIGIBILITY
 FORGE_FLAGS ?=
 BROADCAST = --rpc-url $(RPC_URL) --broadcast --slow $(FORGE_FLAGS)
 VERIFY = $(if $(ETHERSCAN_API_KEY),--verify --etherscan-api-key $(ETHERSCAN_API_KEY),)
 STEP = forge script script/demo
 WAIT = bash script/demo/wait-for-block.sh
 ENS = forge script script/ens
-ABI_CONTRACTS = MockSME AllowAllModule AuctionValidationHook ListingHook ListingPolicyReceiver \
-	IListingHook IListingPolicyReceiver IAuctionValidationHook IEligibilityModule \
+ABI_CONTRACTS = MockSME AllowAllModule WorldPassModule AuctionValidationHook ListingHook ListingPolicyReceiver \
+	IListingHook IListingPolicyReceiver IAuctionValidationHook IEligibilityModule IWorldPassModule \
 	IContinuousClearingAuction ILBPStrategy ILiquidityLauncher IAllowanceTransfer IPositionManager \
 	IStateView IV4Quoter IPoolManager PoolSwapTest IERC20Metadata
 
 .PHONY: demo-fork demo-anvil demo-sepolia check-env fund balances deploy launch wait-start bids \
-	wait-migration settle trade halt resume export-json abis abis-check \
+	wait-migration settle trade halt resume export-json verify-listings abis abis-check \
 	ens-fork ens-sepolia check-ens-env ens-name ens-registry ens-ticker ens-records ens-status-role ens-read \
 	abis-ensv2
 
@@ -45,6 +52,8 @@ check-env:
 	@test -n "$(RPC_URL)" || (echo "set SEPOLIA_RPC_URL (or RPC_URL)" && exit 1)
 	@test -n "$(PRIVATE_KEY)" || (echo "set PRIVATE_KEY (deployer / issuer)" && exit 1)
 	@test -n "$(DEMO_WALLET_KEYS)" || (echo "set DEMO_WALLET_KEYS (comma-separated, >= 6 keys)" && exit 1)
+	@test "$(ELIGIBILITY)" != human || test -n "$(PASS_SIGNER_KEY)" || \
+		(echo "ELIGIBILITY=human: set PASS_SIGNER_KEY (= services/verify's PASS_SIGNER_KEY; scripted bids sign passes)" && exit 1)
 
 fund:
 	$(STEP)/FundDemoWallets.s.sol $(BROADCAST)
@@ -89,6 +98,15 @@ resume:
 
 export-json:
 	forge script script/demo/ExportDeployments.s.sol
+
+# services/verify LISTINGS for the human listing in DEPLOYMENTS_FILE (after launch), e.g.
+#   LISTINGS=$$(make -s verify-listings ELIGIBILITY=human) npm start      (in ../services/verify)
+verify-listings:
+	@jq -ce --arg ticker "$${ENS_TICKER:-acme}" \
+		'if .contracts.worldPassModule == null or .auction.address == null \
+		then error("$(DEPLOYMENTS_FILE): no launched human listing (ELIGIBILITY=human make deploy launch)") \
+		else [{ticker: $$ticker, chainId: .chainId, auction: .auction.address, \
+			module: .contracts.worldPassModule, cap: (.eligibility.cap | tostring)}] end' $(DEPLOYMENTS_FILE)
 
 # ---------------------------------------------------------------- ENSv2 ticker namespace (plan.md §7)
 # Keys: ENS_OWNER_KEY (owns listingday.eth + the UserRegistry), ISSUER_KEY (owns acme + its resolver); both default
