@@ -4,8 +4,8 @@ pragma solidity 0.8.26;
 import {IListingPolicy, ListingPolicy} from "../interfaces/IListingPolicy.sol";
 
 /// @title MockListingPolicy
-/// @notice Owner-settable `IListingPolicy` used until the CRE `ListingPolicyReceiver` (chunk 4) exists.
-///         Point `ListingHook.setPolicySource` at the receiver once it is deployed.
+/// @notice Owner-settable `IListingPolicy` for tests and manual demos. In the CRE flow,
+///         `ListingHook.setPolicySource` points at `ListingPolicyReceiver` instead.
 contract MockListingPolicy is IListingPolicy {
     error OnlyOwner();
 

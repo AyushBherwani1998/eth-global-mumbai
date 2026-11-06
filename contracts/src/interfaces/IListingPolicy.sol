@@ -2,13 +2,14 @@
 pragma solidity ^0.8.26;
 
 /// @notice Trading policy for a listed pool (plan.md §6 `ListingPolicy`). Published by the CRE receiver
-///         (`ListingPolicyReceiver`, chunk 4) or, until then, by `MockListingPolicy`.
+///         (`ListingPolicyReceiver`) or, for tests and manual demos, by `MockListingPolicy`.
 /// @dev Zero values mean "use the ListingHook default", so an unpublished policy (`version == 0`) is a plain
 ///      20% band around the listing price with trading open.
 struct ListingPolicy {
     /// @notice Policy version; 0 = nothing published yet (the hook then uses its defaults for every field).
     uint32 version;
-    /// @notice Timestamp of the source data. Freshness (`maxAge`) is the receiver's job; the hook does not check it.
+    /// @notice Timestamp of the source data. Freshness (`maxAge`) is the receiver's job (a stale receiver policy
+    ///         reads as halted); the hook does not check it.
     uint64 asOf;
     /// @notice CRE chain selector the report targets (16015286601757825753 for Sepolia).
     uint64 chainSelector;
