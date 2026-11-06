@@ -13,6 +13,9 @@ export RPC_URL="http://127.0.0.1:${port}"
 export DEPLOYMENTS_FILE="deployments/anvil.json"
 export ANVIL_MINE=1
 export DEMO_LABEL="anvil-$(date +%s)"
+# Each rehearsal is a new throwaway chain that reuses block numbers, so earlier rehearsals' logs would pass the
+# export's deploy-block filter.
+rm -rf broadcast/*/31337 "$DEPLOYMENTS_FILE"
 
 key() { cast keccak "listing-day anvil $1"; }
 export PRIVATE_KEY="$(key deployer)"
