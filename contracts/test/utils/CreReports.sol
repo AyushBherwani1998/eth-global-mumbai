@@ -62,10 +62,19 @@ abstract contract CreReports is Test {
         internal
         returns (bool result)
     {
+        return _deliver(forwarder, receiver, sender, payload, gasleft() - 100_000);
+    }
+
+    /// @notice Same, with the call gas capped like the workflow's `gasConfig.gasLimit`.
+    function _deliver(address forwarder, address receiver, address sender, bytes memory payload, uint256 gasLimit)
+        internal
+        returns (bool result)
+    {
         bytes32 executionId = keccak256(abi.encode("execution", ++_executionNonce));
+        bytes memory raw = _rawReport(executionId, payload);
         vm.recordLogs();
         vm.prank(sender, sender);
-        IKeystoneForwarderLike(forwarder).report(receiver, _rawReport(executionId, payload), "", new bytes[](0));
+        IKeystoneForwarderLike(forwarder).report{gas: gasLimit}(receiver, raw, "", new bytes[](0));
         return _reportProcessedResult(forwarder, receiver, executionId);
     }
 
