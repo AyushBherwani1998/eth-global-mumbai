@@ -16,7 +16,7 @@
       "graduationPct": 50,
       "durationBlocks": 300,
       "claimDelayBlocks": 100,
-      "treasury": "0x4C2b8a0E7d1f3A9b6C5e0D2f8A1b3c4D5e6F7a81",
+      "treasury": "0x7a3F9e21C04b8D5a6E1f2B3c4D5e6F7a8B9cC91E",
       "eligibilityHuman": true
     },
     "steps": {

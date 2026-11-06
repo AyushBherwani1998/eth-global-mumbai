@@ -14,9 +14,10 @@ export type EnsStatus = "draft" | "auction" | "listed" | "surveillance" | "halte
 export type Phase = "draft" | "live" | "refunding" | "listed";
 export type Mode = "listing" | "normal" | "surveillance" | "directional" | "halted";
 
+// ENS records on <ticker>.<parent>. `addr` (coin type 60) is the share token
+// contract, not the issuer's wallet: the issuer owns the name, not the record.
 export type Records = {
   addr: string;
-  token: string | null;
   auction: string | null;
   hook: string | null;
   policy: string | null;
