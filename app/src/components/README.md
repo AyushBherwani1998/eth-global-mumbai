@@ -133,6 +133,15 @@ right-edge labels, pinned to the edge with a caret when off-scale), `rejects? nu
 the window, drawn as 9px red x), `height=280`, `digits=2`, `onHover(p | null)`, `readout=true`,
 `labels=true` (right-edge level labels), `axes=false` (time axis, Expand only), `detail=false`
 (Expand only: adds the dotted reference step line).
+`baseline?` (dotted: range start, or the issue price on an IPO), `reference?`
+(`RefPoint[]` → dotted step line + shaded band from `bandBps`; directional draws the zone a swap may land in (no further from the
+reference than now or within 5%, always inside the band); halted spans draw no band), `showBand?`, `lines? [{price, label?}]` (floor / cap /
+minimum raise, dotted, right-edge labels), `rejects? number[]` (times, clamped to the nearest point,
+drawn as 9px red x), `height=280`, `digits=2`, `onHover(p | null)`, `readout=true` (24px line above
+the chart: time left, 18/500 value right), `labels=true` (H / L / last), `axes=false` (time axis for
+Expand), `onExpand?` (labelled Expand button, mobile only). Line is 3px (2.5 visual) and coloured by
+last >= first of the data passed. Chart is created once per theme / kind / height; data changes go
+through `setData` and the primitive, never a rebuild. Hover never rebuilds.
 
 **The price scale is the data's own low and high in the selected window** (plus 12% scale margins).
 Limits, levels and the baseline never widen it; an off-scale level is clipped and its label pinned at

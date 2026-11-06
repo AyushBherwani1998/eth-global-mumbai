@@ -214,7 +214,7 @@ Layout:
 1. Detail header, 56px: left "‹ Back" (text + chevron), right "Share" (text + icon). Nothing else.
 2. Company block: 40px logo, name 20/400, under it sector 14px grey and a green "Verified ✓" word (tap opens Details). The ENS name lives in Details.
 3. Price block: price 32/600; under it today's change 16/500 green/red with the word "Today". On hover or long-press on the chart the price swaps to the hovered point and "Today" becomes the time.
-4. Rule line (only when the rule is not Normal), 48px, tinted, 16px, plain sentence: "Listing day: trades allowed between 1.045 and 1.155" (blue) · "Under watch: trades allowed between 0.855 and 0.945" (amber) · "One-way trading: only trades toward 0.90 are allowed" (amber) · "Trading halted since 14:32 IST" (red). Tap opens the Trading rule sheet with the same sentence, "Why" paragraph in two sentences, the time it changed, and a "Details" row (policy version, report receipt, ticker status).
+4. Rule line (only when the rule is not Normal), 48px, tinted, 16px, plain sentence: "Listing day: trades allowed between 1.045 and 1.155" (blue) · "Under watch: trades allowed between 0.855 and 0.945" (amber) · "One-way trading: moves away from 0.90 stop at 5%, trades toward it go through within 20%" (amber) · "Trading halted since 14:32 IST" (red). Tap opens the Trading rule sheet with the same sentence, "Why" paragraph in two sentences, the time it changed, and a "Details" row (policy version, report receipt, ticker status).
 5. Chart, 280px (3.11). Under it: a dotted separator, range chips `1D · 1W · All` (40px, three only) left, "Expand" (text + icon) right.
 6. Your shares card (always present when signed in): "You own 14,109 shares · worth 15.52 USDC" and "Today +0.12 (0.8%)". If shares are waiting: a second line "3,200 shares ready to collect" with a text button "Collect". Signed out: "Sign in to see your shares". No holdings: "You don't own any shares yet".
 7. Sections as three tabs (text, active = green + 3px underline, 48px): `Overview · Activity · Details`.
@@ -263,7 +263,7 @@ Opens from "Apply". Bottom sheet on phone, right panel on desktop. Title "Apply 
 2. Price, a two-option control (radio rows, 56px):
    - "Pay the final price (recommended)", selected by default. Helper: "You pay whatever price the IPO closes at, never more than 1.90."
    - "Set a maximum price". Reveals a slider from 0.80 to 1.90 (the cap is the end; no over-cap drag), the current price marked on the track, value shown as "up to 1.40". Helper: "If the final price ends above your maximum, your money is refunded."
-3. Estimate rows (16px): "Shares at today's price: about 6,451" · "Money reserved: 8 USDC".
+3. Estimate rows (16px): "Shares at today's price: about 6,451" · "Money paid in: 8 USDC" (moves to the auction contract on submit; the unused part comes back on Settle after close).
 4. One-person status (when required): "Verified ✓ · valid 6:52" or an outlined "Verify you're one person" (opens 3.5a). Primary is disabled until verified.
 5. Warnings, one sentence each, with the fix. Amber (non-blocking): "Your maximum is below today's price. Raise it or you may be refunded." Red (blocking): "That's more than your 7 USDC remaining. Enter 7 or less." / "That's more than your balance. Get free test USDC."
 6. Footer: a step row and the primary button.
@@ -302,7 +302,7 @@ Opens from Buy or Sell. Title "Buy Acme SME" / "Sell Acme SME". A `Buy | Sell` s
 3. Rule check row (always present, 48px, 16px):
    - Allowed: green, "Allowed · within today's limits 1.045 to 1.155".
    - Blocked by band: red, "This trade would push the price to 1.171, above today's limit of 1.155. Try a smaller amount."
-   - Blocked by one-way: "Today only trades toward 0.90 are allowed. Try the other side or wait."
+   - Blocked by one-way (`DirectionalWidening`): "This trade would push the price further from 0.90 than the 0.855–0.945 allowed today. Try a smaller amount or the other side."
    - Halted: "Trading is halted since 14:32 IST. Try later."
 4. Footer: primary "Buy for 1 USDC" (teal) / "Sell 1,000 shares" (coral). When blocked: primary disabled with label "Not allowed today"; a 16px text link under it "Send anyway to see it rejected" (demo path, never the primary). Sell has a first permission step "Allow this app to sell your shares", shown as in 3.5.
 
@@ -317,14 +317,14 @@ Desktop: this sheet is the sticky right panel with `Buy | Sell` tabs.
 Purpose: everything I've asked the market to do.
 
 1. Header "Orders", "Account".
-2. Segmented `Trades · IPO applications` (48px). Default Trades, unless an application needs action.
+2. Segmented `IPO applications · Market trades` (48px). Default Market trades, unless an application needs action.
 3. Action card (if anything is actionable): "2 allotments ready · Collect all" or "10 USDC refundable · Refund all" (one filled button).
-4. Trades: newest first, 72px rows: company, "Bought 892 shares at 1.11" / "Sold 1,000 shares at 1.09", time, "Receipt" link. Rejected attempts show "Rejected" in red with the one-line reason.
+4. Market trades: every trade in the listed pools, not only this wallet's (per-wallet history is not indexed), labelled "All market trades" with a line saying so. Newest first, 72px rows: company, "Buy · 892 shares at 1.11" / "Sell · 1,000 shares at 1.09", time, "Receipt" link. Rejected attempts show "Rejected" in red with the one-line reason.
 5. IPO applications: grouped by company. Group header: logo, name, "Current price 1.24 · closes in 42m" / "Listed at 1.10" / "Not listed", status word. Three 16px stats: Applied, Shares allotted, Refundable. Rows: "8 USDC up to 1.40", time (no block numbers), status word, one action button when valid.
-   Status words: `Likely allotted` (above the current price), `Below the price`, `Partly allotted`, `Allotted`, `Collected`, `Refunded`, `Refund available`.
-   Actions: "Refund", "Collect shares", "Settle" (partly allotted: collects shares and refunds the rest).
+   Status words: `Likely allotted` (above the current price), `Below the price`, `Partly allotted`, `Allotted`, `Exited`, `Claimable`, `Claimed`, `Refunded`, `Refund available`.
+   Actions: "Refund" (exit, nothing allotted), "Settle" (exit an allotted or partly allotted bid after close: returns unspent USDC), "Collect shares" (claim, only after Settle and from the claim block). Exit and claim are separate transactions, so an allotted bid shows Exited, then Claimable, then Claimed.
 
-States: signed out ("Sign in to see your orders", one filled "Sign in"); empty per segment ("No trades yet · See companies"); loading; per-row pending.
+States: signed out ("Sign in to see your orders", one filled "Sign in"); empty per segment ("No market trades yet · See companies"); loading; per-row pending.
 
 Desktop: a table per segment, action column right; the action card becomes a banner.
 
@@ -489,7 +489,7 @@ PWA:
 | Price after your trade | post-swap price from Quoter |
 | Allow this app to sell your shares | token `approve(Permit2)` + Permit2 permit |
 | Allowed / Not allowed today | client mirror of `ListingHook.afterSwap` |
-| Rejected | reverted swap (`OutOfBand`, `WrongDirection`, `Halted`) |
+| Rejected | reverted swap (`OutOfBand`, `DirectionalWidening`, `Halted`) |
 | Today's limits | `bandBps` around `referencePrice` |
 | Trading rule today | policy mode (`listing`, `normal`, `surveillance`, `directional`, `halted`) |
 | Listing day | mode listing, ±5% around clearing |
@@ -523,8 +523,9 @@ PWA:
 | Likely allotted / Below the price | bid above / below clearing |
 | Partly allotted | bid at the clearing tick |
 | Allotted | filled |
-| Refund | `exitBid` |
-| Settle | `exitPartiallyFilledBid` |
+| Refund | `exitBid` (no shares allotted) |
+| Settle | `exitBid` / `exitPartiallyFilledBid` (allotted bids) |
+| Exited / Claimable / Claimed | exited, waiting for `claimBlock` / exited, claim open / `claimTokens` done |
 | Liquidity you provide / Withdraw liquidity | LP position from LBPStrategy / PositionManager decrease |
 | Private browsing | Anon-RPC (Nox mixnet, tor-js fallback) |
 | Free test USDC | Circle Sepolia USDC faucet, `0x1c7D…7238` |

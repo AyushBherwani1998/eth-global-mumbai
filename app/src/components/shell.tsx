@@ -436,7 +436,7 @@ export function SearchSheet({ open, onClose }: { open: boolean; onClose: () => v
   useEffect(() => {
     if (q.trim()) countRead(1);
   }, [q, countRead]);
-  const moneyIn = (ticker: string) => connected && BIDS.some((b) => b.ticker === ticker && b.refund > 0 && b.state !== "exited");
+  const moneyIn = (ticker: string) => connected && BIDS.some((b) => b.ticker === ticker && b.refund > 0 && b.state !== "exited" && b.state !== "claimed");
   if (!open) return null;
   return (
     <SheetPortal>

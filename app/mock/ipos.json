@@ -41,8 +41,7 @@
       "endBlock": 7408500,
       "claimBlock": 7408600,
       "records": {
-        "addr": "0x4C2b8a0E7d1f3A9b6C5e0D2f8A1b3c4D5e6F7a81",
-        "token": "0x9a41F3c2B7e8D0a5C6b1E4f7A2d9C3b8E5f6A0d2",
+        "addr": "0x9a41F3c2B7e8D0a5C6b1E4f7A2d9C3b8E5f6A0d2",
         "auction": "0x3E7b9C2a1D4f6E8b0A5c7D9e2F1b3A6c8E0d4F5a",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0x5B8d0F2a4C6e8A1c3E5b7D9f1A3c5E7b9D1f3A5c",
@@ -73,8 +72,7 @@
       "endBlock": 7412300,
       "claimBlock": 7412400,
       "records": {
-        "addr": "0x8D1e3F5a7B9c1D3e5F7a9B1c3D5e7F9a1B3c5D7e",
-        "token": "0x2C4e6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f",
+        "addr": "0x2C4e6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f",
         "auction": "0x6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f2A4c",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0x1E3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a",
@@ -105,8 +103,7 @@
       "endBlock": 7412450,
       "claimBlock": 7412550,
       "records": {
-        "addr": "0x3F5a7C9e1B3d5F7a9C1e3B5d7F9a1C3e5B7d9F1a",
-        "token": "0x4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b6D8f0A2c",
+        "addr": "0x4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b6D8f0A2c",
         "auction": "0x9C1e3B5d7F9a1C3e5B7d9F1a3C5e7B9d1F3a5C7e",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0x0D2f4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b6D8f",
@@ -139,8 +136,7 @@
       "endBlock": 7386200,
       "claimBlock": 7386300,
       "records": {
-        "addr": "0x6E8b0D2f4A6c8E0b2D4f6A8c0E2b4D6f8A0c2E4b",
-        "token": "0x7B9d1F3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d",
+        "addr": "0x7B9d1F3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d",
         "auction": "0x8C0e2B4d6F8a0C2e4B6d8F0a2C4e6B8d0F2a4C6e",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0x9D1f3A5c7E9b1D3f5A7c9E1b3D5f7A9c1E3b5D7f",
@@ -173,8 +169,7 @@
       "endBlock": 7399700,
       "claimBlock": 7399800,
       "records": {
-        "addr": "0x0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f2A4c6E8b",
-        "token": "0x1F3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a",
+        "addr": "0x1F3a5C7e9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a",
         "auction": "0x2A4c6E8b0D2f4A6c8E0b2D4f6A8c0E2b4D6f8A0c",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0x3B5d7F9a1C3e5B7d9F1a3C5e7B9d1F3a5C7e9B1d",
@@ -207,8 +202,7 @@
       "endBlock": 7392900,
       "claimBlock": 7393000,
       "records": {
-        "addr": "0x4C6e8B0d2F4a6C8e0B2d4F6a8C0e2B4d6F8a0C2e",
-        "token": "0x5D7f9A1c3E5b7D9f1A3c5E7b9D1f3A5c7E9b1D3f",
+        "addr": "0x5D7f9A1c3E5b7D9f1A3c5E7b9D1f3A5c7E9b1D3f",
         "auction": "0x6E8a0B2d4F6c8E0a2B4d6F8c0E2a4B6d8F0c2E4a",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0x7F9b1C3e5A7d9F1b3C5e7A9d1F3b5C7e9A1d3F5b",
@@ -240,8 +234,7 @@
       "claimBlock": 7409500,
       "graduated": false,
       "records": {
-        "addr": "0x8A0c2E4b6D8f0A2c4E6b8D0f2A4c6E8b0D2f4A6c",
-        "token": "0x9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a1C3e5B7d",
+        "addr": "0x9B1d3F5a7C9e1B3d5F7a9C1e3B5d7F9a1C3e5B7d",
         "auction": "0xA2c4E6b8D0f2A4c6E8b0D2f4A6c8E0b2D4f6A8c0",
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0xB3d5F7a9C1e3B5d7F9a1C3e5B7d9F1a3C5e7B9d1",
@@ -270,7 +263,6 @@
       "claimBlock": 7414432,
       "records": {
         "addr": "0xC4e6A8c0E2b4D6f8A0c2E4b6D8f0A2c4E6b8D0f2",
-        "token": null,
         "auction": null,
         "hook": "0x7f2A4c6E8b0D1f3A5c7E9b2D4f6A8c0E2b4D6080",
         "policy": "0xD5f7A9c1E3b5D7f9A1c3E5b7D9f1A3c5E7b9D1f3",

@@ -8,7 +8,7 @@ import { useState } from "react";
 import type { Policy } from "@/lib/mock";
 import { ensName } from "@/lib/mock";
 import { dateTimeIST, lotFixed, shortHash, timeIST, txUrl } from "@/lib/format";
-import { band, bandDigits } from "@/lib/policy";
+import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
 import { Details, KV, RuleStrip, Sheet, TextLink, type RuleKind } from "./ui";
 
 export type RuleCopy = { kind: RuleKind; text: string; why: string; label: string } | null;
@@ -44,8 +44,8 @@ export function ruleCopy(p: Pick<Policy, "mode" | "referencePrice" | "bandBps" |
       return {
         kind: "one-way",
         label: "One-way day",
-        text: `One-way day. Only trades that move the price toward ${ref} go through.`,
-        why: "The price has drifted far from the reference. Until it comes back, only trades that bring it closer are accepted.",
+        text: `One-way day. Trades that move the price further from ${ref} can go at most ${SURVEILLANCE_BAND_BPS / 100}% from it. Trades toward ${ref} go through within ${p.bandBps / 100}%.`,
+        why: "The price has drifted far from the reference. Until it comes back, trades that bring it closer are accepted, and trades that push it further away are capped tightly.",
       };
     default:
       return null;
@@ -73,7 +73,7 @@ export function CircuitBanner({ ticker, policy, className }: { ticker: string; p
           <KV k="Reference price" v={`${lotFixed(policy.referencePrice)} USDC per lot`} />
           <KV
             k="Allowed range today"
-            v={policy.halted || policy.mode === "halted" ? "No trading" : policy.mode === "directional" ? `Toward ${lotFixed(policy.referencePrice)} only` : `${lotFixed(lo, d)} to ${lotFixed(hi, d)}`}
+            v={policy.halted || policy.mode === "halted" ? "No trading" : policy.mode === "directional" ? `${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)} away from ${lotFixed(policy.referencePrice)}, up to ${lotFixed(lo, d)} to ${lotFixed(hi, d)} toward it` : `${lotFixed(lo, d)} to ${lotFixed(hi, d)}`}
           />
         </div>
         <Details className="mt-2">
