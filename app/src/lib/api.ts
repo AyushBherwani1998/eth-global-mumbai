@@ -35,7 +35,7 @@ import type {
   PrepareSwapBody,
   SwapsResponse,
   Trade,
-} from "../../../services/api/src/types";
+} from "@/types/listing-day-api";
 
 export type {
   Auction,

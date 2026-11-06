@@ -13,7 +13,7 @@
 // The `Ipo` type is the API's own `Listing` type, so the app's types are honest
 // about what can be null (`sector` and `city` always are).
 
-import type { Listing, Offer as ApiOffer } from "../../../services/api/src/types";
+import type { Listing, Offer as ApiOffer } from "@/types/listing-day-api";
 import iposJson from "../../mock/ipos.json";
 import walletJson from "../../mock/wallet.json";
 import bidsJson from "../../mock/bids.json";

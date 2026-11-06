@@ -13,7 +13,7 @@ The mock exchange stays on your laptop with the Chainlink CRE workflow. Do not d
 | Root Directory | **`.`** (repository root — leave blank / `/`). Required so `contracts/deployments/sepolia.json` is uploaded. |
 | Framework Preset | **Other** (or Hono if Vercel detects `api/index.ts`) |
 | Build Command | leave empty / override to empty (`vercel.json` already sets `""`) |
-| Install Command | from `vercel.json`: `npm ci --prefix services/api && ln -sfn services/api/node_modules node_modules` |
+| Install Command | from `vercel.json`: `npm ci` (root `package.json` carries the API deps for Vercel) |
 | Output Directory | leave empty |
 | Node.js Version | **22.x** (Project Settings → General). `.node-version` at the repo root also says `22`. |
 
@@ -95,3 +95,15 @@ node --input-type=module -e 'import app from "./api/index.ts"; const r=await app
 ```
 
 `vercel dev` also works after `npx vercel link` to the API project; it is not required to verify the handler.
+
+## CLI deploy notes (Hobby, no GitHub app)
+
+Two projects under the `therealharpaljadejas-projects` team:
+
+| Project | How to deploy |
+| --- | --- |
+| `listing-day-api` | From **repo root** (`vercel link --project listing-day-api`). Root `package.json` lists `hono` / `viem` so `npm ci` installs them. |
+| `listing-day-app` | From **`app/`** (`cd app && vercel link --project listing-day-app`). The app vendors API response types at `app/src/types/listing-day-api.ts` so the Next build does not need `services/api` on disk. |
+
+Turn off **Vercel Authentication** (SSO deployment protection) on both projects so the public Hobby URLs work without a login wall.
+
