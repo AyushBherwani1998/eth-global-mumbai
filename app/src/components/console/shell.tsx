@@ -269,7 +269,6 @@ export function ConsoleSignIn() {
 
       <footer className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-6 gap-y-1 border-t border-line px-5 py-3 lg:px-10 xl:px-16">
         <span className="t-caption">Sepolia test network</span>
-        <span className="t-caption">Sample data, not live chain reads</span>
       </footer>
     </div>
   );

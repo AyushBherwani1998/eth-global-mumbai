@@ -269,9 +269,9 @@ test("stub fixtures and demo data never reach the wallet", async () => {
   const w = mockWallet();
   const stub = await runPrepared({ prepare: async () => prepared([step("swap", true, ROUTER)], { details: { stub: true } }), signer: w.signer, chainId: SEPOLIA, waitForReceipt: confirmAll });
   assert.equal(stub.ok, false);
-  if (!stub.ok) assert.equal(stub.reason, "demoData");
+  if (!stub.ok) assert.equal(stub.reason, "notLive");
   let prepared_ = 0;
-  const demo = await runPrepared({ prepare: async () => (prepared_++, prepared([step("swap", true, ROUTER)])), signer: w.signer, chainId: SEPOLIA, demoData: true });
+  const demo = await runPrepared({ prepare: async () => (prepared_++, prepared([step("swap", true, ROUTER)])), signer: w.signer, chainId: SEPOLIA, notLive: true });
   assert.equal(demo.ok, false);
   assert.equal(prepared_, 0);
   assert.equal(w.sent.length, 0);

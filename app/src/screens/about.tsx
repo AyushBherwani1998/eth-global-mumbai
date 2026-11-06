@@ -76,7 +76,7 @@ export function AboutScreen() {
             </p>
           </Card>
           <p className="t-body mt-3 text-text-2">
-            Prices, companies and applications in this build come from a fixed set of sample data. Icons are from Lucide, under the ISC licence.
+            Icons are from Lucide, under the ISC licence.
           </p>
         </section>
 
@@ -84,7 +84,6 @@ export function AboutScreen() {
           <h2 className="t-section-title">Version</h2>
           <div className="mt-1 divide-y divide-line">
             <KV k="App version" v={APP_VERSION} />
-            <KV k="Data" v="Sample data, not live chain reads" />
             <KV k="Network" v={`${network.name} test network`} />
           </div>
         </section>

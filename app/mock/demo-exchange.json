@@ -1,5 +1,5 @@
 {
-  "_note": "The demo exchange. This is NOT app data: nothing under src/ imports it. app/dev/api-stub reads it and serves it through the real API routes, and every response it serves is marked (health reports stub://fixtures, and the app shows a 'Demo data' strip on every screen while it is pointed there). Point the app at the real services/api and this file is never read, so only what is actually on chain shows, unmarked.",
+  "_note": "Fixtures for app/dev/api-stub. Nothing under src/ imports this file: the stub reads it and serves it through the real API routes, and its /health reports stub://fixtures so the app can tell the two servers apart. Point the app at services/api and this file is never read.",
   "_times": "Every time is minutes before the moment the stub starts, so the 5m / 1H / 1D chart windows always have shape. Blocks are derived at 12s each.",
   "_sector": "sector and city stay null here, exactly as the real API returns them (services/api/README.md: nothing on chain carries them). Where a company has a trade and a town, it is in the ENS description, which is where a real issuer would put it.",
   "parent": "listingday.eth",

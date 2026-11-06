@@ -101,6 +101,6 @@ The API never fabricates listing addresses. It re-reads `DEPLOYMENTS_FILES` on e
 4. Set `CORS_ORIGINS` on `api` to the app origin (and rebuild `app` if you added `NEXT_PUBLIC_API_URL` after the first app build).
 5. **Optional:** create `mock-exchange` only if CRE will not run on your laptop. Set `MOCK_EXCHANGE_SECRET`, generate a domain, point the CRE config at it.
 
-Suggested check: open the app URL (the "Demo data" strip must be absent; it appears only when the API reports itself as the fixture stub), then `curl https://<api>/health`. If you deployed mock-exchange, also `curl https://<mock-exchange>/health`.
+Suggested check: open the app URL, then `curl https://<api>/health`. If you deployed mock-exchange, also `curl https://<mock-exchange>/health`.
 
 For a free Hobby deploy instead of Railway, see [`DEPLOY-VERCEL.md`](./DEPLOY-VERCEL.md).

@@ -38,7 +38,7 @@ type Opts = {
 type Warning = { text: string; fix: string; blocking: boolean };
 
 export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: ReactNode } {
-  const { connected, connect, address, usdcBalance, portfolio, runTx, canSign, txBusy, demoData } = useApp();
+  const { connected, connect, address, usdcBalance, portfolio, runTx, canSign, txBusy } = useApp();
   const offer = ipo.offer ?? null;
   const price = ipo.clearingPrice ?? offer?.issuePrice ?? null;
   const eligibility = useEligibility(connected ? ipo.ticker : null, connected ? address : null);
@@ -118,9 +118,7 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
           : quote.status === "error"
             ? ((quote.error as { sentence?: string })?.sentence ?? "The exchange couldn't check this. Try again.")
             : quote.status === "ready" && !prepared
-              ? demoData
-                ? "Applications need the live exchange server, not demo data."
-                : "The exchange sent nothing to sign for this."
+              ? "The exchange sent nothing to sign for this."
               : null;
 
   const label = blocked ? "Not allowed" : `Apply for ${usdc(a)} USDC`;
@@ -247,7 +245,7 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
       )}
       {connected && !canSign && (
         <p className="t-label mt-2 text-center">
-          {demoData ? "This is demo data, so nothing can be sent." : "This sign-in can look but not send. Sign in with a wallet to apply."}
+          {"This sign-in can look but not send. Sign in with a wallet to apply."}
         </p>
       )}
     </>
