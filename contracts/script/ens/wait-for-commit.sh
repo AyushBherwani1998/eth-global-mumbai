@@ -1,17 +1,26 @@
 #!/usr/bin/env bash
-# Waits until the ENS commitment written by the first EnsName run is old enough to reveal (MIN_COMMITMENT_AGE,
-# 60 s on Sepolia), i.e. until the latest block's timestamp >= .ens.parent.commit.validFrom.
-# Exits at once if there is nothing to wait for (name already registered, or no commitment recorded).
+# Waits until the ENS commitment sent by the first EnsName run is old enough to reveal: latest block timestamp >=
+# ETHRegistrar.commitmentAt(commitment) + MIN_COMMITMENT_AGE (60 s on Sepolia). Reads the commit time from chain:
+# the json's validFrom comes from forge's simulation, a block or two before the commit was mined.
+# Exits at once if there is nothing to wait for (name already registered, or no commitment pending).
 # Env: RPC_URL (required), DEPLOYMENTS_FILE (default deployments/sepolia.json),
 #      ANVIL_MINE=1 moves anvil's clock instead of waiting (local anvil rehearsal only).
 set -euo pipefail
 
+registrar=0xf633e7FC17e2bbE0D0965D18ec1821dcB754a3d3
 file="${DEPLOYMENTS_FILE:-deployments/sepolia.json}"
-target="$(jq -r '.ens.parent.commit.validFrom // 0' "$file" 2>/dev/null || echo 0)"
-if [[ -z "$target" || "$target" == "null" || "$target" == "0" ]]; then
-  echo "wait-for-commit: no pending commitment in $file"
+commitment="$(jq -r '.ens.parent.commit.commitment // empty' "$file" 2>/dev/null || true)"
+if [[ -z "$commitment" ]]; then
+  echo "wait-for-commit: no commitment in $file"
   exit 0
 fi
+committed_at="$(cast call "$registrar" 'commitmentAt(bytes32)(uint64)' "$commitment" --rpc-url "$RPC_URL" | awk '{print $1}')"
+if [[ "$committed_at" == "0" ]]; then
+  echo "wait-for-commit: no pending commitment onchain (already registered, or not committed)"
+  exit 0
+fi
+min_age="$(cast call "$registrar" 'MIN_COMMITMENT_AGE()(uint64)' --rpc-url "$RPC_URL" | awk '{print $1}')"
+target=$(( committed_at + min_age ))
 
 while true; do
   now="$(cast block latest --field timestamp --rpc-url "$RPC_URL")"

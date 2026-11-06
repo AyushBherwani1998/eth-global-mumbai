@@ -52,7 +52,10 @@ contract EnsName is EnsBase {
             REGISTRAR.commit(commitment);
             vm.stopBroadcast();
             console2.log("committed", vm.toString(commitment));
-            console2.log("register after timestamp", block.timestamp + REGISTRAR.MIN_COMMITMENT_AGE());
+            console2.log(
+                "register 60 s after the commit is mined, about timestamp",
+                block.timestamp + REGISTRAR.MIN_COMMITMENT_AGE()
+            );
             console2.log("next: script/ens/wait-for-commit.sh, then run EnsName again (make ens-name does both)");
             _saveEns();
             return;

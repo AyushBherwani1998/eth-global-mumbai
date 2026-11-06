@@ -203,6 +203,8 @@ abstract contract EnsBase is DemoBase {
         bytes32 commitment = _commitment();
         uint64 committedAt = REGISTRAR.commitmentAt(commitment);
 
+        // Written during forge's simulation: right after a commit run, committedAt / validFrom are a block or two
+        // early. wait-for-commit.sh reads commitmentAt from chain instead.
         string memory c = "ens.parent.commit";
         vm.serializeBytes32(c, "commitment", commitment);
         vm.serializeUint(c, "committedAt", committedAt);
