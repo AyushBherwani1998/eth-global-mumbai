@@ -322,7 +322,7 @@ function CreateStep({ ipo }: { ipo: Ipo }) {
       </div>
       <Button
         variant="secondary"
-        className="mt-4 w-full"
+        className="mt-4 w-full sm:w-auto sm:min-w-[160px]"
         onClick={() =>
           sendTx({
             title: "Saving your draft",
@@ -426,7 +426,7 @@ function LaunchStep({ data }: { data: ConsoleData }) {
           )}
         </>
       ) : (
-        <Button className="mt-4 w-full">Open the IPO</Button>
+        <Button className="mt-4 w-full sm:w-auto sm:min-w-[160px]">Open the IPO</Button>
       )}
     </Card>
   );
@@ -499,7 +499,7 @@ function GraduateStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
           Opens when the IPO closes at block {blockNo(ipo.endBlock ?? CURRENT_BLOCK)}. The shares list if the IPO raised at least{" "}
           {OFFER.requiredRaise} USDC; otherwise every application is refunded and there is nothing to list.
         </p>
-        <Button className="mt-4 w-full" disabled>
+        <Button className="mt-4 w-full sm:w-auto sm:min-w-[160px]" disabled>
           Open the market
         </Button>
       </Card>
@@ -642,7 +642,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
             value={ref}
             onChange={(e) => setRef(e.target.value.replace(/[^0-9.]/g, ""))}
             aria-label="Reference price in USDC per 1,000 shares"
-            className="num t-input-value h-12 w-full min-w-0 rounded-[10px] border border-line-strong bg-transparent px-3 text-text outline-none focus:border-text"
+            className="field num t-input-value h-12 w-full min-w-0 rounded-[10px] bg-transparent px-3 text-text"
           />
           <Button
             variant="secondary"
@@ -667,10 +667,10 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
       <Card className="mt-3 p-4">
         <p className="t-list-title text-text">Trading rule</p>
         <p className="t-label mt-0.5">In force now: {ruleNow}</p>
-        <div className="mt-3 space-y-3">
+        <div className="mt-3 grid gap-4 sm:grid-cols-2">
           {controls.map((c) => (
             <div key={c.label}>
-              <Button variant={c.variant ?? "secondary"} className="w-full" disabled={!online || running} onClick={c.onClick}>
+              <Button variant={c.variant ?? "secondary"} className="w-full sm:w-auto sm:min-w-[160px]" disabled={!online || running} onClick={c.onClick}>
                 {c.label}
               </Button>
               <p className="t-label mt-1">{c.consequence}</p>
@@ -679,7 +679,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
           <div>
             <Button
               variant="secondary"
-              className="w-full"
+              className="w-full sm:w-auto sm:min-w-[160px]"
               disabled={!online || running || !policy.halted}
               onClick={() =>
                 run(
@@ -716,7 +716,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
         <p className="t-label mt-0.5">{m ? `${usdc(m.liquidity.usdc)} USDC + ${shares(m.liquidity.shares)} shares` : "Not open yet"}</p>
         <Button
           variant="secondary"
-          className="mt-3 w-full"
+          className="mt-3 w-full sm:w-auto sm:min-w-[200px]"
           disabled={withdrawn}
           onClick={async () => {
             const r = await sendTx({

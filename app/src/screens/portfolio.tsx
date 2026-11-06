@@ -10,6 +10,7 @@ import { useState } from "react";
 import { AppBar } from "@/components/shell";
 import { useApp } from "@/components/providers";
 import { OfflineStrip } from "@/components/states";
+import { CompanyLogo, logoColor } from "@/components/company/logos";
 import { Sparkline } from "@/components/sparkline";
 import {
   Button,
@@ -42,6 +43,29 @@ type Holding = {
 };
 
 const changeText = (abs: number, rel: number) => `${signed(abs)} (${pct(rel).replace("+", "").replace("-", "")})`;
+
+function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
+  const base = total || 1;
+  return (
+    <section className="mt-4 lg:max-w-[776px]">
+      <h2 className="t-label">Where the value sits</h2>
+      <div className="mt-2 flex h-2 overflow-hidden bg-line" aria-hidden>
+        {rows.map((r) => (
+          <span key={r.ipo.ticker} style={{ width: `${(r.value / base) * 100}%`, background: logoColor(r.ipo.ticker) }} />
+        ))}
+      </div>
+      <ul className="mt-2">
+        {rows.map((r) => (
+          <li key={r.ipo.ticker} className="flex h-12 items-center gap-3">
+            <CompanyLogo ticker={r.ipo.ticker} size={20} />
+            <span className="t-body min-w-0 flex-1 truncate text-text">{r.ipo.name}</span>
+            <span className="num t-body text-text">{Math.round((r.value / base) * 100)}%</span>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 export function PortfolioScreen() {
   const { connected, connect, usdcBalance, ethBalance, address, ensName, isIssuerFor, sendTx } = useApp();
@@ -125,6 +149,12 @@ export function PortfolioScreen() {
       ),
     },
     {
+      key: "spark",
+      label: "",
+      width: "80px",
+      render: (r) => <Sparkline points={getMarket(r.ipo.ticker)?.prices ?? []} width={72} height={28} up={r.today.abs >= 0} />,
+    },
+    {
       key: "price",
       label: "Price",
       align: "right",
@@ -174,6 +204,8 @@ export function PortfolioScreen() {
           footer={{ left: "Prices in USDC per 1,000 shares" }}
           className="lg:max-w-[776px]"
         />
+
+        <Allocation rows={rows} total={totalValue} />
 
         {waiting > 0 && (
           <Link href="/orders" className="mt-3 block lg:max-w-[776px]">

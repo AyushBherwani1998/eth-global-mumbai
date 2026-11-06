@@ -12,6 +12,7 @@ export function Sparkline({
   height = 32,
   up,
   max = 72,
+  fill = false,
   className,
 }: {
   points: Pt[];
@@ -21,6 +22,8 @@ export function Sparkline({
   up?: boolean;
   /** Last N points drawn. */
   max?: number;
+  /** Flat tint under the line. No gradient. */
+  fill?: boolean;
   className?: string;
 }) {
   const pts = points.slice(-max);
@@ -37,9 +40,12 @@ export function Sparkline({
     })
     .join(" ");
   const isUp = up ?? vals[vals.length - 1] >= vals[0];
+  const colour = isUp ? "var(--gain)" : "var(--loss)";
+  const area = `${d} L${(width - pad).toFixed(1)},${height} L${pad},${height} Z`;
   return (
     <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden className={className}>
-      <path d={d} fill="none" stroke={isUp ? "var(--gain)" : "var(--loss)"} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+      {fill && <path d={area} fill={colour} opacity="0.16" />}
+      <path d={d} fill="none" stroke={colour} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
     </svg>
   );
 }

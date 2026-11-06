@@ -97,7 +97,11 @@ function subscribeOnline(cb: () => void) {
   };
 }
 export function useOnline() {
-  return useSyncExternalStore(subscribeOnline, () => navigator.onLine, () => true);
+  return useSyncExternalStore(
+    subscribeOnline,
+    () => (new URLSearchParams(window.location.search).get("offline") === "1" ? false : navigator.onLine),
+    () => true,
+  );
 }
 
 /**

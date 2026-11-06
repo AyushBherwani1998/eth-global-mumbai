@@ -90,8 +90,8 @@ function ConsoleNavLink({ href, active, children }: { href: string; active: bool
 export function ConsoleSignIn() {
   const { signIn, signInOther } = useIssuerSession();
   return (
-    <div className="min-h-dvh bg-bg">
-      <ConsoleContainer className="flex min-h-dvh max-w-[520px] flex-col justify-center py-12">
+    <div className="flex min-h-dvh items-center bg-bg px-5 py-12">
+      <div className="mx-auto w-full max-w-[440px]">
         <div className="flex items-center gap-3">
           <Logo size={28} />
           <span className="t-list-title text-text">Listing Day</span>
@@ -101,8 +101,8 @@ export function ConsoleSignIn() {
         <p className="t-body mt-2 text-text-2">
           This console is for companies listing their shares. If you are here to buy or sell shares, use the Listing Day app instead.
         </p>
-        <Button size="bar" className="mt-6 w-full" onClick={signIn}>
-          Connect issuer wallet
+        <Button className="mt-6 min-w-[200px]" onClick={signIn}>
+          Sign in
         </Button>
         <p className="t-label mt-3">Sign in with the wallet that owns your listing&apos;s name, for example acme.listingday.eth.</p>
         <div className="mt-6 border-t border-line pt-4">
@@ -110,7 +110,7 @@ export function ConsoleSignIn() {
             Use a different wallet
           </button>
         </div>
-      </ConsoleContainer>
+      </div>
     </div>
   );
 }

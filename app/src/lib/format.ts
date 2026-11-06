@@ -25,8 +25,10 @@ export function shares(n: number): string {
 }
 
 export function signed(n: number, digits = 2): string {
-  const s = Math.abs(n).toFixed(digits);
-  return n > 0 ? `+${s}` : n < 0 ? `-${s}` : s;
+  // Round before the sign, so a sub-cent fall prints "0.00" and not "-0.00".
+  const rounded = Number(n.toFixed(digits));
+  const s = Math.abs(rounded).toFixed(digits);
+  return rounded > 0 ? `+${s}` : rounded < 0 ? `-${s}` : s;
 }
 
 export function pct(n: number, digits = 2): string {

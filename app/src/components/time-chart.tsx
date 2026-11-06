@@ -425,7 +425,16 @@ export function PriceChart({
       grid: { vertLines: { visible: false }, horzLines: { visible: false } },
       rightPriceScale: { visible: false, scaleMargins: { top: 0.14, bottom: 0.14 } },
       leftPriceScale: { visible: false },
-      timeScale: { visible: axes, borderVisible: false, fixLeftEdge: true, fixRightEdge: true, timeVisible: true, secondsVisible: false },
+      timeScale: {
+        visible: axes,
+        borderVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
+        timeVisible: true,
+        secondsVisible: false,
+        // Room for the last-price box so it sits beside the line, not on it.
+        rightOffsetPixels: 72,
+      },
       crosshair: {
         mode: CrosshairMode.Magnet,
         vertLine: { color: t.lineStrong, width: 1, style: LineStyle.Solid, labelVisible: false },
@@ -621,6 +630,14 @@ export function PriceChart({
 
     prim.set({ halts: derived.halts, band: derived.band, rejects: derived.rej });
     chart.timeScale().fitContent();
+    // fitContent ignores rightOffset, so reopen a gap the last-price box can sit in.
+    const logical = chart.timeScale().getVisibleLogicalRange();
+    if (logical && labels) {
+      const width = el.current?.clientWidth ?? 0;
+      const span = logical.to - logical.from || 1;
+      const extra = width > 0 ? (72 / width) * span : 3;
+      chart.timeScale().setVisibleLogicalRange({ from: logical.from, to: logical.to + extra });
+    }
 
     // H / L / last + right-edge labels, positioned after layout.
     let raf = 0;
@@ -678,7 +695,8 @@ export function PriceChart({
       // Keep every right-edge label inside the chart and 16px clear of each other.
       const taken: { y: number; text: string }[] = [];
       // The Expand button sits bottom-right; keep right-edge labels off it.
-      const bottomGuard = hasExpand ? 64 : 12;
+      const expandVisible = hasExpand && window.matchMedia("(max-width: 1023px)").matches;
+      const bottomGuard = expandVisible ? 64 : 12;
       const drop = new Set<Label>();
       for (const l of out) {
         if (l.anchor !== "right") continue;
@@ -779,7 +797,7 @@ export function PriceChart({
             className={cx(
               // Every label gets a ground-coloured box so the line never runs through it.
               "num pointer-events-none absolute z-10 rounded-[4px] bg-bg px-1 text-[13px] leading-[18px] font-medium whitespace-nowrap text-text-2",
-              l.box && "text-text",
+              l.box && "border border-line text-text",
             )}
             style={
               l.anchor === "right"
@@ -835,7 +853,7 @@ export function RangeChips<T extends string = ChartRange>({
 }: {
   value: T;
   onChange: (r: T) => void;
-  /** Defaults to the three chart ranges. */
+  /** Defaults to every window: 5m through All. */
   options?: { id: T; label: string }[];
   className?: string;
 }) {

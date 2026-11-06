@@ -153,7 +153,7 @@ function OpenCard({ ipo, applied }: { ipo: Ipo; applied: number }) {
       </div>
       <ProgressBar className="mt-3" value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
       <p className="t-caption mt-2">
-        Subscribed {subscribed.toFixed(2)} times · lists if it reaches {usdc(OFFER.requiredRaise, 0)} USDC
+        {subscribed.toFixed(1)}x subscribed · lists if it reaches {usdc(OFFER.requiredRaise, 0)} USDC
       </p>
       {applied > 0 && <p className="t-body mt-3 text-text">You applied {usdc(applied)} USDC</p>}
       {applied > 0 ? (

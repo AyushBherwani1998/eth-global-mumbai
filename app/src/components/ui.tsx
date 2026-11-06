@@ -7,6 +7,7 @@
 import Link from "next/link";
 import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Loader2, X } from "lucide-react";
+import { CompanyLogo } from "@/components/company/logos";
 import type { Ipo } from "@/lib/mock";
 import { addrUrl, shortAddr } from "@/lib/format";
 
@@ -24,16 +25,17 @@ export function TickerLogo({
   size = 36,
   className,
 }: {
-  ipo?: Pick<Ipo, "avatar">;
+  ipo?: { avatar?: Ipo["avatar"]; ticker?: string };
   initials?: string;
   size?: 28 | 36 | 40 | 48 | number;
   className?: string;
 }) {
-  const text = initials ?? ipo?.avatar.initials ?? "";
+  if (ipo?.ticker) return <CompanyLogo ticker={ipo.ticker} size={size} className={className} />;
+  const text = initials ?? ipo?.avatar?.initials ?? "";
   return (
     <span
       aria-hidden
-      className={cx("inline-flex shrink-0 items-center justify-center rounded-[8px] border border-line bg-surface-2 font-bold text-text", className)}
+      className={cx("inline-flex shrink-0 items-center justify-center rounded-[8px] border border-line bg-surface-2 text-text", className)}
       style={{ width: size, height: size, fontSize: size >= 48 ? 15 : 13, lineHeight: 1 }}
     >
       {text}
@@ -403,34 +405,42 @@ export function IndexCard({
   label,
   value,
   change,
+  spark,
 }: {
   href?: string;
   onClick?: () => void;
   label: string;
   value: ReactNode;
   change?: ReactNode;
+  /** Small chart sitting behind the figures. */
+  spark?: ReactNode;
 }) {
   const body = (
     <>
-      <span className="t-label-sm block truncate text-text">{label}</span>
-      <span className="num mt-1 flex items-baseline gap-2">
-        <span className="text-[16px] leading-[22px] text-text">{value}</span>
-        {change && <span className="t-change-sm">{change}</span>}
+      <span className="min-w-0 flex-1">
+        <span className="t-label-sm block truncate text-text">{label}</span>
+        <span className="num mt-1 flex flex-wrap items-baseline gap-x-2">
+          <span className="text-[16px] leading-[22px] text-text">{value}</span>
+          {change && <span className="t-change-sm">{change}</span>}
+        </span>
       </span>
+      {spark && <span className="pointer-events-none shrink-0">{spark}</span>}
     </>
   );
-  const cls = "flex h-[68px] min-w-[160px] flex-1 flex-col justify-center rounded-[10px] border border-line bg-surface px-4 text-left transition-colors duration-120 active:bg-surface-2";
+  const cls = "relative flex min-h-[68px] min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-3 text-left transition-colors duration-120 active:bg-surface-2";
   if (href)
     return (
       <Link href={href} className={cls}>
         {body}
       </Link>
     );
-  return (
-    <button type="button" onClick={onClick} className={cls}>
-      {body}
-    </button>
-  );
+  if (onClick)
+    return (
+      <button type="button" onClick={onClick} className={cls}>
+        {body}
+      </button>
+    );
+  return <div className={cls}>{body}</div>;
 }
 
 export function SummaryCard({
@@ -966,8 +976,18 @@ export function Table<T>({
       <table className="w-full border-collapse">
         <thead>
           <tr className="border-b border-line">
-            {columns.map((c) => (
-              <th key={c.key} scope="col" style={{ width: c.width }} className={cx("h-10 px-2 text-[13px] leading-[18px] font-normal whitespace-nowrap text-text-2", c.align === "right" ? "text-right" : "text-left")}>
+            {columns.map((c, i) => (
+              <th
+                key={c.key}
+                scope="col"
+                style={{ width: c.width }}
+                className={cx(
+                  "h-10 px-2 text-[13px] leading-[18px] font-normal whitespace-nowrap text-text-2",
+                  i === 0 && "pl-0",
+                  i === columns.length - 1 && "pr-0",
+                  c.align === "right" ? "text-right" : "text-left",
+                )}
+              >
                 {c.label}
               </th>
             ))}
@@ -983,7 +1003,15 @@ export function Table<T>({
                 className={cx("border-b border-line", clickable && "cursor-pointer hover:bg-surface-2")}
               >
                 {columns.map((c, i) => (
-                  <td key={c.key} className={cx("h-14 px-2 t-body text-text", c.align === "right" && "num text-right")}>
+                  <td
+                    key={c.key}
+                    className={cx(
+                      "h-14 px-2 t-body text-text",
+                      i === 0 && "pl-0",
+                      i === columns.length - 1 && "pr-0",
+                      c.align === "right" && "num text-right",
+                    )}
+                  >
                     {href && i === 0 ? (
                       <Link href={href(r)} className="block">
                         {c.render(r)}

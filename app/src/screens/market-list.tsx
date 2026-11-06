@@ -4,6 +4,7 @@
 // "All stocks" rows and the disclaimer. Listed companies only; IPOs live on
 // the other chip. Every price is USDC per 1,000 shares.
 
+import { Sparkline } from "@/components/sparkline";
 import { Change, Card, CompanyCard, IndexCard, ListRow, SectionTitle, Skeleton, TickerLogo } from "@/components/ui";
 import { ErrorCard, SkeletonCards, SkeletonList } from "@/components/states";
 import { useMockLoad } from "@/components/company/load";
@@ -42,6 +43,7 @@ export function StocksBody() {
   const sumOpen = all.reduce((s, r) => s + r.open, 0);
   const index = sumOpen > 0 ? (sumLast / sumOpen) * 1000 : 1000;
   const indexChange = changeVs(index, 1000);
+  const indexPoints = indexSeries(all);
 
   // "Most traded": the four listed companies with the most trades today.
   const traded = [...all].sort((a, b) => b.market.trades.length - a.market.trades.length).slice(0, 4);
@@ -81,11 +83,12 @@ export function StocksBody() {
 
   return (
     <>
-      <div className="mt-4 flex gap-4">
+      <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
         <IndexCard
           label="Listing Day SME"
           value={index.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
           change={<Change abs={indexChange.abs} rel={indexChange.rel} digits={changeDigits(indexChange.abs)} />}
+          spark={<Sparkline points={indexPoints} width={72} height={32} fill up={indexChange.abs >= 0} />}
         />
         <IndexCard
           href="/?tab=ipo"
@@ -96,7 +99,7 @@ export function StocksBody() {
       </div>
 
       <SectionTitle>Most traded</SectionTitle>
-      <div className="grid grid-cols-2 gap-5 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-5 lg:grid-cols-4">
         {traded.map((r) => {
           const ch = changeVs(r.last, r.open);
           return (
@@ -125,6 +128,7 @@ export function StocksBody() {
               title={r.ipo.name}
               sub={r.ipo.sector}
               flag={r.flag}
+              sparkline={<Sparkline points={r.market.prices} width={72} height={28} up={ch.abs >= 0} />}
               right={lotFixed(r.last)}
               rightSub={<Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} />}
             />
@@ -137,4 +141,18 @@ export function StocksBody() {
       </p>
     </>
   );
+}
+
+function indexSeries(all: Row[]): { value: number }[] {
+  if (all.length === 0) return [];
+  const series = all.map((r) => r.market.prices);
+  const n = Math.min(...series.map((s) => s.length));
+  const base = series[0][0]?.value || 1;
+  const points: { value: number }[] = [];
+  for (let i = 0; i < n; i++) {
+    let sum = 0;
+    for (const prices of series) sum += prices[i].value;
+    points.push({ value: (sum / all.length / base) * 1000 });
+  }
+  return points;
 }

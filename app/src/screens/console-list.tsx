@@ -76,7 +76,7 @@ export function ConsoleListScreen() {
       {rows.length === 0 ? (
         <EmptyState
           title="No listing is registered to this wallet"
-          body="Register a company name on Listing Day with this wallet, or sign out and connect the wallet that owns the listing."
+          body="Register a company name on Listing Day with this wallet, or sign out and sign in with the wallet that owns the listing."
         />
       ) : (
         <>

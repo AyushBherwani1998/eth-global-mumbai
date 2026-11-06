@@ -4,7 +4,7 @@
 // Real wiring (wagmi + Anon-RPC transport) replaces this provider later;
 // screens only use the hooks below.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { WALLET } from "@/lib/mock";
 import { shortHash, txUrl } from "@/lib/format";
 import { ThemeProvider } from "./theme";
@@ -69,7 +69,17 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Screenshot hook. ?signedout=1 keeps the investor session signed out. It does not touch the issuer console. */
+function useSignedOutFlag() {
+  return useSyncExternalStore(
+    () => () => {},
+    () => new URLSearchParams(window.location.search).get("signedout") === "1",
+    () => false,
+  );
+}
+
 function AppProvider({ children }: { children: React.ReactNode }) {
+  const signedOut = useSignedOutFlag();
   const [connected, setConnected] = useState(WALLET.connected);
   const [wrongNetwork, setWrongNetwork] = useState(false);
   const [reads, setReads] = useState(WALLET.anonRpc.anonReads);
@@ -128,14 +138,14 @@ function AppProvider({ children }: { children: React.ReactNode }) {
 
   const value = useMemo<AppState>(
     () => ({
-      connected,
+      connected: connected && !signedOut,
       address: WALLET.address,
       ensName: WALLET.ensName,
       usdcBalance: WALLET.usdcBalance,
       ethBalance: WALLET.ethBalance,
       connect: () => setConnected(true),
       disconnect: () => setConnected(false),
-      isIssuerFor: connected ? WALLET.isIssuerFor : [],
+      isIssuerFor: connected && !signedOut ? WALLET.isIssuerFor : [],
       network: { ok: !wrongNetwork, name: WALLET.chainName, chainId: WALLET.chainId },
       switchNetwork: () => setWrongNetwork(false),
       setWrongNetwork,
@@ -150,7 +160,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       sendTx,
       notify,
     }),
-    [connected, wrongNetwork, reads, countRead, sendTx, notify],
+    [connected, signedOut, wrongNetwork, reads, countRead, sendTx, notify],
   );
 
   return (

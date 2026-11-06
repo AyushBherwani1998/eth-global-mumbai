@@ -177,8 +177,9 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
   const holding = PORTFOLIO.holdings.find((h) => h.ticker === ipo.ticker);
   const owned = (holding?.shares ?? 0) + (holding?.unclaimedShares ?? 0);
 
-  const dayLow = Math.min(...data.map((d) => d.value));
-  const dayHigh = Math.max(...data.map((d) => d.value));
+  const daySeries = useMemo(() => sliceRange(market.prices, "1D", NOW_SEC), [market.prices]);
+  const dayLow = Math.min(...daySeries.map((d) => d.value));
+  const dayHigh = Math.max(...daySeries.map((d) => d.value));
 
   const openSheet = (s: TradeSide) => {
     setSide(s);
@@ -195,6 +196,7 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
       digits={3}
       height={height}
       onHover={setHover}
+      readout={fullscreen}
       onExpand={fullscreen ? undefined : () => setExpanded(true)}
     />
   );
@@ -282,8 +284,8 @@ function ListedCompany({ ipo, market }: { ipo: Ipo; market: Market }) {
               {tab === "overview" && (
                 <div className="pt-3">
                   <p className="t-body text-text">{ipo.description}</p>
+                  <DayRange low={dayLow} high={dayHigh} price={last} />
                   <div className="mt-4 divide-y divide-line">
-                    <KV k="Today's range" v={`${lotFixed(dayLow)} to ${lotFixed(dayHigh)}`} />
                     <KV k="Listing price" v={lotFixed(ipo.clearingPrice ?? OFFER.issuePrice)} sub={ipo.listedAt ? `Listed ${dateTimeIST(ipo.listedAt)}` : undefined} />
                     <KV k="Issue price" v={lotFixed(OFFER.issuePrice)} />
                     <KV k="Trading rule today" v={rule ? rule.label : "Normal trading"} sub={rule ? rule.text : "Trades go through at any price the market reaches."} />
@@ -685,6 +687,24 @@ function IpoCompany({ ipo }: { ipo: Ipo }) {
       <ApplySheet ipo={ipo} open={applyOpen} onClose={() => setApplyOpen(false)} worldState={worldState} onVerify={() => openVerify(true)} />
       <WorldSheet open={worldOpen} onClose={closeVerify} state={worldState} setState={setWorldState} company={ipo.name} />
     </>
+  );
+}
+
+/** Thin day range: low, high, and a marker on the last price. */
+function DayRange({ low, high, price }: { low: number; high: number; price: number }) {
+  const span = high - low || 1;
+  const pct = Math.max(0, Math.min(100, ((price - low) / span) * 100));
+  return (
+    <div className="mt-4">
+      <p className="t-label">Today&apos;s range</p>
+      <div className="relative mt-3 h-1 bg-line">
+        <span aria-hidden className="absolute top-1/2 size-2 -translate-y-1/2 bg-text" style={{ left: `calc(${pct}% - 4px)` }} />
+      </div>
+      <div className="num t-caption mt-2 flex justify-between text-text-2">
+        <span>Low {lotFixed(low)}</span>
+        <span>High {lotFixed(high)}</span>
+      </div>
+    </div>
   );
 }
 
