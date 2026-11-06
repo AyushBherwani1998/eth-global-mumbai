@@ -15,14 +15,19 @@ import type {
   Auction,
   BidsResponse,
   ClearingResponse,
+  ConfigResponse,
   Eligibility,
   EnsView,
   Health,
+  IssuerView,
   ListingDetail,
   ListingsResponse,
   MarketView,
+  PolicyHistory,
   PolicyView,
+  Portfolio,
   Prepared,
+  SwapQuote,
   SwapsResponse,
 } from "../../src/types.ts";
 
@@ -136,9 +141,13 @@ describe("API against the anvil demo fork", { skip: !enabled && "set RPC_URL and
     assert.equal(r.committed.acme, 99);
     for (const b of r.bids) {
       assert.equal(b.state, "claimed");
+      assert.equal(b.status, "claimed");
+      assert.equal(b.key, `${b.auction.toLowerCase()}:${b.id}`);
       assert.ok((b.filledShares ?? 0) > 0);
+      assert.deepEqual([b.claimableShares, b.refundableUsdc], [0, 0]);
       assert.deepEqual(b.actions, { exit: null, claim: false });
     }
+    assert.equal(new Set(r.bids.map((b) => b.key)).size, r.bids.length);
     const owner = r.bids[0]!.owner;
     const mine = await get<BidsResponse>(`/v1/bids?owner=${owner}`);
     assert.ok(mine.bids.length >= 1);
@@ -169,6 +178,12 @@ describe("API against the anvil demo fork", { skip: !enabled && "set RPC_URL and
     assert.ok(m.price !== null && m.band !== null && m.price >= m.band.low && m.price <= m.band.high);
     assert.ok(m.liquidity.usdc > 0 && m.liquidity.shares > 0);
     assert.deepEqual(m.events.map((e) => e.kind), ["listing", "halted", "normal"]);
+    assert.deepEqual([m.referencePrice, m.halted, m.haltCause, m.tradingOpen], [1.1, false, null, true]);
+    assert.ok(m.trades.length >= 1);
+    assert.equal(m.prices.length, m.trades.length);
+    assert.ok(m.trades.every((t) => t.avgPrice > 0));
+    assert.deepEqual(m.haltSpans.map((h) => h.cause), ["report"]);
+    assert.equal(m.reference.at(-1)?.carryForward, true);
     const s = await get<SwapsResponse>("/v1/market/acme/swaps");
     assert.ok(s.trades.length >= 1);
     assert.equal(s.trades[0]?.side, "buy");
@@ -176,6 +191,39 @@ describe("API against the anvil demo fork", { skip: !enabled && "set RPC_URL and
     const k = await get<MarketView>("/v1/market/kesar");
     assert.equal(k.listed, false);
     assert.equal(k.price, null);
+  });
+
+  test("GET /v1/policy/:ticker/history (listing, halt, resume)", async () => {
+    const h = await get<PolicyHistory>("/v1/policy/acme/history");
+    assert.equal(h.listing?.listingPrice, 1.1);
+    assert.ok(h.entries.length >= 2);
+    assert.equal(h.entries[0]?.halted, true);
+    assert.equal(h.spans[0]?.trigger, "listed");
+    assert.equal(h.spans.at(-1)?.toTime, null);
+    assert.ok(h.spans.every((s) => s.tradingMode === "listing" && s.bandBps === 500));
+    assert.deepEqual(h.haltSpans.map((s) => [s.cause, s.version]), [["report", 1]]);
+    const k = await get<PolicyHistory>("/v1/policy/kesar/history");
+    assert.deepEqual([k.listing, k.spans.length], [null, 0]);
+  });
+
+  test("GET /v1/issuer/:ticker: the ENS addr is the token, the issuer owns the name", async () => {
+    const i = await get<IssuerView>("/v1/issuer/acme");
+    assert.equal(i.ensAddr, i.token.address);
+    assert.equal(i.ensAddrIsToken, true);
+    assert.equal(i.issuer.source, "ens");
+    assert.notEqual(i.issuer.address, i.token.address);
+    const owner = i.roles.find((r) => r.role === "ens.nameOwner")?.holder;
+    assert.equal(owner, i.issuer.address);
+    const c = await get<IssuerView>(`/v1/issuer/acme?address=${i.issuer.address}`);
+    assert.equal(c.check?.isIssuer, true);
+    assert.ok(c.check?.roles.includes("ens.nameOwner"));
+    assert.equal((await get<IssuerView>(`/v1/issuer/acme?address=${BIDDER}`)).check?.isIssuer, false);
+  });
+
+  test("GET /v1/config lists both listings without RPC data", async () => {
+    const c = await get<ConfigResponse>("/v1/config");
+    assert.deepEqual(c.listings.map((l) => l.ticker), ["acme", "kesar"]);
+    assert.equal(c.listings[0]?.contracts.listingHook, c.listings[0]?.pool.poolKey.hooks);
   });
 
   test("GET /v1/eligibility (open listing, per-wallet cap)", async () => {
@@ -196,6 +244,13 @@ describe("API against the anvil demo fork", { skip: !enabled && "set RPC_URL and
     const bids = await get<BidsResponse>(`/v1/bids?ticker=kesar&owner=${BIDDER}`);
     assert.equal(bids.bids.length, 1);
     assert.deepEqual([bids.bids[0]?.state, bids.bids[0]?.budget, bids.bids[0]?.maxPrice], ["active", 10, 1.3]);
+    assert.deepEqual([bids.bids[0]?.status, bids.bids[0]?.claimableShares, bids.bids[0]?.refundableUsdc], ["open", null, null]);
+    const pf = await get<Portfolio>(`/v1/portfolio/${BIDDER}`);
+    assert.equal(pf.balances.usdc, 40);
+    assert.equal(pf.bids.length, 1);
+    assert.equal(pf.totals.inAuctionUsdc, 10);
+    assert.equal(pf.holdings.find((x) => x.ticker === "kesar")?.pendingBids, 1);
+    assert.equal(pf.holdings.find((x) => x.ticker === "kesar")?.priceSource, "clearing");
     const e = await get<Eligibility>(`/v1/eligibility?ticker=kesar&address=${BIDDER}`);
     assert.deepEqual([e.committed, e.remaining], [10, 10]);
     const a = await get<Auction>("/v1/auction/kesar");
@@ -217,7 +272,10 @@ describe("API against the anvil demo fork", { skip: !enabled && "set RPC_URL and
     const before = (await get<SwapsResponse>("/v1/market/acme/swaps")).trades.length;
     const buy = await prepare("swap", { ticker: "acme", from: TRADER, side: "buy", amount: 0.05 });
     assert.equal(buy.simulate.ok, true, JSON.stringify(buy.simulate));
-    assert.equal((buy.details.quote as { ok: boolean }).ok, true);
+    const q = buy.details.quote as SwapQuote;
+    assert.equal(q.ok, true);
+    assert.equal(q.priceAfterSource, "simulation");
+    assert.ok(q.priceAfter! > q.priceBefore! && q.priceImpactBps! > 0, JSON.stringify(q));
     await send(buy, TRADER);
     const after = await get<SwapsResponse>("/v1/market/acme/swaps");
     assert.equal(after.trades.length, before + 1);
@@ -233,7 +291,10 @@ describe("API against the anvil demo fork", { skip: !enabled && "set RPC_URL and
     assert.equal(big.simulate.ok, false);
     assert.equal(big.simulate.error?.name, "OutOfBand");
     assert.match(big.simulate.error?.message ?? "", /Outside today's price band \(1\.045 to 1\.155 USDC \/ lot\)/);
-    assert.equal((big.details.quote as { error: { name: string } }).error.name, "OutOfBand");
+    const bq = big.details.quote as SwapQuote;
+    assert.equal(bq.error?.name, "OutOfBand");
+    assert.equal(bq.priceAfterSource, "revert");
+    assert.ok(bq.priceAfter! > 1.155, JSON.stringify(bq));
   });
 
   test("POST /v1/prepare/exit and /claim", async () => {

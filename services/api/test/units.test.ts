@@ -4,14 +4,17 @@ import { test } from "node:test";
 import {
   ONE_POINT_Q96,
   Q96,
+  bandBounds,
   formatLot,
   fullRangeAmounts,
   iso,
   parseAmount,
   pointsToQ96,
+  priceChangeBps,
   priceToPoints,
   q96ToPoints,
   q96ToPrice,
+  sqrtPriceAfterExactIn,
   sqrtPriceX96ToPointsE2,
   sqrtPriceX96ToPrice,
 } from "../src/units.ts";
@@ -77,4 +80,29 @@ test("formatLot", () => {
   assert.equal(formatLot(0.8), "0.80");
   assert.equal(formatLot(1.045), "1.045");
   assert.equal(formatLot(1.8527), "1.853");
+});
+
+// Live Sepolia ACME: Listed(listingSqrtPriceX96, ..., listingDaySqrtPriceMin/Max) and a 1 USDC buy.
+const LISTING_SQRT = 2_801_138_548_740_444_334_653_601_382_131_617_302n;
+
+test("bandBounds matches ListingBand.bounds (the Listed event's listing-day band)", () => {
+  assert.deepEqual(bandBounds(LISTING_SQRT, 500, true), [2_733_631_314_054_747_989_808_635_175_870_053_105n, 2_873_907_512_198_921_175_598_806_393_704_614_905n]);
+  const [lo, hi] = bandBounds(LISTING_SQRT, 2000, true);
+  assert.deepEqual([sqrtPriceX96ToPrice(hi, true), sqrtPriceX96ToPrice(lo, true)], [0.64, 0.96]);
+  const [lo1, hi1] = bandBounds(LISTING_SQRT, 500, false);
+  assert.ok(lo1 < LISTING_SQRT && LISTING_SQRT < hi1);
+});
+
+test("sqrtPriceAfterExactIn reproduces the simulated swap; priceChangeBps is signed", () => {
+  const before = 2_818_811_522_473_629_111_479_198_094_196_215_754n;
+  const liquidity = 381_837_661_841_625n;
+  const after = sqrtPriceAfterExactIn({ sqrtPriceX96: before, liquidity, amountIn: 1_000_000n, feePips: 3000, zeroForOne: true });
+  assert.equal(after, 2_579_210_009_432_498_747_300_358_028_863_549_534n);
+  assert.equal(sqrtPriceX96ToPrice(after!, true), 0.9436);
+  assert.equal(priceChangeBps(before, after!, true), 1944.24);
+  const sell = sqrtPriceAfterExactIn({ sqrtPriceX96: before, liquidity, amountIn: 10n ** 20n, feePips: 3000, zeroForOne: false })!;
+  assert.ok(sell > before);
+  assert.ok(priceChangeBps(before, sell, true)! < 0);
+  assert.equal(sqrtPriceAfterExactIn({ sqrtPriceX96: before, liquidity: 0n, amountIn: 1n, feePips: 0, zeroForOne: true }), null);
+  assert.equal(priceChangeBps(0n, before, true), null);
 });
