@@ -6,6 +6,14 @@ import { lotFixed } from "./format";
 
 export type Tone = "brand" | "gain" | "warn" | "loss";
 
+/**
+ * ListingHook's surveillance band (DEFAULT_SURVEILLANCE_BAND_BPS). In
+ * directional mode a swap that widens the gap to the reference reverts
+ * DirectionalWidening only if it also lands outside this band; every swap must
+ * still land inside the policy band (normal, 20%) or it reverts OutOfBand.
+ */
+export const SURVEILLANCE_BAND_BPS = 500;
+
 export function band(ref: number, bps: number) {
   return { lo: ref * (1 - bps / 10000), hi: ref * (1 + bps / 10000) };
 }
@@ -41,7 +49,7 @@ export function modeInfo(p: Pick<Policy, "mode" | "referencePrice" | "bandBps" |
     case "directional":
       return {
         label: "Directional",
-        copy: `Directional · only trades toward ref ${lotFixed(p.referencePrice)}`,
+        copy: `Directional · ±${SURVEILLANCE_BAND_BPS / 100}% away from ref ${lotFixed(p.referencePrice)}, toward it within ${pctBand}`,
         tone: "warn",
       };
   }
@@ -60,7 +68,7 @@ export type Quote = {
   out: number;
   priceAfter: number;
   impactPct: number;
-  verdict: { ok: true } | { ok: false; reason: "OutOfBand" | "WrongDirection" | "Halted"; text: string };
+  verdict: { ok: true } | { ok: false; reason: "OutOfBand" | "DirectionalWidening" | "Halted"; text: string };
 };
 
 export function quote(opts: {
@@ -92,19 +100,20 @@ export function quote(opts: {
   let verdict: Quote["verdict"] = { ok: true };
   if (p.halted || p.mode === "halted") {
     verdict = { ok: false, reason: "Halted", text: "Trading halted. Swaps revert." };
-  } else if (p.mode === "directional") {
-    const before = Math.abs(priceBefore - p.referencePrice);
-    const after = Math.abs(priceAfter - p.referencePrice);
-    if (after > before)
+  } else {
+    const ref = p.referencePrice;
+    const { lo, hi } = band(ref, p.bandBps);
+    const d = bandDigits(ref, p.bandBps);
+    const s = band(ref, SURVEILLANCE_BAND_BPS);
+    const widens = Math.abs(priceAfter - ref) > Math.abs(priceBefore - ref);
+    // Same order as ListingHook._afterSwap: the directional check, then the policy band.
+    if (p.mode === "directional" && widens && (priceAfter < s.lo || priceAfter > s.hi))
       verdict = {
         ok: false,
-        reason: "WrongDirection",
-        text: `Would revert: widens the gap from reference ${lotFixed(p.referencePrice)}`,
+        reason: "DirectionalWidening",
+        text: `Would revert: moves the price further from reference ${lotFixed(ref)}, past ${bandText(ref, SURVEILLANCE_BAND_BPS)}`,
       };
-  } else {
-    const { lo, hi } = band(p.referencePrice, p.bandBps);
-    const d = bandDigits(p.referencePrice, p.bandBps);
-    if (priceAfter > hi)
+    else if (priceAfter > hi)
       verdict = {
         ok: false,
         reason: "OutOfBand",

@@ -36,6 +36,7 @@ import { useOnThemeChange } from "./theme";
 import { Chip, cx } from "./ui";
 import { dateIST, dateTimeIST, timeIST } from "@/lib/format";
 import type { Mode } from "@/lib/mock";
+import { SURVEILLANCE_BAND_BPS } from "@/lib/policy";
 
 // ---------------------------------------------------------------------------
 // Types and helpers
@@ -562,8 +563,10 @@ export function PriceChart({
       const r = refAt(d.time);
       if (!drawBand || !r || d.halted || r.mode === "halted") return null;
       if (r.mode === "directional") {
-        // Only the half toward the reference.
-        return { lo: Math.min(r.value, d.value), hi: Math.max(r.value, d.value) };
+        // ListingHook: a swap may land anywhere no further from the reference
+        // than now, or within the surveillance band, and always inside the policy band.
+        const half = Math.min(Math.max(Math.abs(d.value - r.value), (r.value * SURVEILLANCE_BAND_BPS) / 10000), (r.value * r.bandBps) / 10000);
+        return { lo: r.value - half, hi: r.value + half };
       }
       return { lo: r.value * (1 - r.bandBps / 10000), hi: r.value * (1 + r.bandBps / 10000) };
     });

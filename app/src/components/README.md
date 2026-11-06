@@ -102,8 +102,8 @@ The wrong-network button lives in `AccountSheet` (`useApp().setWrongNetwork(true
 
 `PriceChart` props: `data [{time, value, halted?}]`, `kind "market"\|"clearing"\|"raised"`,
 `baseline?` (dotted: range start, or the issue price on an IPO), `reference?`
-(`RefPoint[]` → dotted step line + shaded band from `bandBps`; directional draws the half toward the
-reference; halted spans draw no band), `showBand?`, `lines? [{price, label?}]` (floor / cap /
+(`RefPoint[]` → dotted step line + shaded band from `bandBps`; directional draws the zone a swap may land in (no further from the
+reference than now or within 5%, always inside the band); halted spans draw no band), `showBand?`, `lines? [{price, label?}]` (floor / cap /
 minimum raise, dotted, right-edge labels), `rejects? number[]` (times, clamped to the nearest point,
 drawn as 9px red x), `height=280`, `digits=2`, `onHover(p | null)`, `readout=true` (24px line above
 the chart: time left, 18/500 value right), `labels=true` (H / L / last), `axes=false` (time axis for
