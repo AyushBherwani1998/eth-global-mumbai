@@ -1,0 +1,9 @@
+{
+  "name": "listing-day-api-vercel",
+  "private": true,
+  "description": "Vercel project root for services/api only. The Next.js app is a separate Vercel project with Root Directory app/.",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  }
+}

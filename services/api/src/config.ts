@@ -157,11 +157,32 @@ function envAddress(env: NodeJS.ProcessEnv, key: string): Address | undefined {
   return getAddress(v);
 }
 
+/**
+ * Resolve a deployments JSON path.
+ * Relative paths are tried against `services/api` (local + Docker), then `process.cwd()`
+ * (Vercel with Root Directory = repo root, where cwd is `/var/task`), then with a leading
+ * `../../` stripped against cwd so the default `../../contracts/deployments/sepolia.json`
+ * still finds the file when the function is bundled away from `services/api`.
+ */
+export function resolveDeploymentPath(p: string): string {
+  if (isAbsolute(p)) return p;
+  const fromService = resolve(SERVICE_ROOT, p);
+  if (existsSync(fromService)) return fromService;
+  const fromCwd = resolve(process.cwd(), p);
+  if (existsSync(fromCwd)) return fromCwd;
+  const stripped = p.replace(/^(?:\.\.\/)+/, "");
+  if (stripped !== p) {
+    const fromCwdStripped = resolve(process.cwd(), stripped);
+    if (existsSync(fromCwdStripped)) return fromCwdStripped;
+  }
+  return fromService;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const files = envList(env.DEPLOYMENTS_FILES || env.DEPLOYMENTS_FILE);
   const deployments = (files.length ? files : ["../../contracts/deployments/sepolia.json"]).map((entry) => {
     const [p = "", ticker] = entry.split("#");
-    return { path: isAbsolute(p) ? p : resolve(SERVICE_ROOT, p), ticker: ticker?.trim().toLowerCase() || null };
+    return { path: resolveDeploymentPath(p), ticker: ticker?.trim().toLowerCase() || null };
   });
 
   let chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : NaN;
