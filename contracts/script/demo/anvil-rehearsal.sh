@@ -2,6 +2,7 @@
 # Full broadcast rehearsal of `make demo-sepolia` against a local anvil fork of Sepolia: every step is a separate
 # `forge script --broadcast` process (as on Sepolia), blocks are mined instead of waited for, and the export
 # collects real tx hashes. Uses throwaway keys funded through anvil cheats; nothing touches Sepolia.
+# `make -e`: these throwaway keys win over a .env the Makefile would otherwise load.
 #   SEPOLIA_RPC_URL=<rpc> script/demo/anvil-rehearsal.sh      (or: make demo-anvil)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
@@ -36,8 +37,8 @@ slot="$(cast index address "$funder" 9)"
 cast rpc anvil_setStorageAt "$usdc" "$slot" "$(cast to-uint256 200000000)" --rpc-url "$RPC_URL" > /dev/null
 echo "funder $funder USDC: $(cast call "$usdc" 'balanceOf(address)(uint256)' "$funder" --rpc-url "$RPC_URL")"
 
-make fund RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
-make demo-sepolia RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
-make resume RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
-make export-json DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
+make -e fund RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
+make -e demo-sepolia RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
+make -e resume RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
+make -e export-json DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
 echo "anvil rehearsal done: $DEPLOYMENTS_FILE"

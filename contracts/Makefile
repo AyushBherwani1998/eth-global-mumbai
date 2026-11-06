@@ -92,4 +92,5 @@ abis:
 	@echo "wrote $$(ls abis/*.json | wc -l) ABIs to abis/"
 
 abis-check: abis
-	git diff --exit-code -- abis
+	@test -z "$$(git status --porcelain -- abis)" || \
+		{ git status --short -- abis; echo "abis/ is out of date: run make abis and commit it"; exit 1; }
