@@ -1,9 +1,13 @@
 # Listing Day: screen plan
 
-Derived from [`plan.md`](./plan.md) §9 (screens), §4 (IPO mechanics), §5 (lifecycle), §7 (ENS), §8 (World ID) and §12 (demo script).
+Derived from [`plan.md`](./plan.md) §10 (screens), §4 (IPO mechanics and quote currency), §5 (lifecycle), §7 (ENS), §8 (World ID) and §13 (demo script).
 Mobile-first Next.js PWA, wagmi + viem. **All reads go through Anon-RPC; writes go through the wallet.**
 
-Demo numbers used below: 110,000 shares (90,000 auctioned, 20,000 LP), issue 100 mUSDC, range 80–190, clears ~110, listing band 104.5–115.5.
+**Quote currency:** Circle **Sepolia USDC** `0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238` (6 dec). There is no mint; test funds come from the [Circle faucet](https://faucet.circle.com/) (20 USDC per address every 2 h).
+
+**Price display:** prices are shown **per 1,000-share lot** ("1.10 USDC / lot"), with the per-share value to 5 decimals as secondary text. plan.md's "points" map 1:1: 100 points = 1.00 USDC / lot = 0.001 USDC / share.
+
+Demo numbers used below: 110,000 shares (90,000 auctioned, 20,000 LP), issue 1.00 USDC / lot, range 0.80–1.90, cap 20 USDC per applicant, required raise 45 of 90 USDC, clears ~1.10, listing band 1.045–1.155.
 
 ## Overview
 
@@ -34,7 +38,7 @@ Two things to settle before building:
 - Wallet button: Connect (MetaMask injected / WalletConnect) → shows `0x12…ab` or ENS name, tap → disconnect sheet
 - Network chip: "Sepolia". If the wrong chain, show a "Switch to Sepolia" button
 - **Anon-RPC badge:** "Reads via Tor · 100%" (anon reads / total reads). Tap → privacy sheet
-- mUSDC faucet button (`mUSDC.mint(to, 10,000)`), only when connected
+- **Get test USDC** link to faucet.circle.com, shown when the connected wallet's USDC balance is below the 20 USDC cap (one faucet request covers a full application)
 
 **Privacy sheet (from the badge)**
 - Transport name (Tor-js / Nox), reads via Anon-RPC count, direct reads count (must be 0), last error
@@ -50,7 +54,8 @@ Two things to settle before building:
 - [ ] Read counter (per-transport) + badge + privacy sheet
 - [ ] **No silent fallback:** on Anon-RPC failure, show an error state with Retry, never a direct RPC
 - [ ] Wallet connect (MetaMask in-app browser + WalletConnect), wrong-network guard
-- [ ] mUSDC faucet button
+- [ ] "Get test USDC" faucet link when balance < cap
+- [ ] Shared formatters: USDC with 6 decimals; prices as "X.XX USDC / lot" + per-share to 5 decimals
 - [ ] Tx toast: pending → confirmed / reverted, with error names decoded from ABIs (`BidAboveCap`, `CapExceeded`, `NotEligible`, `OutOfBand`, …) and a Sepolia Etherscan link
 - [ ] Store every app-sent tx receipt (incl. `status = 0`) locally; the chart markers need these
 - [ ] Hide the Console tab unless the wallet owns a ticker
@@ -92,7 +97,7 @@ Two things to settle before building:
 
 **Purpose:** see the offer and place a CCA bid.
 
-**Data:** ENS records (auction address from `listingday.auction` only), CCA state (floor, clearing price, `currencyRaised`, `requiredCurrencyRaised`, start/end/claim blocks), `ClearingPriceUpdated` / checkpoints, eligibility module's committed total for the wallet (or human key), mUSDC balance and allowance.
+**Data:** ENS records (auction address from `listingday.auction` only), CCA state (floor, clearing price, `currencyRaised`, `requiredCurrencyRaised`, start/end/claim blocks), `ClearingPriceUpdated` / checkpoints, eligibility module's committed total for the wallet (or human key), USDC balance, USDC → Permit2 allowance and Permit2 → auction allowance.
 
 **Header**
 - Ticker, ENS name, status chip, description, url
@@ -100,28 +105,31 @@ Two things to settle before building:
 
 **Offer facts**
 - Total supply 110,000 · Auctioned 90,000 · LP reserve 20,000
-- Issue price 100 mUSDC · Range 80–190 (floor 80, cap 190)
-- Per-applicant cap 200,000 mUSDC
-- Raise progress bar: `currencyRaised` / `requiredCurrencyRaised` ("graduates at 50%")
+- Issue price 1.00 USDC / lot · Range 0.80–1.90 USDC / lot (floor 0.80, cap 1.90)
+- Per-applicant cap: "20 USDC per applicant"
+- Raise progress bar: `currencyRaised` / `requiredCurrencyRaised` ("graduates at 45 of 90 USDC")
 - Phase + countdown: "Starts in N blocks" / "Ends in ~mm:ss (block X)" / "Claim from block Y"
 - Current clearing price (big number)
 
 **Clearing chart:** Lightweight Charts line of clearing price per block, with floor (80) and cap (190) price lines and the TradingView attribution logo.
 
 **Bid sheet (bottom sheet, opens from "Place bid")**
-- Input: **Budget** (mUSDC), with "Max" = min(balance, cap remaining)
-- Input: **Max price per share** (mUSDC), with a slider from 80 to 190
+- Input: **Budget** (USDC), with "Max" = min(balance, cap remaining)
+- Input: **Max price** (USDC / lot), with a slider from 0.80 to 1.90; per-share value shown underneath
 - Derived, read-only:
   - Shares if filled at your max: budget / max price
   - Shares at current clearing: budget / clearing
   - Cap remaining: cap − already committed (exits don't refund cap; say so)
-  - mUSDC balance
+  - USDC balance (with "Get test USDC" if below the budget)
 - Warnings (inline, non-blocking):
-  - Max price > 190 → "Above the 190 cap. This bid will revert `BidAboveCap`." Keep the button enabled so the demo can show the revert.
+  - Max price > 1.90 / lot → "Above the 1.90 cap. This bid will revert `BidAboveCap`." Keep the button enabled so the demo can show the revert.
   - Budget > cap remaining → "Will revert `CapExceeded`"
   - Max price < current clearing → "Below clearing; you'll be outbid unless it falls"
 - Phase 2 only: World verify row (see 2a). Submit stays disabled until a valid voucher exists.
-- Buttons: **Approve mUSDC** (only if allowance is short; confirm Permit2 vs direct approval in Gate 0) → **Submit bid** (`submitBid(maxPriceQ96, amount, owner, hookData)`)
+- Buttons, shown as a 3-step progress row so a first-time bidder knows why there are three wallet prompts:
+  1. **Enable USDC** → `USDC.approve(Permit2, max)` (once per wallet; skip if already approved)
+  2. **Approve for this auction** → `Permit2.approve(USDC, auction, amount, expiration)` (skip if the allowance covers the budget)
+  3. **Submit bid** → `submitBid(maxPriceQ96, amount, owner, hookData)`
 
 **States:** draft ("Auction not started"), live, ended-awaiting-clear, graduated ("Listed at 110 → View market"), not graduated ("Refunding → My bids").
 
@@ -129,10 +137,10 @@ Two things to settle before building:
 - [ ] Resolve auction/hook/policy/token from ENS only; render the "Resolved from ENS" panel
 - [ ] Read CCA state + block countdowns
 - [ ] Clearing chart from `ClearingPriceUpdated` / checkpoint logs
-- [ ] Bid sheet: budget + max price inputs, ₹-per-share → `maxPriceQ96` conversion, derived share estimates
+- [ ] Bid sheet: budget + max price inputs, USDC-per-lot → per-share → `maxPriceQ96` conversion (`P_usdcPerShare × 10^6 / 10^18 × 2^96`), derived share estimates
 - [ ] Read committed total from the eligibility module → cap remaining
 - [ ] Inline warnings for cap (190), per-applicant cap and below-clearing; don't block submission
-- [ ] Approve flow + `submitBid` with `hookData` (empty in Phase 1, voucher in Phase 2)
+- [ ] 3-step approve flow (USDC → Permit2, Permit2 → auction) that skips steps already done, then `submitBid` with `hookData` (empty in Phase 1, voucher in Phase 2)
 - [ ] Decoded revert toast; record the receipt
 - [ ] Phase-dependent CTAs (not started / live / graduated / refunding)
 
@@ -166,12 +174,12 @@ Two things to settle before building:
 
 **Auction summary card (per IPO)**
 - Final or current clearing price, graduated yes/no, claim block countdown
-- Totals: committed, filled shares, refundable mUSDC
+- Totals: committed, filled shares, refundable USDC
 
 **Per bid row**
 - Bid ID, ticker, budget, max price, submitted block/time (IST)
 - State chip: **Active** (above clearing) · **Outbid** (below clearing) · **Partial** (at clearing tick) · **Filled** · **Exited / refunded** · **Claimed**
-- Filled shares, refund amount (mUSDC)
+- Filled shares, refund amount (USDC)
 
 **Buttons / actions** (shown only when valid)
 - **Exit bid** → `exitBid` (outbid after end, or auction not graduated)
@@ -200,7 +208,7 @@ Two things to settle before building:
 
 **Header**
 - Ticker, last price (big), % vs issue (100), % vs reference
-- Band line: "Listing band ±5% · 104.5–115.5" (or "Normal ±20% · 88–132", "Surveillance ±5%", "Directional: ref 90", "Halted")
+- Band line: "Listing band ±5% · 1.045–1.155" (or "Normal ±20% · 0.88–1.32", "Surveillance ±5%", "Directional: ref 0.90", "Halted"), all in USDC / lot
 
 **Chart (Lightweight Charts v5)**
 - Pool price line (from `Swap` logs)
@@ -213,13 +221,13 @@ Two things to settle before building:
 
 **Trade sheet (bottom sheet)**
 - Toggle: **Buy / Sell**
-- Input: amount in (mUSDC for buy, ACME for sell); balance + Max
+- Input: amount in (USDC for buy, ACME for sell); balance + Max
 - Output (read-only): quote from Quoter, price after swap, price impact
 - Slippage setting (default 0.5%)
 - **Pre-check row:**
   - In band: "Within band ✓"
-  - "Would revert: price after 117.0 is outside the band (max 115.5)"
-  - Directional: "Would revert: widens the gap from reference 90"
+  - "Would revert: price after 1.17 is outside the band (max 1.155)"
+  - Directional: "Would revert: widens the gap from reference 0.90"
   - Halted: "Trading halted. Swaps revert."
 - Buttons: **Approve** (Permit2) → **Swap** (Universal Router). On a predicted revert, the button reads "Submit anyway (will revert)" so the demo can produce the on-chart marker.
 
@@ -230,7 +238,8 @@ Two things to settle before building:
 **TODO**
 - [ ] Resolve pool + hook from ENS; read slot0 via StateView
 - [ ] Chart: pool line, reference line, band price lines, baseline series, markers, attribution
-- [ ] Band math client-side mirroring `ListingHook` (sqrtPriceX96, token order) for the pre-check
+- [ ] Band math client-side mirroring `ListingHook` for the pre-check. **USDC is almost always `currency0`**, so the raw pool price is ACME-per-USDC (inverted): a buy is `zeroForOne`, "price up" means `sqrtPriceX96` goes down, and upper/lower bounds swap. Read the token order from the PoolKey; don't assume it
+- [ ] One price helper (sqrtPriceX96 + token order → USDC / lot) shared by the header, chart, quotes and pre-check
 - [ ] Quoter integration for buy/sell quotes
 - [ ] Permit2 approve + Universal Router v4 swap encoding
 - [ ] "Submit anyway" path; save the reverted receipt → marker
@@ -248,10 +257,10 @@ Two things to settle before building:
 **States and colours**
 | State | Copy | Colour |
 |---|---|---|
-| Listing band | "Listing day · ±5% · 104.5–115.5" | Blue |
-| Normal | "Normal · ±20% · 88–132" | Green |
+| Listing band | "Listing day · ±5% · 1.045–1.155" | Blue |
+| Normal | "Normal · ±20% · 0.88–1.32" | Green |
 | Surveillance | "Surveillance · ±5%" | Amber |
-| Directional | "Directional · only trades toward ref 90" | Amber |
+| Directional | "Directional · only trades toward ref 0.90" | Amber |
 | Halted | "Halted · swaps revert · LP exits open" | Red |
 
 Each shows "since 14:32 IST". Tap → details sheet: policy version, `asOf`, ref price, band bps, mode, halted, cool-off, ENS status, CRE report tx link.
@@ -270,10 +279,10 @@ Each shows "since 14:32 IST". Tap → details sheet: policy version, `asOf`, ref
 **Purpose:** holdings and PnL.
 
 **Fields**
-- Per ticker: ACME balance, avg cost (= clearing price for auction fills), last price, value in mUSDC
-- PnL vs issue price (100) and vs clearing (110), in mUSDC and %
+- Per ticker: ACME balance, avg cost (= clearing price for auction fills), last price, value in USDC
+- PnL vs issue price (1.00 / lot) and vs clearing (1.10 / lot), in USDC and %
 - Unclaimed shares (link to My bids)
-- mUSDC balance + faucet
+- USDC balance + "Get test USDC" link
 - LP positions (if the wallet holds any): range, liquidity, fees, **Remove liquidity** button
 
 **TODO**
@@ -292,13 +301,15 @@ Each shows "since 14:32 IST". Tap → details sheet: policy version, `asOf`, ref
 Lay it out as a **stepper** with the current lifecycle step expanded: Create → Ticker → Policy → Launch → Monitor → Graduate → Demo controls.
 
 ### 7.1 Create listing
-- Fields: token name ("Acme SME"), symbol ("ACME"), total supply (110,000), auctioned (90,000), LP reserve (20,000, derived), issue price (100), floor % (80 → 80), cap % (190 → 190), per-applicant cap (200,000), % of raise to LP (20%), graduation threshold (50% of target), start block / duration, claim block, unsold-token recipient (issuer treasury)
-- Read-only preview: floor and cap in Q96, target raise, required raise, "unsold → issuer treasury"
+- Fields: token name ("Acme SME"), symbol ("ACME"), total supply (110,000), auctioned (90,000), LP reserve (20,000, derived), issue price (1.00 USDC / lot), floor % (80 → 0.80), cap % (190 → 1.90), per-applicant cap (20 USDC), % of raise to LP (20%), graduation threshold (50% of target), start block / duration, claim block, unsold-token and leftover-USDC recipient (issuer treasury)
+- Quote currency: read-only "Sepolia USDC `0x1c7D…7238`" (used for both the auction and the pool; LBPStrategy reverts `CurrencyMismatch` otherwise)
+- Read-only preview: floor and cap in raw-unit Q96, target raise (90 USDC), required raise (45 USDC), predicted token order ("USDC is currency0"), "unsold → issuer treasury"
 - Button: **Save draft** (local)
 
 ### 7.2 Register ENS ticker
 - Input: label ("acme") with availability check → preview `acme.listingday.eth`
 - Owner: connected wallet (read-only)
+- Registering `listingday.eth` itself (one-off, usually by script) is paid in **ENS test USDC** `0x240b…14aa`, not Circle USDC. If the console does it, label the balance and the mint + approve buttons "ENS test USDC" so the two tokens aren't confused
 - Records editor: `addr`, `listingday.auction`, `listingday.pool`, `listingday.hook`, `listingday.policy`, `description`, `url`, `avatar`. Status is read-only here (receiver-owned)
 - Buttons: **Register ticker** · **Save records** · **Grant receiver status role** (`ROLE_SET_TEXT` scoped to `listingday.status`) · **Test role denial** (receiver tries to set `url` → shows the revert; ENS judging evidence)
 - Link: "View in ENS app"
@@ -349,7 +360,7 @@ Lay it out as a **stepper** with the current lifecycle step expanded: Create →
 
 ## Suggested build order (Lane B)
 
-Matches plan.md §13 and the cut list:
+Matches plan.md §14 and the cut list:
 
 1. Shell + Anon-RPC badge (Gate 0 decides everything else)
 2. IPO list → IPO detail + bid sheet (Phase 1, no World) → My bids
