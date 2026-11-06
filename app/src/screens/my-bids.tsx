@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Gavel, Undo2, Wallet } from "lucide-react";
-import { TabHeader } from "@/components/shell";
+
+import { AppBar } from "@/components/shell";
 import { Button, Card, Empty, Pill, StatusChip, TickerAvatar, cx } from "@/components/ui";
 import { useApp } from "@/components/providers";
 import { blockNo, blocksToDuration, dateTimeIST, lotFixed, shares, usdc } from "@/lib/format";
@@ -32,7 +32,7 @@ function useBidActions() {
       kind === "claim"
         ? `Claim ${shares(bid.filledShares)} ${ipo.symbol}`
         : kind === "exitPartial"
-          ? `Exit partial bid #${bid.id} · refund ${usdc(bid.refund)} USDC`
+          ? `Settle bid #${bid.id} · refund ${usdc(bid.refund)} USDC`
           : `Exit bid #${bid.id} · refund ${usdc(bid.refund)} USDC`;
     const r = await sendTx({ title, success: kind === "claim" ? "Shares claimed" : "Refund sent" });
     if (r.ok) setOver((o) => ({ ...o, [bid.id]: kind === "claim" ? "claimed" : kind === "exitPartial" ? "filled" : "exited" }));
@@ -49,11 +49,11 @@ export function BidRow({ bid, ipo, state, onAction }: { bid: Bid; ipo: Ipo; stat
     <div className="p-3">
       <div className="flex items-start justify-between gap-2">
         <div>
-          <p className="num text-[15px] font-medium text-strong">
-            {usdc(bid.budget)} USDC <span className="text-muted">up to</span> {lotFixed(bid.maxPrice)}
-            <span className="text-xs text-muted"> / lot</span>
+          <p className="num text-[15px] font-medium text-text">
+            {usdc(bid.budget)} USDC <span className="text-text-2">up to</span> {lotFixed(bid.maxPrice)}
+            <span className="text-[13px] text-text-2"> / lot</span>
           </p>
-          <p className="num text-xs text-muted">
+          <p className="num text-[13px] text-text-2">
             #{bid.id} · block {blockNo(bid.submittedBlock)} · {dateTimeIST(bid.submittedAt)}
           </p>
         </div>
@@ -62,35 +62,35 @@ export function BidRow({ bid, ipo, state, onAction }: { bid: Bid; ipo: Ipo; stat
       {(bid.filledShares > 0 || bid.refund > 0) && (
         <p className="num mt-1.5 text-[13px]">
           {bid.filledShares > 0 && (
-            <span className="text-strong">
+            <span className="text-text">
               {shares(bid.filledShares)} shares filled{bid.refund > 0 && s !== "outbid" ? " · " : ""}
             </span>
           )}
           {bid.refund > 0 && s !== "exited" && s !== "claimed" && <span className="text-warn">{usdc(bid.refund)} USDC refundable</span>}
-          {s === "exited" && <span className="text-muted">{usdc(bid.refund)} USDC refunded</span>}
+          {s === "exited" && <span className="text-text-2">{usdc(bid.refund)} USDC refunded</span>}
         </p>
       )}
       {onAction && (
         <div className="mt-2 flex gap-2">
-          {s === "outbid" && !ended && <p className="text-xs text-muted">Below clearing. Exit opens when the auction ends.</p>}
+          {s === "outbid" && !ended && <p className="text-[13px] text-text-2">Below clearing. Exit opens when the auction ends.</p>}
           {s === "outbid" && ended && (
-            <Button tone="neutral" variant="outline" className="py-2 text-sm" onClick={() => onAction("exit")}>
-              Exit bid
+            <Button tone="neutral" variant="outline" className="py-2 text-[14px]" onClick={() => onAction("exit")}>
+              Refund
             </Button>
           )}
           {s === "refundable" && (
-            <Button tone="neutral" variant="outline" className="py-2 text-sm" onClick={() => onAction("exit")}>
-              <Undo2 className="size-4" /> Exit bid
+            <Button tone="neutral" variant="outline" className="py-2 text-[14px]" onClick={() => onAction("exit")}>
+              Refund
             </Button>
           )}
           {s === "partial" && (
-            <Button tone="neutral" variant="outline" className="py-2 text-sm" onClick={() => onAction("exitPartial")}>
-              Exit partial
+            <Button tone="neutral" variant="outline" className="py-2 text-[14px]" onClick={() => onAction("exitPartial")}>
+              Settle
             </Button>
           )}
           {s === "filled" && claimOpen && (
-            <Button className="py-2 text-sm" onClick={() => onAction("claim")}>
-              Claim shares
+            <Button className="py-2 text-[14px]" onClick={() => onAction("claim")}>
+              Collect shares
             </Button>
           )}
         </div>
@@ -107,12 +107,12 @@ export function MyBidsScreen() {
   if (!connected)
     return (
       <>
-        <TabHeader title="My bids" />
+        <AppBar title="Orders" />
         <Empty
-          icon={<Wallet className="size-6" />}
+          
           title="Connect a wallet"
-          body="Your bids are read from the auction's BidSubmitted logs for your address."
-          action={<Button onClick={connect}>Connect</Button>}
+          body="Sign in to see your IPO applications and trades."
+          action={<Button variant="secondary" onClick={connect}>Sign in</Button>}
         />
       </>
     );
@@ -123,26 +123,26 @@ export function MyBidsScreen() {
 
   return (
     <>
-      <TabHeader title="My bids" />
-      <main className="px-4">
+      <AppBar title="Orders" />
+      <main>
         {tickers.length === 0 ? (
-          <Empty icon={<Gavel className="size-6" />} title="You haven't applied to any IPO" body="Live auctions are on the IPOs tab." />
+          <Empty  title="No applications yet" body="IPOs that are open now are under Markets, IPO." />
         ) : (
           <>
             {claimable.length > 1 && (
               <Card className="mb-4 flex items-center gap-3 p-3">
                 <div className="flex-1">
-                  <p className="text-sm font-semibold text-strong">{claimable.length} allotments ready</p>
-                  <p className="text-xs text-muted">One transaction with claimTokensBatch</p>
+                  <p className="text-[14px] font-medium text-text">{claimable.length} allotments ready</p>
+                  <p className="text-[14px] text-text-2">One confirmation collects all of them</p>
                 </div>
                 <Button
-                  className="py-2 text-sm"
+                  className="py-2 text-[14px]"
                   onClick={async () => {
-                    const r = await sendTx({ title: `Claim all (${claimable.length} bids)`, success: "All shares claimed" });
+                    const r = await sendTx({ title: `Collect all (${claimable.length} bids)`, success: "All shares claimed" });
                     if (r.ok) setOver((o) => ({ ...o, ...Object.fromEntries(claimable.map((b) => [b.id, "claimed"])) }));
                   }}
                 >
-                  Claim all
+                  Collect all
                 </Button>
               </Card>
             )}
@@ -188,8 +188,8 @@ function AuctionGroup({
       <Link href={hrefFor(ipo)} className="flex items-center gap-3 border-b border-line p-3">
         <TickerAvatar ipo={ipo} size={36} />
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-strong">{ipo.name}</p>
-          <p className="num text-xs text-muted">
+          <p className="truncate font-medium text-text">{ipo.name}</p>
+          <p className="num text-[13px] text-text-2">
             {live ? "Clearing now" : "Cleared at"} {lotFixed(ipo.clearingPrice!)} USDC / lot
             {live && ` · ends in ~${blocksToDuration(ipo.endBlock! - CURRENT_BLOCK)}`}
           </p>
@@ -197,20 +197,20 @@ function AuctionGroup({
         <StatusChip ipo={ipo} />
       </Link>
       {notGraduated && (
-        <div className="flex items-center gap-3 border-b border-line bg-warn-soft p-3">
+        <div className="flex items-center gap-3 border-b border-line bg-surface-2 p-3">
           <p className="flex-1 text-[13px] text-warn">
             Raise ended below {OFFER.requiredRaise} USDC. Every bid is refundable.
           </p>
           {openRefunds.length > 0 && (
             <Button
               tone="neutral"
-              className="py-1.5 text-sm"
+              className="py-1.5 text-[14px]"
               onClick={async () => {
-                const r = await sendTx({ title: `Exit all ${ipo.symbol} bids`, success: "Refunds sent" });
+                const r = await sendTx({ title: `Refund all ${ipo.symbol} bids`, success: "Refunds sent" });
                 if (r.ok) setOver((o) => ({ ...o, ...Object.fromEntries(openRefunds.map((b) => [b.id, "exited"])) }));
               }}
             >
-              Exit all
+              Refund all
             </Button>
           )}
         </div>
@@ -232,9 +232,9 @@ function AuctionGroup({
 function Stat({ k, v, sub, tone }: { k: string; v: string; sub: string; tone?: "warn" }) {
   return (
     <div>
-      <p className="text-[11px] text-muted">{k}</p>
-      <p className={cx("num text-[15px] font-semibold", tone === "warn" ? "text-warn" : "text-strong")}>{v}</p>
-      <p className="text-[11px] text-muted">{sub}</p>
+      <p className="text-[13px] text-text-2">{k}</p>
+      <p className={cx("num text-[15px] font-medium", tone === "warn" ? "text-warn" : "text-text")}>{v}</p>
+      <p className="text-[13px] text-text-2">{sub}</p>
     </div>
   );
 }

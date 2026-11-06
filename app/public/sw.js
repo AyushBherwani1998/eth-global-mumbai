@@ -1,8 +1,8 @@
 // Minimal service worker: makes the app installable and keeps the shell
 // usable on a flaky connection. Chain data is never cached here; reads go
 // through Anon-RPC and must be live.
-const CACHE = "listing-day-shell-v1";
-const SHELL = ["/", "/bids", "/market", "/portfolio"];
+const CACHE = "listing-day-shell-v2";
+const SHELL = ["/", "/orders", "/portfolio", "/about"];
 
 self.addEventListener("install", (e) => {
   e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));

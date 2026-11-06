@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { MyBidsScreen } from "@/screens/my-bids";
 
-export const metadata: Metadata = { title: "My bids" };
+export const metadata: Metadata = { title: "Orders" };
 
-export default function BidsPage() {
+export default function OrdersPage() {
   return <MyBidsScreen />;
 }

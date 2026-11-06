@@ -1,6 +1,8 @@
 import { ImageResponse } from "next/og";
 
-/** App icon (PNG) for the manifest, favicon and Apple touch icon. */
+const BRAND = "#5367FF";
+
+/** App icon (PNG) for the manifest, favicon and Apple touch icon. Flat brand mark, no gradient. */
 export function iconImage(size: number, { maskable = false } = {}) {
   const pad = maskable ? size * 0.18 : size * 0.1;
   const inner = size - pad * 2;
@@ -13,7 +15,7 @@ export function iconImage(size: number, { maskable = false } = {}) {
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: maskable ? "linear-gradient(135deg, #5076ee, #00b386)" : "transparent",
+          background: maskable ? BRAND : "transparent",
         }}
       >
         <div
@@ -21,7 +23,7 @@ export function iconImage(size: number, { maskable = false } = {}) {
             width: inner,
             height: inner,
             borderRadius: maskable ? 0 : inner,
-            background: "linear-gradient(135deg, #5076ee, #00b386)",
+            background: BRAND,
             display: "flex",
             alignItems: "center",
             justifyContent: "center",

@@ -96,7 +96,7 @@ export function TradeSheet({
         </Button>
       }
     >
-      <div className="grid grid-cols-2 gap-1 rounded-full bg-subtle p-1">
+      <div className="grid grid-cols-2 gap-1 rounded-full bg-surface-2 p-1">
         {(["buy", "sell"] as const).map((s) => (
           <button
             key={s}
@@ -105,8 +105,8 @@ export function TradeSheet({
               setAmount(s === "buy" ? "1" : "1000");
             }}
             className={cx(
-              "rounded-full py-2 text-sm font-semibold capitalize transition-colors",
-              side === s ? (s === "buy" ? "bg-gain text-white" : "bg-loss text-white") : "text-muted",
+              "rounded-full py-2 text-[14px] font-medium capitalize transition-colors",
+              side === s ? (s === "buy" ? "bg-gain text-white" : "bg-loss text-white") : "text-text-2",
             )}
           >
             {s}
@@ -114,8 +114,8 @@ export function TradeSheet({
         ))}
       </div>
 
-      <label className="mt-3 block rounded-[12px] border border-line-strong p-3 focus-within:border-gain">
-        <span className="flex justify-between text-xs text-muted">
+      <label className="mt-3 block rounded-[10px] border border-line-strong p-3 focus-within:border-text">
+        <span className="flex justify-between text-[13px] text-text-2">
           <span>You pay</span>
           <span className="num">
             Balance {side === "buy" ? `${usdc(usdcBalance)} USDC` : `${shares(held)} ${ipo.symbol}`}
@@ -126,10 +126,10 @@ export function TradeSheet({
             inputMode="decimal"
             value={amount}
             onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-            className="num w-full bg-transparent text-[24px] font-semibold text-strong outline-none"
+            className="num w-full bg-transparent text-[24px] font-medium text-text outline-none"
           />
-          <span className="text-sm font-semibold text-strong">{side === "buy" ? "USDC" : ipo.symbol}</span>
-          <button onClick={() => setAmount(String(balance))} className="rounded-full bg-gain-soft px-2 py-0.5 text-xs font-semibold text-gain">
+          <span className="text-[14px] font-medium text-text">{side === "buy" ? "USDC" : ipo.symbol}</span>
+          <button onClick={() => setAmount(String(balance))} className="rounded-full bg-surface-2 px-2 py-0.5 text-[13px] font-medium text-gain-text">
             Max
           </button>
         </span>
@@ -147,7 +147,7 @@ export function TradeSheet({
           v={<span className={Math.abs(q.impactPct) > 3 ? "text-warn" : undefined}>{q.impactPct.toFixed(2)}%</span>}
         />
         <div className="flex items-center justify-between py-2">
-          <span className="text-sm text-muted">Slippage</span>
+          <span className="text-[14px] text-text-2">Slippage</span>
           <Segmented
             size="sm"
             value={slippage}
@@ -163,8 +163,8 @@ export function TradeSheet({
 
       <div
         className={cx(
-          "mt-3 flex items-start gap-2 rounded-[12px] px-3 py-2.5 text-[13px]",
-          v.ok ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
+          "mt-3 flex items-start gap-2 rounded-[10px] px-3 py-2.5 text-[13px]",
+          v.ok ? "bg-surface-2 text-gain-text" : "bg-surface-2 text-loss-text",
         )}
       >
         {v.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
@@ -184,7 +184,7 @@ export function TradeSheet({
         </span>
       </div>
       {!v.ok && (
-        <p className="mt-2 text-xs text-muted">
+        <p className="mt-2 text-[13px] text-text-2">
           You can still submit. The ListingHook will revert it onchain and it shows up as a red marker on the chart.
         </p>
       )}

@@ -110,11 +110,11 @@ export function BidSheet({
             inputMode="decimal"
             value={budget}
             onChange={(e) => setBudget(e.target.value.replace(/[^0-9.]/g, ""))}
-            className="num w-full bg-transparent text-[22px] font-semibold text-strong outline-none"
+            className="num w-full bg-transparent text-[22px] font-medium text-text outline-none"
           />
           <button
             onClick={() => setBudget(String(Math.min(usdcBalance, capLeft)))}
-            className="rounded-full bg-gain-soft px-2 py-0.5 text-xs font-semibold text-gain"
+            className="rounded-full bg-surface-2 px-2 py-0.5 text-[13px] font-medium text-gain-text"
           >
             Max
           </button>
@@ -124,7 +124,7 @@ export function BidSheet({
             inputMode="decimal"
             value={maxPrice}
             onChange={(e) => setMaxPrice(e.target.value.replace(/[^0-9.]/g, ""))}
-            className={cx("num w-full bg-transparent text-[22px] font-semibold outline-none", mp > OFFER.capPrice ? "text-loss" : "text-strong")}
+            className={cx("num w-full bg-transparent text-[22px] font-medium outline-none", mp > OFFER.capPrice ? "text-loss-text" : "text-text")}
           />
         </Field>
       </div>
@@ -139,12 +139,12 @@ export function BidSheet({
           onChange={(e) => setMaxPrice(Number(e.target.value).toFixed(2))}
           className="w-full"
         />
-        <div className="num flex justify-between text-[11px] text-muted">
+        <div className="num flex justify-between text-[13px] text-text-2">
           <span>Floor {lotFixed(OFFER.floorPrice)}</span>
           <span>Clearing {lotFixed(clearing)}</span>
-          <span className={cx(mp > OFFER.capPrice && "font-semibold text-loss")}>Cap {lotFixed(OFFER.capPrice)}</span>
+          <span className={cx(mp > OFFER.capPrice && "font-medium text-loss-text")}>Cap {lotFixed(OFFER.capPrice)}</span>
         </div>
-        <p className="num mt-1 text-xs text-muted">= {perShare(mp)} USDC per share</p>
+        <p className="num mt-1 text-[13px] text-text-2">= {perShare(mp)} USDC per share</p>
       </div>
 
       {warnings.length > 0 && (
@@ -154,7 +154,7 @@ export function BidSheet({
               key={w.text}
               className={cx(
                 "flex items-start gap-2 rounded-[8px] px-3 py-2 text-[13px]",
-                w.revert ? "bg-loss-soft text-loss" : "bg-warn-soft text-warn",
+                w.revert ? "bg-surface-2 text-loss-text" : "bg-surface-2 text-warn",
               )}
             >
               <AlertTriangle className="mt-0.5 size-4 shrink-0" />
@@ -173,7 +173,7 @@ export function BidSheet({
           v={`${usdc(usdcBalance)} USDC`}
           sub={
             b > usdcBalance ? (
-              <a href={FAUCET_URL} target="_blank" rel="noreferrer" className="font-medium text-brand">
+              <a href={FAUCET_URL} target="_blank" rel="noreferrer" className="font-medium text-gain-text">
                 Get test USDC
               </a>
             ) : undefined
@@ -182,15 +182,15 @@ export function BidSheet({
       </div>
 
       {needsHuman && (
-        <button onClick={onVerify} className="mt-3 flex w-full items-center gap-3 rounded-[12px] border border-line p-3 text-left">
-          <span className={cx("flex size-10 items-center justify-center rounded-full", worldState === "verified" ? "bg-gain-soft text-gain" : "bg-subtle text-muted")}>
+        <button onClick={onVerify} className="mt-3 flex w-full items-center gap-3 rounded-[10px] border border-line p-3 text-left">
+          <span className={cx("flex size-10 items-center justify-center rounded-full", worldState === "verified" ? "bg-surface-2 text-gain-text" : "bg-surface-2 text-text-2")}>
             {worldState === "verified" ? <ShieldCheck className="size-5" /> : <ScanFace className="size-5" />}
           </span>
           <span className="flex-1">
-            <span className="block text-sm font-semibold text-strong">
+            <span className="block text-[14px] font-medium text-text">
               {worldState === "verified" ? "Verified: one applicant" : "Verify you're one applicant"}
             </span>
-            <span className="block text-xs text-muted">
+            <span className="block text-[13px] text-text-2">
               {worldState === "verified"
                 ? "Pass rides in hookData with this bid"
                 : worldState === "denied"
@@ -200,7 +200,7 @@ export function BidSheet({
                     : "Required to bid on this IPO"}
             </span>
           </span>
-          <ChevronRight className="size-4 text-muted" />
+          <ChevronRight className="size-4 text-text-2" />
         </button>
       )}
     </Sheet>
@@ -209,10 +209,10 @@ export function BidSheet({
 
 function Field({ label, suffix, children }: { label: string; suffix: string; children: React.ReactNode }) {
   return (
-    <label className="block rounded-[12px] border border-line-strong p-3 focus-within:border-gain">
-      <span className="text-xs text-muted">{label}</span>
+    <label className="block rounded-[10px] border border-line-strong p-3 focus-within:border-text">
+      <span className="text-[13px] text-text-2">{label}</span>
       <span className="flex items-center gap-2">{children}</span>
-      <span className="text-xs text-muted">{suffix}</span>
+      <span className="text-[13px] text-text-2">{suffix}</span>
     </label>
   );
 }
@@ -229,13 +229,13 @@ function Steps({ step }: { step: number }) {
           <li key={t} className="flex flex-1 items-center gap-1.5">
             <span
               className={cx(
-                "flex size-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold",
-                done ? "bg-gain text-white" : current ? "bg-strong text-bg" : "bg-subtle text-muted",
+                "flex size-5 shrink-0 items-center justify-center rounded-full text-[13px] font-medium",
+                done ? "bg-gain text-white" : current ? "bg-strong text-bg" : "bg-surface-2 text-text-2",
               )}
             >
               {done ? <Check className="size-3" /> : n}
             </span>
-            <span className={cx("text-[11px] leading-tight", current ? "font-semibold text-strong" : "text-muted")}>{t}</span>
+            <span className={cx("text-[13px] leading-tight", current ? "font-medium text-text" : "text-text-2")}>{t}</span>
           </li>
         );
       })}

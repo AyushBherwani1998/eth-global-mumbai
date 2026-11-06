@@ -41,25 +41,25 @@ export function WorldSheet({
 
   return (
     <Sheet open={open} onClose={onClose} title="One applicant check">
-      <p className="text-sm text-muted">
+      <p className="text-[14px] text-text-2">
         Each person can apply once per IPO. World ID proves you&apos;re a unique human. Only your uniqueness is checked;
         this is not KYC.
       </p>
 
-      <div className="mt-4 rounded-[12px] border border-line p-4">
+      <div className="mt-4 rounded-[10px] border border-line p-4">
         {state === "unverified" && (
-          <Body icon={<ScanFace className="size-6 text-brand" />} title="Not verified yet" body="Takes about 10 seconds in World App.">
+          <Body icon={<ScanFace className="size-6 text-gain-text" />} title="Not verified yet" body="Takes about 10 seconds in World App.">
             <Button tone="neutral" className="mt-3 w-full" onClick={verify}>
               Verify with World ID
             </Button>
           </Body>
         )}
         {state === "verifying" && (
-          <Body icon={<Loader2 className="size-6 animate-spin text-brand" />} title="Waiting for World…" body="Approve the request in World App, then come back here." />
+          <Body icon={<Loader2 className="size-6 animate-spin text-gain-text" />} title="Waiting for World…" body="Approve the request in World App, then come back here." />
         )}
         {state === "verified" && (
           <Body
-            icon={<ShieldCheck className="size-6 text-gain" />}
+            icon={<ShieldCheck className="size-6 text-gain-text" />}
             title={`Verified · pass expires in ${secondsToDuration(left)}`}
             body={`Verified: one application per person for ${symbol}.`}
           >
@@ -71,13 +71,13 @@ export function WorldSheet({
         )}
         {state === "denied" && (
           <Body
-            icon={<UserX className="size-6 text-loss" />}
+            icon={<UserX className="size-6 text-loss-text" />}
             title="Already applied"
             body={`This person already applied with 0xAB…CD for ${symbol}. No pass was issued, so bidding stays off.`}
           />
         )}
         {state === "cancelled" && (
-          <Body icon={<CircleSlash className="size-6 text-muted" />} title="Verification cancelled" body="Bidding stays off until you verify.">
+          <Body icon={<CircleSlash className="size-6 text-text-2" />} title="Verification cancelled" body="Bidding stays off until you verify.">
             <Button tone="neutral" variant="outline" className="mt-3 w-full" onClick={verify}>
               Retry
             </Button>
@@ -92,8 +92,8 @@ export function WorldSheet({
         )}
       </div>
 
-      <div className="mt-4 rounded-[12px] bg-subtle p-3">
-        <p className="mb-2 text-xs font-semibold tracking-wide text-muted uppercase">Preview state (mock)</p>
+      <div className="mt-4 rounded-[10px] bg-surface-2 p-3">
+        <p className="mb-2 text-[13px] font-medium tracking-wide text-text-2 uppercase">Preview state (mock)</p>
         <div className="no-scrollbar overflow-x-auto">
           <Segmented
             size="sm"
@@ -113,8 +113,8 @@ function Body({ icon, title, body, children }: { icon: React.ReactNode; title: s
       <div className="flex items-start gap-3">
         {icon}
         <div>
-          <p className="font-semibold text-strong">{title}</p>
-          <p className="text-[13px] text-muted">{body}</p>
+          <p className="font-medium text-text">{title}</p>
+          <p className="text-[13px] text-text-2">{body}</p>
         </div>
       </div>
       {children}

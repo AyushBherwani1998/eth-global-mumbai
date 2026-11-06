@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Check, ChevronDown, ExternalLink, Lock, Terminal } from "lucide-react";
-import { TabHeader } from "@/components/shell";
+import { Check, ChevronDown, ExternalLink, Terminal } from "lucide-react";
+import { DetailBar } from "@/components/shell";
 import { CircuitBanner } from "@/components/circuit-banner";
-import { TimeChart } from "@/components/time-chart";
+import { PriceChart } from "@/components/time-chart";
 import { Button, Card, CopyAddress, FilterChip, KV, Pill, TickerAvatar, cx } from "@/components/ui";
 import { useApp } from "@/components/providers";
 import { blockNo, lotFixed, shortAddr, shortHash, shares, timeIST, txUrl, usdc } from "@/lib/format";
@@ -41,15 +41,10 @@ export function ConsoleScreen({ ticker }: { ticker: string }) {
   if (!connected || !isIssuerFor.includes(ticker))
     return (
       <>
-        <TabHeader title="Console" />
-        <div className="flex flex-col items-center px-6 py-14 text-center">
-          <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-subtle text-muted">
-            <Lock className="size-6" />
-          </span>
-          <p className="font-semibold text-strong">Issuer only</p>
-          <p className="mt-1 text-sm text-muted">
-            The console for {ensName(ticker)} opens for its ENS owner, {shortAddr(ipo.records.addr)}.
-          </p>
+        <DetailBar fallback="/console" />
+        <div className="py-6">
+          <p className="t-list-title text-text">This console is for the owner of {ensName(ticker)}</p>
+          <p className="t-body mt-1 text-text-2">Sign in with the wallet {shortAddr(ipo.records.addr)} to manage this listing.</p>
         </div>
       </>
     );
@@ -64,8 +59,9 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 
   return (
     <>
-      <TabHeader title="Console" />
-      <main className="px-4">
+      <DetailBar fallback="/console" />
+      <main>
+        <h1 className="t-page-title mb-3">Console</h1>
         <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
           {isIssuerFor.map((t) => (
             <Link key={t} href={`/console/${t}`}>
@@ -76,8 +72,8 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
         <Card className="mt-3 flex items-center gap-3 p-3">
           <TickerAvatar ipo={ipo} size={40} />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-strong">{ipo.name}</p>
-            <p className="text-xs text-muted">{ensName(ipo.ticker)}</p>
+            <p className="truncate font-medium text-text">{ipo.name}</p>
+            <p className="text-[13px] text-text-2">{ensName(ipo.ticker)}</p>
           </div>
           <Pill tone={CONSOLE.runnerOnline ? "gain" : "loss"} dot={CONSOLE.runnerOnline}>
             {CONSOLE.runnerOnline ? "Runner online" : "Runner offline"}
@@ -94,8 +90,8 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
                 {i < STEPS.length - 1 && <span className={cx("absolute top-8 bottom-0 left-[13px] w-0.5", done ? "bg-gain" : "bg-line")} />}
                 <span
                   className={cx(
-                    "absolute top-3 left-0 flex size-7 items-center justify-center rounded-full text-xs font-bold",
-                    done ? "bg-gain text-white" : i === currentIdx ? "bg-strong text-bg" : "bg-subtle text-muted",
+                    "absolute top-3 left-0 flex size-7 items-center justify-center rounded-full text-[13px] font-medium",
+                    done ? "bg-gain text-white" : i === currentIdx ? "bg-strong text-bg" : "bg-surface-2 text-text-2",
                   )}
                 >
                   {done ? <Check className="size-4" /> : i + 1}
@@ -105,8 +101,8 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
                   onClick={() => setOpen(isOpen ? ("" as StepId) : s.id)}
                   className="flex w-full items-center justify-between py-3.5 text-left disabled:opacity-50"
                 >
-                  <span className={cx("text-[15px] font-semibold", i === currentIdx ? "text-strong" : "text-fg")}>{s.title}</span>
-                  <ChevronDown className={cx("size-4 text-muted transition-transform", isOpen && "rotate-180")} />
+                  <span className={cx("text-[15px] font-medium", i === currentIdx ? "text-text" : "text-text")}>{s.title}</span>
+                  <ChevronDown className={cx("size-4 text-text-2 transition-transform", isOpen && "rotate-180")} />
                 </button>
                 {isOpen && (
                   <div className="pb-4">
@@ -132,7 +128,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 function TxLink({ tx, label = "Sepolia tx" }: { tx?: string; label?: string }) {
   if (!tx) return null;
   return (
-    <a href={txUrl(tx)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-brand">
+    <a href={txUrl(tx)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-gain-text">
       {label} {shortHash(tx)} <ExternalLink className="size-3" />
     </a>
   );
@@ -154,7 +150,7 @@ function CreateStep({ ipo }: { ipo: Ipo }) {
         <KV k="Quote currency" v="Sepolia USDC" sub={<CopyAddress value={USDC_ADDRESS} />} />
         <KV k="Unsold → " v="Issuer treasury" />
       </div>
-      <div className="mt-2 rounded-[8px] bg-subtle p-3 font-mono text-[12px] leading-relaxed text-muted">
+      <div className="mt-2 rounded-[8px] bg-surface-2 p-3 font-mono text-[12px] leading-relaxed text-text-2">
         <p>floorPriceQ96 ≈ {sci(q96(OFFER.floorPrice))}</p>
         <p>capPriceQ96 &nbsp;≈ {sci(q96(OFFER.capPrice))}</p>
         <p>requiredCurrencyRaised = {OFFER.requiredRaise}e6</p>
@@ -172,32 +168,32 @@ function TickerStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   const st = data.steps.ticker;
   return (
     <Card className="p-3">
-      <p className="text-sm">
-        <b>{ensName(ipo.ticker)}</b> <span className="text-gain">· registered</span>
+      <p className="text-[14px]">
+        <b>{ensName(ipo.ticker)}</b> <span className="text-gain-text">· registered</span>
       </p>
       <div className="mt-2 divide-y divide-line">
         {(["addr", "auction", "pool", "hook", "policy"] as const).map((k) => (
           <div key={k} className="flex items-center justify-between py-2">
-            <code className="text-[13px] text-muted">{k === "addr" ? "addr" : `listingday.${k}`}</code>
+            <code className="text-[13px] text-text-2">{k === "addr" ? "addr" : `listingday.${k}`}</code>
             <CopyAddress value={ipo.records[k]} label={ipo.records[k] && ipo.records[k]!.length > 42 ? `${ipo.records[k]!.slice(0, 8)}…` : undefined} />
           </div>
         ))}
         <div className="flex items-center justify-between py-2">
-          <code className="text-[13px] text-muted">listingday.status</code>
-          <span className="text-[13px] text-muted">{ipo.status} · receiver-owned</span>
+          <code className="text-[13px] text-text-2">listingday.status</code>
+          <span className="text-[13px] text-text-2">{ipo.status} · receiver-owned</span>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button tone="neutral" variant="outline" className="py-2 text-sm" onClick={() => sendTx({ title: "Save ENS records", success: "Records saved" })}>
+        <Button tone="neutral" variant="outline" className="py-2 text-[14px]" onClick={() => sendTx({ title: "Save ENS records", success: "Records saved" })}>
           Save records
         </Button>
-        <Button tone="neutral" variant="outline" className="py-2 text-sm" disabled={!!st.roleGranted}>
+        <Button tone="neutral" variant="outline" className="py-2 text-[14px]" disabled={!!st.roleGranted}>
           {st.roleGranted ? "Status role granted ✓" : "Grant status role"}
         </Button>
         <Button
           tone="loss"
           variant="outline"
-          className="col-span-2 py-2 text-sm"
+          className="col-span-2 py-2 text-[14px]"
           onClick={() =>
             sendTx({
               title: "Receiver tries to set url",
@@ -217,13 +213,13 @@ function TickerStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 function RunnerLog({ lines }: { lines: { time: string; line: string }[] }) {
   if (!lines.length) return null;
   return (
-    <div className="mt-3 rounded-[8px] bg-[#0f1216] p-3 font-mono text-[11.5px] leading-relaxed text-[#c9d1d9]">
-      <p className="mb-1 flex items-center gap-1.5 text-[#7d8590]">
+    <div className="t-mono mt-3 rounded-[8px] bg-surface-2 p-3 text-text">
+      <p className="mb-1 flex items-center gap-1.5 text-text-2">
         <Terminal className="size-3.5" /> CRE runner
       </p>
       {lines.map((l, i) => (
         <p key={i}>
-          <span className="text-[#7d8590]">{timeIST(l.time).replace(" IST", "")}</span> {l.line}
+          <span className="text-text-2">{timeIST(l.time).replace(" IST", "")}</span> {l.line}
         </p>
       ))}
     </div>
@@ -241,7 +237,7 @@ function PolicyStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
         <KV k="Surveillance band" v="±5%" />
         <KV k="Listing-day band" v="±5% around clearing" />
       </div>
-      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain">
+      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain-text">
         <Check className="size-4" /> Published. ENS status is now <b>{ipo.status}</b>
       </p>
       <TxLink tx={data.steps.policy.tx as string | undefined} label="CRE report" />
@@ -253,11 +249,11 @@ function PolicyStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 function LaunchStep({ data }: { data: ConsoleData }) {
   return (
     <Card className="p-3">
-      <p className="text-sm">
+      <p className="text-[14px]">
         LiquidityLauncher multicall: <code className="text-[13px]">createToken</code> + <code className="text-[13px]">distribute</code> →
         LBPStrategy → CCA. Then writes <code className="text-[13px]">listingday.auction</code> and status <code>auction</code>.
       </p>
-      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain">
+      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain-text">
         <Check className="size-4" /> Launched
       </p>
       <TxLink tx={data.steps.launch.tx as string | undefined} label="Launch tx" />
@@ -272,10 +268,10 @@ function MonitorStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   return (
     <Card className="p-3">
       <div className="flex items-baseline justify-between">
-        <p className="text-sm text-muted">Clearing</p>
-        <p className="num text-lg font-bold text-strong">{lotFixed(last.price)} USDC / lot</p>
+        <p className="text-[14px] text-text-2">Clearing</p>
+        <p className="num text-lg font-medium text-text">{lotFixed(last.price)} USDC / lot</p>
       </div>
-      <TimeChart data={series.map((p) => ({ time: p.time, value: p.price }))} kind="step" color="brand" height={140} digits={2} />
+      <PriceChart data={series.map((p) => ({ time: p.time, value: p.price }))} kind="clearing" baseline={OFFER.issuePrice} height={140} digits={2} readout={false} />
       <div className="mt-2 grid grid-cols-3 gap-2 text-center">
         <Mini k="Raised" v={`${usdc(last.raised, 1)}`} sub={`/ ${OFFER.requiredRaise} needed`} />
         <Mini k="Bids" v={String(s.bidCount)} />
@@ -286,12 +282,12 @@ function MonitorStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
       </div>
       {data.bids && (
         <div className="mt-3">
-          <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Recent bids</p>
+          <p className="mb-1 text-[13px] font-medium tracking-wide text-text-2 uppercase">Recent bids</p>
           <ul className="divide-y divide-line">
             {data.bids.map((b, i) => (
               <li key={i} className="num flex items-center justify-between py-2 text-[13px]">
-                <span className="font-mono text-muted">{b.owner}</span>
-                <span className="text-strong">
+                <span className="font-mono text-text-2">{b.owner}</span>
+                <span className="text-text">
                   {usdc(b.budget)} @ ≤{lotFixed(b.maxPrice)}
                 </span>
                 <Pill tone={b.state === "active" ? "brand" : b.state === "outbid" ? "warn" : "loss"}>{b.reason ?? b.state}</Pill>
@@ -306,10 +302,10 @@ function MonitorStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 
 function Mini({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: "loss" }) {
   return (
-    <div className="rounded-[8px] bg-subtle px-2 py-2">
-      <p className="text-[11px] text-muted">{k}</p>
-      <p className={cx("num font-semibold", tone === "loss" ? "text-loss" : "text-strong")}>{v}</p>
-      {sub && <p className="text-[10px] text-muted">{sub}</p>}
+    <div className="rounded-[8px] bg-surface-2 px-2 py-2">
+      <p className="text-[13px] text-text-2">{k}</p>
+      <p className={cx("num font-medium", tone === "loss" ? "text-loss-text" : "text-text")}>{v}</p>
+      {sub && <p className="text-[13px] text-text-2">{sub}</p>}
     </div>
   );
 }
@@ -320,7 +316,7 @@ function GraduateStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   if (!g.done)
     return (
       <Card className="p-3">
-        <p className="text-sm text-muted">
+        <p className="text-[14px] text-text-2">
           Opens after block {blockNo(ipo.endBlock!)}. Graduates if raised ≥ {OFFER.requiredRaise} USDC; otherwise refunds open
           and there&apos;s nothing to migrate.
         </p>
@@ -336,7 +332,7 @@ function GraduateStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
         <KV k="Clearing price" v={`${lotFixed(g.clearingPrice as number)} USDC / lot`} />
         <KV k="Unsold shares" v={`${g.unsold} → treasury`} />
       </div>
-      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain">
+      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain-text">
         <Check className="size-4" /> Pool opened at clearing · ENS pool + status written
       </p>
       <div className="flex flex-col">
@@ -358,7 +354,7 @@ function DemoStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   const [log, setLog] = useState(data.runnerLog);
   const [running, setRunning] = useState(false);
 
-  if (!policy) return <p className="text-sm text-muted">Demo controls open after graduation.</p>;
+  if (!policy) return <p className="text-[14px] text-text-2">Demo controls open after graduation.</p>;
 
   const ensStatus = (p: Policy) => (p.halted ? "halted" : p.mode === "surveillance" || p.mode === "directional" ? "surveillance" : "listed");
 
@@ -392,18 +388,18 @@ function DemoStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
     <div>
       <CircuitBanner ticker={ipo.ticker} policy={policy} />
       <Card className="mt-3 p-3">
-        <p className="text-xs font-semibold tracking-wide text-muted uppercase">Reference price</p>
+        <p className="text-[13px] font-medium tracking-wide text-text-2 uppercase">Reference price</p>
         <div className="mt-2 flex gap-2">
           <input
             inputMode="decimal"
             value={ref}
             onChange={(e) => setRef(e.target.value.replace(/[^0-9.]/g, ""))}
-            className="num w-full rounded-[8px] border border-line-strong bg-transparent px-3 text-[15px] font-semibold text-strong outline-none focus:border-brand"
+            className="num w-full rounded-[8px] border border-line-strong bg-transparent px-3 text-[15px] font-medium text-text outline-none focus:border-text"
             aria-label="Reference price, USDC per lot"
           />
           <Button
             tone="neutral"
-            className="shrink-0 py-2 text-sm"
+            className="shrink-0 py-2 text-[14px]"
             disabled={running}
             onClick={() => run({ ...policy, version: policy.version + 1, referencePrice: Number(ref) }, `ref=${ref}`)}
           >
@@ -411,7 +407,7 @@ function DemoStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
           </Button>
         </div>
 
-        <p className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Circuit mode</p>
+        <p className="mt-4 text-[13px] font-medium tracking-wide text-text-2 uppercase">Circuit mode</p>
         <div className="mt-2 grid grid-cols-2 gap-2">
           {(
             [
@@ -421,21 +417,21 @@ function DemoStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
               ["Halt", () => setMode(policy.mode, true), "loss"],
             ] as const
           ).map(([label, fn, tone]) => (
-            <Button key={label} tone={tone} variant="outline" className="py-2 text-sm" disabled={running} onClick={fn}>
+            <Button key={label} tone={tone} variant="outline" className="py-2 text-[14px]" disabled={running} onClick={fn}>
               {label}
             </Button>
           ))}
           <Button
             tone="brand"
             variant="outline"
-            className="col-span-2 py-2 text-sm"
+            className="col-span-2 py-2 text-[14px]"
             disabled={running || !policy.halted}
             onClick={() => run({ ...policy, version: policy.version + 1, halted: false, mode: policy.mode === "halted" ? "normal" : policy.mode }, "resume")}
           >
             Resume trading
           </Button>
         </div>
-        <p className="mt-2 text-xs text-muted">
+        <p className="mt-2 text-[13px] text-text-2">
           Current: {modeInfo(policy).copy} · policy v{policy.version}
         </p>
 
@@ -450,7 +446,7 @@ function DemoStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
           Remove LP
         </Button>
         {!CONSOLE.runnerOnline && (
-          <p className="mt-2 text-xs text-loss">Runner offline: the CRE CLI only runs on the demo laptop.</p>
+          <p className="mt-2 text-[13px] text-loss-text">Runner offline: the CRE CLI only runs on the demo laptop.</p>
         )}
         <RunnerLog lines={log} />
       </Card>

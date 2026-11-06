@@ -2,13 +2,13 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Briefcase, ChevronRight, Droplets, Wallet } from "lucide-react";
-import { TabHeader } from "@/components/shell";
+import { ChevronRight, Droplets } from "lucide-react";
+import { AppBar } from "@/components/shell";
 import { Button, Card, Change, Empty, KV, SectionTitle, TickerAvatar, cx } from "@/components/ui";
 import { useApp } from "@/components/providers";
 import { changeVs, lotFixed, shares, usdc } from "@/lib/format";
 import { FAUCET_URL, OFFER, PORTFOLIO, getIpo, getMarket, lastPrice } from "@/lib/mock";
-import { Sparkline } from "./market-list";
+import { Sparkline } from "@/components/sparkline";
 import { BottomSpacer } from "./common";
 
 export function PortfolioScreen() {
@@ -19,8 +19,8 @@ export function PortfolioScreen() {
   if (!connected)
     return (
       <>
-        <TabHeader title="Portfolio" />
-        <Empty icon={<Wallet className="size-6" />} title="Connect a wallet" body="See your allotments, PnL and LP positions." action={<Button onClick={connect}>Connect</Button>} />
+        <AppBar title="Portfolio" />
+        <Empty title="Sign in to see your shares" body="Your holdings, returns and liquidity show up here." action={<Button variant="secondary" onClick={connect}>Sign in</Button>} />
       </>
     );
 
@@ -41,26 +41,26 @@ export function PortfolioScreen() {
   if (rows.length === 0)
     return (
       <>
-        <TabHeader title="Portfolio" />
-        <Empty icon={<Briefcase className="size-6" />} title="No holdings yet" body="Shares you're allotted in an IPO show up here after you claim them." />
+        <AppBar title="Portfolio" />
+        <Empty title="No holdings yet" body="Shares you're allotted in an IPO show up here after you claim them." />
       </>
     );
 
   return (
     <>
-      <TabHeader title="Portfolio" />
-      <main className="px-4">
+      <AppBar title="Portfolio" />
+      <main>
         <Card className="p-4">
-          <p className="text-xs text-muted">Current value</p>
-          <p className="num text-[28px] font-bold tracking-tight text-strong">
-            {usdc(current)} <span className="text-sm font-medium text-muted">USDC</span>
+          <p className="text-[13px] text-text-2">Current value</p>
+          <p className="num text-[28px] font-medium  text-text">
+            {usdc(current)} <span className="text-[14px] font-medium text-text-2">USDC</span>
           </p>
           <div className="mt-1 flex items-center justify-between">
             <span className="text-[13px]">
-              <Change abs={total.abs} rel={total.rel} /> <span className="text-muted">total returns</span>
+              <Change abs={total.abs} rel={total.rel} /> <span className="text-text-2">total returns</span>
             </span>
           </div>
-          <div className="mt-3 flex items-center gap-1 rounded-full bg-subtle p-1 text-xs">
+          <div className="mt-3 flex items-center gap-1 rounded-full bg-surface-2 p-1 text-[13px]">
             {(
               [
                 ["clearing", "vs clearing (your cost)"],
@@ -70,7 +70,7 @@ export function PortfolioScreen() {
               <button
                 key={id}
                 onClick={() => setBasis(id)}
-                className={cx("flex-1 rounded-full py-1.5 font-medium", basis === id ? "bg-card text-strong shadow-sm" : "text-muted")}
+                className={cx("flex-1 rounded-full py-2 font-medium", basis === id ? "border border-chip-on-line bg-chip-on-bg text-text" : "border border-transparent text-text-2")}
               >
                 {label}
               </button>
@@ -78,14 +78,14 @@ export function PortfolioScreen() {
           </div>
           <div className="mt-3 grid grid-cols-2 gap-3 border-t border-line pt-3">
             <div>
-              <p className="text-xs text-muted">Invested</p>
-              <p className="num font-semibold text-strong">{usdc(invested)} USDC</p>
+              <p className="text-[13px] text-text-2">Invested</p>
+              <p className="num font-medium text-text">{usdc(invested)} USDC</p>
             </div>
             <div>
-              <p className="text-xs text-muted">USDC balance</p>
-              <p className="num font-semibold text-strong">{usdc(usdcBalance)} USDC</p>
+              <p className="text-[13px] text-text-2">USDC balance</p>
+              <p className="num font-medium text-text">{usdc(usdcBalance)} USDC</p>
               {usdcBalance < OFFER.perApplicantCap && (
-                <a href={FAUCET_URL} target="_blank" rel="noreferrer" className="text-xs font-medium text-brand">
+                <a href={FAUCET_URL} target="_blank" rel="noreferrer" className="text-[13px] font-medium text-gain-text">
                   Get test USDC
                 </a>
               )}
@@ -94,8 +94,8 @@ export function PortfolioScreen() {
         </Card>
 
         {unclaimed.length > 0 && (
-          <Link href="/bids" className="mt-3 block">
-            <Card className="flex items-center gap-3 border-warn/30 bg-warn-soft p-3">
+          <Link href="/orders" className="mt-3 block">
+            <Card className="flex items-center gap-3 border-line bg-surface-2 p-3">
               <p className="flex-1 text-[13px] text-warn">
                 <b>{shares(unclaimed.reduce((s, r) => s + r.h.unclaimedShares, 0))} shares unclaimed</b> across{" "}
                 {unclaimed.map((r) => r.ipo.symbol).join(", ")}. Claim them in My bids.
@@ -110,19 +110,19 @@ export function PortfolioScreen() {
           {rows.map((r) => {
             const pnl = changeVs(r.value, r.cost);
             return (
-              <Link key={r.h.ticker} href={`/market/${r.h.ticker}`} className="flex items-center gap-3 p-3">
+              <Link key={r.h.ticker} href={`/stock/${r.h.ticker}`} className="flex items-center gap-3 p-3">
                 <TickerAvatar ipo={r.ipo} size={36} />
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-medium text-strong">{r.ipo.name}</p>
-                  <p className="num text-xs text-muted">
+                  <p className="truncate font-medium text-text">{r.ipo.name}</p>
+                  <p className="num text-[13px] text-text-2">
                     {shares(r.qty)} sh · avg {lotFixed(basis === "clearing" ? r.h.avgCost : OFFER.issuePrice)}
                     {r.h.unclaimedShares > 0 && ` · ${shares(r.h.unclaimedShares)} unclaimed`}
                   </p>
                 </div>
-                <Sparkline points={getMarket(r.h.ticker)!.prices} width={56} height={26} />
+                <Sparkline points={getMarket(r.h.ticker)!.prices} width={56} height={26} up={pnl.abs >= 0} />
                 <div className="w-[88px] text-right">
-                  <p className="num text-[15px] font-medium text-strong">{usdc(r.value)}</p>
-                  <Change abs={pnl.abs} rel={pnl.rel} className="block text-[11px]" />
+                  <p className="num text-[15px] font-medium text-text">{usdc(r.value)}</p>
+                  <Change abs={pnl.abs} rel={pnl.rel} className="block text-[13px]" />
                 </div>
               </Link>
             );
@@ -138,14 +138,14 @@ export function PortfolioScreen() {
               return (
                 <Card key={lp.id} className="p-4">
                   <div className="flex items-center gap-3">
-                    <span className="flex size-9 items-center justify-center rounded-full bg-brand-soft text-brand">
+                    <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 text-gain-text">
                       <Droplets className="size-5" />
                     </span>
                     <div className="flex-1">
-                      <p className="font-medium text-strong">
-                        {ipo.symbol} / USDC <span className="text-xs text-muted">#{lp.id}</span>
+                      <p className="font-medium text-text">
+                        {ipo.symbol} / USDC <span className="text-[13px] text-text-2">#{lp.id}</span>
                       </p>
-                      <p className="text-xs text-muted">Seeded by LBPStrategy at migration</p>
+                      <p className="text-[13px] text-text-2">Liquidity you provide to the market</p>
                     </div>
                   </div>
                   <div className="mt-2 divide-y divide-line">
@@ -170,7 +170,7 @@ export function PortfolioScreen() {
             })}
           </>
         )}
-        <p className="mt-4 text-xs text-muted">Value uses the last v4 pool price, including unclaimed shares. Cost basis for IPO fills is the clearing price.</p>
+        <p className="mt-4 text-[13px] text-text-2">Value uses the last v4 pool price, including unclaimed shares. Cost basis for IPO fills is the clearing price.</p>
         <BottomSpacer />
       </main>
     </>

@@ -161,9 +161,7 @@ export function isMarketTicker(ticker: string) {
   return LISTED_TICKERS.includes(ticker);
 }
 
-/** Where tapping a ticker should go, by ENS status (screens.md §1). */
-export function hrefFor(ipo: Ipo) {
-  return ipo.status === "listed" || ipo.status === "surveillance" || ipo.status === "halted"
-    ? `/market/${ipo.ticker}`
-    : `/ipo/${ipo.ticker}`;
+/** One company page for every phase (UX.md section 2). */
+export function hrefFor(ipo: Pick<Ipo, "ticker">) {
+  return `/stock/${ipo.ticker}`;
 }
