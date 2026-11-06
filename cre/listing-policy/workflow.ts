@@ -25,7 +25,7 @@ export const configSchema = z.object({
   /** Six-field cron (seconds first); the DON enforces a 30 s minimum interval. */
   schedule: z.string(),
   /** Mock exchange `GET /policy` URL. */
-  apiUrl: z.string().url(),
+  apiUrl: z.string().min(1).regex(/^https?:\/\/.+/), // .url() fails in CRE WASM/Javy (no URL ctor)
   chainSelectorName: z.string(),
   receiverAddress: z.string().regex(/^0x[0-9a-fA-F]{40}$/),
   /** Pool orientation: true when USDC sorts below the share token (the Sepolia deployment). */
