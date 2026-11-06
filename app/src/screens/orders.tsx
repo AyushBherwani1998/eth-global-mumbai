@@ -1,7 +1,7 @@
 "use client";
 
 // Orders (UX.md 3.7). Two tabs: IPO applications (this wallet's bids, grouped
-// by company, plain state words and the verbs Refund / Collect shares / Settle)
+// by company, plain state words and the verbs Refund / Settle / Collect shares)
 // and Market trades (every trade and rejected attempt in the listed pools, not
 // filtered to this wallet: per-wallet trade history isn't indexed yet).
 // Desktop renders the same data as tables.
@@ -31,31 +31,40 @@ type Status = {
   note?: string;
 };
 
+// A bid ends in two separate transactions on the CCA: exit (exitBid /
+// exitPartiallyFilledBid) returns the unspent USDC and fixes the shares won,
+// then claim (claimTokens, from claimBlock, graduated auctions only) delivers
+// them. So an allotted bid goes Settle → Exited → Claimable → Collect → Claimed;
+// an exit with no shares is final.
 function statusOf(bid: Bid, ipo: Ipo, state: BidState): Status {
   const ended = ipo.phase !== "live";
-  const claimOpen = ipo.phase === "listed" || (ipo.claimBlock ?? Infinity) <= CURRENT_BLOCK;
+  const claimOpen = ipo.graduated === true && (ipo.claimBlock ?? Infinity) <= CURRENT_BLOCK;
   switch (state) {
     case "claimed":
-      return { word: "Collected", tone: "gain" };
+      return { word: "Claimed", tone: "gain" };
     case "exited":
-      return { word: "Refunded" };
+      if (bid.filledShares === 0) return { word: "Refunded" };
+      return claimOpen
+        ? { word: "Claimable", tone: "gain", verb: "collect", note: "Your unspent USDC is back. Collect your shares to finish." }
+        : {
+            word: "Exited",
+            note: `Your unspent USDC is back. Shares can be collected from block ${ipo.claimBlock ?? "—"}.`,
+          };
     case "refundable":
       return { word: "Refund available", tone: "warn", verb: "refund" };
     case "partial":
-      return {
-        word: "Partly allotted",
-        tone: "warn",
-        verb: "settle",
-        note: "Settle collects your shares and refunds the rest.",
-      };
+      return ended
+        ? {
+            word: "Partly allotted",
+            tone: "warn",
+            verb: "settle",
+            note: "Settle returns the USDC that wasn't used. Then collect your shares.",
+          }
+        : { word: "Partly allotted", tone: "warn" };
     case "filled":
-      return claimOpen
-        ? { word: "Allotted", tone: "gain", verb: "collect" }
-        : {
-            word: "Allotted",
-            tone: "gain",
-            note: "You can collect these shares once the IPO settles.",
-          };
+      return ended
+        ? { word: "Allotted", tone: "gain", verb: "settle", note: "Settle first, then collect your shares." }
+        : { word: "Allotted", tone: "gain", note: "You can settle once the IPO closes." };
     case "outbid":
       return ended
         ? { word: "Refund available", tone: "warn", verb: "refund" }
@@ -209,7 +218,7 @@ export function OrdersScreen() {
         : verb === "settle"
           ? {
               title: "Settling your application",
-              success: `Shares collected and ${usdc(bid.refund)} USDC refunded`,
+              success: bid.refund > 0 ? `${usdc(bid.refund)} USDC refunded. Shares are ready to collect` : "Settled. Shares are ready to collect",
             }
           : {
               title: "Refunding your application",
@@ -220,7 +229,7 @@ export function OrdersScreen() {
     if (r.ok)
       setOver((o) => ({
         ...o,
-        [bidKey(bid)]: verb === "collect" ? "claimed" : verb === "settle" ? "claimed" : "exited",
+        [bidKey(bid)]: verb === "collect" ? "claimed" : "exited",
       }));
   };
 
@@ -262,8 +271,8 @@ export function OrdersScreen() {
           <>
             {collectable.length > 0 ? (
               <ActionCard
-                title={`${collectable.length} ${collectable.length === 1 ? "allotment" : "allotments"} ready`}
-                body="One confirmation collects every share you have been allotted."
+                title={`${collectable.length} ${collectable.length === 1 ? "allotment" : "allotments"} claimable`}
+                body="One confirmation collects every share from applications you have settled."
                 label="Collect all"
                 busy={busy === "all"}
                 onClick={() => actAll("collect")}
@@ -373,7 +382,7 @@ function ApplicationGroup({
   onAct: (b: Bid, v: Verb) => void;
 }) {
   const applied = bids.reduce((s, b) => s + b.budget, 0);
-  const allotted = bids.reduce((s, b) => s + (stateOf(b) === "exited" ? 0 : b.filledShares), 0);
+  const allotted = bids.reduce((s, b) => s + b.filledShares, 0);
   const refundable = bids.reduce((s, b) => (["exited", "claimed"].includes(stateOf(b)) ? s : s + b.refund), 0);
   return (
     <section className="mt-6">
