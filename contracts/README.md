@@ -1,7 +1,7 @@
 # Listing Day contracts
 
 Foundry project for the Listing Day CCA + v4 IPO (design: [`../plan.md`](../plan.md)). This covers build chunks 0
-to 6:
+to 7:
 
 - Chunks 0 and 1: the scaffold, the price math, `MockSME`, `AuctionValidationHook` and `AllowAllModule`.
 - Chunk 2: the full launch-to-trading lifecycle on a Sepolia fork, through the deployed Uniswap contracts.
@@ -9,6 +9,7 @@ to 6:
 - Chunk 4: the Chainlink CRE consumer `ListingPolicyReceiver`, which feeds the hook its policy. The workflow that writes to it lives in [`../cre`](../cre), and the exchange API it reads from in [`../services/mock-exchange`](../services/mock-exchange).
 - Chunk 5: the Sepolia demo scripts (`script/demo/`, `make demo-fork` / `make demo-sepolia`): fund the demo wallets, deploy, launch, bid, settle, trade, halt. They write `deployments/sepolia.json` and the frontend ABIs live in `abis/`. See [`DEPLOY.md`](DEPLOY.md).
 - Chunk 6: the ENSv2 ticker namespace (`script/ens/`, `make ens-fork` / `make ens-sepolia`): `listingday.eth`, our UserRegistry, the issuer-owned `acme.listingday.eth` with the IPO records, and the receiver's scoped `listingday.status` role. See [ENSv2 ticker namespace](#ensv2-ticker-namespace-chunk-6), including the [frontend read guide](#frontend-read-guide).
+- Chunk 7: World ID eligibility for **human** listings: `WorldPassModule` checks an EIP-712 `EligibilityPass` per bid, signed by the verify backend in [`../services/verify`](../services/verify/README.md) after a World ID Proof of Human (`ELIGIBILITY=human` in the scripts). See [World ID eligibility](#world-id-eligibility-chunk-7).
 
 Nothing is deployed yet: the scripts run on a Sepolia fork in CI, and the real broadcast is a manual step
 ([`DEPLOY.md`](DEPLOY.md)).
@@ -58,19 +59,20 @@ A public RPC works fine for these tests, e.g. `export SEPOLIA_RPC_URL=https://et
 | `src/MockSME.sol` | Fixed-supply share token, 110,000e18 minted once in the constructor, no mint function |
 | `src/AuctionValidationHook.sol` | CCA `IValidationHook`: only the bound auction, `sender == owner`, `maxPrice <= capQ96`, then the module |
 | `src/modules/AllowAllModule.sol` | Phase 1 `IEligibilityModule`: per-wallet cumulative budget cap (20 USDC); only its hook may call it |
+| `src/modules/WorldPassModule.sol` | Human-listing `IEligibilityModule`: verifies the backend-signed `EligibilityPass` in `hookData`, binds World ID nullifier and wallet one-to-one, per-person cumulative cap; only its hook may call it |
 | `src/ListingHook.sol` | v4 hook (inherits liquidity-launcher `InitializerHook`): only LBPStrategy initializes; listing-day ±5% band, then policy bands, directional mode, halt, cool-off; no liquidity flags |
 | `src/libraries/ListingBand.sol` | Share-price bands in sqrtPriceX96 space, orientation-aware |
 | `src/ListingPolicyReceiver.sol` | Chainlink CRE consumer (`IReceiver.onReport`) that stores the `ListingPolicy` and serves it to the hook as its `IListingPolicy`; best-effort ENS status mirror |
 | `src/mocks/MockListingPolicy.sol` | Owner-settable `IListingPolicy` for tests and manual demos without CRE |
 | `src/mocks/MockStatusResolver.sol` | `IStatusResolver` stand-in for the ENS resolver in unit tests (can be told to revert or burn gas); the real one is the issuer's ENSv2 PermissionedResolver |
-| `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IListingHook`, `IListingPolicy`, `IListingPolicyReceiver`, `IReceiver` (Chainlink-compatible), `IStatusResolver` (errors, events and reads for the frontend ABI) |
+| `src/interfaces/` | `IAuctionValidationHook`, `IEligibilityModule`, `IWorldPassModule` (`EligibilityPass`, `NotEligible` reasons), `IListingHook`, `IListingPolicy`, `IListingPolicyReceiver`, `IReceiver` (Chainlink-compatible), `IStatusResolver` (errors, events and reads for the frontend ABI) |
 | `script/DeployListingPolicyReceiver.s.sol` | Deploys the receiver; optionally points a hook at it and sets the ENS mirror |
 | `script/demo/` | The demo steps (`FundDemoWallets`, `DemoDeploy`, `DemoLaunch`, `DemoBid`, `DemoSettle`, `DemoTrade`, `DemoHalt`, `ExportDeployments`), each idempotent against the deployments file; `DemoFork` runs them all on a fork with asserts; `anvil-rehearsal.sh` runs them (and the ENS steps) as broadcasts against anvil. Entry points in the `Makefile`, walkthrough in [`DEPLOY.md`](DEPLOY.md) |
 | `script/ens/` | The ENSv2 steps (`EnsName`, `EnsRegistry`, `EnsTicker`, `EnsRecords`, `EnsStatusRole`, `EnsRead`), each idempotent; `EnsFork` runs them on a fork with asserts; `wait-for-commit.sh` waits out the 60 s commit age |
 | `deployments/` | `sepolia.json` after the real run (committed); fork and anvil rehearsals write git-ignored files next to it |
 | `abis/` | Frontend ABI arrays, regenerated with `make abis` (CI checks they're current); `abis/ensv2/` holds the official ENSv2 ABIs from the tag (`make abis-ensv2`) |
-| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), the CRE report vectors shared with the TypeScript workflow, the tx-hash export on a trimmed real broadcast log (`test/fixtures/broadcast/`), and ENS name encoding (`EnsNames.t.sol`) |
-| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`), the ENSv2 namespace against the live ENS contracts (`EnsNamespace.fork.t.sol`), and the demo + ENS scripts end to end (`DemoScripts.fork.t.sol`) |
+| `test/unit/` | Price math, hook + module, the real CCA v2.1.0 code wrapping hook reverts, `ListingHook` on a local PoolManager in both token orders, the receiver (directly and through a `MockKeystoneForwarder` port driving a hook), the CRE report vectors shared with the TypeScript workflow, the tx-hash export on a trimmed real broadcast log (`test/fixtures/broadcast/`), ENS name encoding (`EnsNames.t.sol`), `WorldPassModule` through a real local CCA (`WorldPassModule.t.sol`) and the EIP-712 parity vectors shared with the verify backend (`WorldPassFixture.t.sol`) |
+| `test/fork/` | Sepolia USDC metadata, every constant + cross-links, a bid through the live CCA factory, the full lifecycle (`ListingLifecycle.fork.t.sol`, ending with CRE halting and reopening the migrated pool), reports through the live Sepolia `MockKeystoneForwarder` (`CreMockForwarder.fork.t.sol`), the ENSv2 namespace against the live ENS contracts (`EnsNamespace.fork.t.sol`), World ID passes through the live CCA factory with USDC + Permit2 (`WorldPass.fork.t.sol`), and the demo (open and human) + ENS scripts end to end (`DemoScripts.fork.t.sol`) |
 
 ## Price math
 
@@ -280,7 +282,7 @@ ETHRegistry (.eth)
 | `listingday.hook` | ListingHook |
 | `listingday.policy` | `eip155:<chainId>:<ListingPolicyReceiver>` |
 | `listingday.status` | `listed` / `surveillance` / `halted` (or what the CRE report sends). **Only the receiver writes it**, on every accepted report. Empty until the first report: show "draft" |
-| `listingday.eligibility` | `open` (default, `ENS_ELIGIBILITY`); `human` once the World ID module (chunk 7) is the validation hook's module |
+| `listingday.eligibility` | `open` (`AllowAllModule`) or `human` (`WorldPassModule`): follows the validation hook's module in the deployments file, so ENS can't advertise a mode the hook doesn't enforce |
 | `description`, `url`, `avatar` | Issuer profile; avatar defaults to an inline `data:image/svg+xml;base64,…` (ENSIP-12) |
 
 **The receiver's write power.** The issuer calls `resolver.grantSetterRoles(abi.encodeCall(setText, (name,
@@ -374,6 +376,53 @@ receiver in `listingday.policy`, and `listingday.eligibility` should match the v
 - **Payment token.** The rent oracle also accepts Circle's Sepolia USDC; we pay in ENS MockUSDC as planned (mintable).
 - **Reads are `resolve()`-only.** The PermissionedResolver exposes no `text` / `addr` views, only ENSIP-10
   `resolve(dnsName, data)`. The Universal Resolver path the plan uses is unaffected.
+
+## World ID eligibility (chunk 7)
+
+A **human** listing (plan.md §8) admits one person per wallet and caps each person, not each wallet. World ID only:
+Proof of Human, no nationality or documents. The proof is checked off-chain by
+[`../services/verify`](../services/verify/README.md) (IDKit 4.x, World's `/api/v4/verify`), which then signs an
+`EligibilityPass`; the chain only checks that signature.
+
+```solidity
+struct EligibilityPass {
+    bytes32 nullifier; // World ID nullifier for action `listingday-<ticker>`: one per person per action
+    address wallet;    // must be the bid owner and the sender
+    address auction;   // must be this hook's auction
+    uint128 cap;       // per-person cumulative cap, raw USDC (20 USDC)
+    uint64 expiry;     // unix seconds, inclusive (backend: now + 10 min)
+}
+// hookData = abi.encode(pass, signature); EIP-712 domain ("ListingDay WorldPass", "1", chainId, module)
+```
+
+`WorldPassModule(hook, signer)` (signer = the backend's `PASS_SIGNER_KEY` address, immutable) runs, per bid:
+
+1. only its hook (`OnlyHook`); the hook has already checked auction, `sender == owner` and the price cap;
+2. decode + `ECDSA.tryRecover` against `signer` (`NotEligible` `MissingPass` / `InvalidPass` / `WrongSigner`; high-s
+   and malformed signatures are rejected);
+3. `block.timestamp <= expiry` (`Expired`), `wallet == owner == sender` (`WrongWallet`), `auction == hook.auction()`
+   (`WrongAuction`);
+4. binding: the first accepted bid binds `nullifier <-> wallet` both ways (`NullifierBound`); afterwards another wallet
+   with that nullifier reverts `NullifierBoundToOtherWallet`, and that wallet with another nullifier
+   `WalletBoundToOtherNullifier`;
+5. `committed[nullifier] + amount <= pass.cap` (`CapExceeded`), then `BudgetCommitted`.
+
+A pass is reusable for several bids until it expires; the cap is cumulative per person across passes. Errors and the
+reason numbers: [`errors.md`](errors.md#world-id-passes-worldpassmodule-human-listings). The backend enforces the same
+binding (409 for a second wallet) before it signs, so the contract check is the backstop if a pass for another
+wallet is ever presented.
+
+**Trust.** The pass signer is the trust point: whoever holds `PASS_SIGNER_KEY` can admit anyone, so it stays
+server-side next to the RP key. The proofs themselves aren't verified on-chain here (the backend uses the Developer
+Portal verify API), and the chain stores only nullifiers and wallets. This is sybil resistance, not KYC.
+
+**Deploy.** Same nonce-predicted wiring as `AllowAllModule` (`HookFixture._deployHookAndWorldPass`); the scripts do it
+with `ELIGIBILITY=human` ([`DEPLOY.md`](DEPLOY.md#6-human-listing-world-id-chunk-7)). Because the hook's module is
+immutable, a human listing is a new launch, not a switch on an existing one.
+
+**Parity.** `services/verify/fixtures/pass-vectors.json` pins passes signed by the TypeScript signer (viem);
+`WorldPassFixture.t.sol` deploys the module at the fixture's addresses and checks the digest, the signer, the
+`hookData` bytes and an accepted bid. `npm test` there checks the file is current.
 
 ## Pinned dependencies
 

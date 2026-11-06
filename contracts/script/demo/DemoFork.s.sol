@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
+import {IEligibilityModule} from "../../src/interfaces/IEligibilityModule.sol";
 import {IListingHook} from "../../src/interfaces/IListingHook.sol";
+import {IWorldPassModule} from "../../src/interfaces/IWorldPassModule.sol";
 import {ListingDay, Sepolia} from "../../src/libraries/Constants.sol";
 import {ListingPrice} from "../../src/libraries/ListingPrice.sol";
 import {DemoBase, IPositionManagerLike, ISweepState} from "./DemoBase.sol";
@@ -15,6 +17,7 @@ import {ExportDeployments} from "./ExportDeployments.s.sol";
 import {FundDemoWallets} from "./FundDemoWallets.s.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {IAuctionStorage} from "continuous-clearing-auction/src/interfaces/IAuctionStorage.sol";
+import {ValidationHookLib} from "continuous-clearing-auction/src/libraries/ValidationHookLib.sol";
 import {console2} from "forge-std/Script.sol";
 import {StdAssertions} from "forge-std/StdAssertions.sol";
 import {StdCheats} from "forge-std/StdCheats.sol";
@@ -29,21 +32,27 @@ import {Currency} from "v4-core/src/types/Currency.sol";
 ///
 ///   forge script script/demo/DemoFork.s.sol --fork-url $SEPOLIA_RPC_URL      (or: make demo-fork)
 ///
+/// ELIGIBILITY=human (make demo-fork ELIGIBILITY=human): the same run on a human listing (WorldPassModule, a
+/// throwaway pass signer, scripted passes per bid, plus the recorded second-wallet / expired / over-cap rejections).
+/// Writes `deployments/sepolia-fork-human.json`.
+///
 /// Uses throwaway keys (never the env's PRIVATE_KEY); nothing is broadcast.
 contract DemoFork is DemoBase, StdCheats, StdAssertions {
     using StateLibrary for IPoolManager;
 
     string internal constant FORK_FILE = "deployments/sepolia-fork.json";
+    string internal constant FORK_FILE_HUMAN = "deployments/sepolia-fork-human.json";
     uint256 internal constant WALLETS = 8;
 
     uint256 internal deployerKey = _key("deployer");
     uint256 internal treasuryKey = _key("treasury");
     uint256 internal broadcasterKey = _key("creBroadcaster");
+    uint256 internal passSignerKey = _key("passSigner");
 
     function run() external {
         require(block.chainid == Sepolia.CHAIN_ID, "run on a Sepolia fork: --fork-url $SEPOLIA_RPC_URL");
         _setEnv();
-        if (vm.exists(FORK_FILE)) vm.removeFile(FORK_FILE);
+        if (vm.exists(_forkFile())) vm.removeFile(_forkFile());
 
         _fund();
         Deployment memory d = _deploy();
@@ -55,7 +64,7 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
         new ExportDeployments().run();
         _checkJson();
         console2.log("");
-        console2.log("DemoFork: all steps passed; wrote", FORK_FILE);
+        console2.log(string.concat("DemoFork (", _eligibility(), "): all steps passed; wrote"), _forkFile());
     }
 
     // ---------------------------------------------------------------- steps
@@ -88,6 +97,19 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
         assertEq(d.receiver.broadcaster(), vm.addr(broadcasterKey), "configurable broadcaster");
         assertEq(d.receiver.forwarder(), Sepolia.CRE_MOCK_FORWARDER);
         assertEq(d.token.balanceOf(d.deployer), ListingDay.TOTAL_SUPPLY);
+        IEligibilityModule module = d.validationHook.module();
+        assertEq(module.hook(), address(d.validationHook), "module bound to the validation hook");
+        assertEq(d.human, _human(), "deployments file records the eligibility mode");
+        assertEq(vm.parseJsonString(_json(), ".eligibility.mode"), _eligibility());
+        assertEq(vm.parseJsonAddress(_json(), ".contracts.eligibilityModule"), address(module));
+        if (d.human) {
+            assertEq(address(module), address(d.worldPass), "WorldPassModule behind the hook");
+            assertEq(d.worldPass.signer(), vm.addr(passSignerKey), "pass signer = the backend's key");
+            assertEq(vm.parseJsonAddress(_json(), ".eligibility.passSigner"), vm.addr(passSignerKey));
+            assertEq(vm.parseJsonString(_json(), ".eligibility.worldAction"), "listingday-acme");
+        } else {
+            assertEq(address(module), address(d.module), "AllowAllModule behind the hook");
+        }
 
         new DemoDeploy().run();
         Deployment memory again = _load();
@@ -121,12 +143,49 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
         uint256[] memory amounts = _bidAmounts();
         uint256 total;
         for (uint256 i; i < amounts.length; i++) {
-            assertEq(d.module.committed(vm.addr(_demoKeys()[i])), amounts[i], "bid committed");
+            address wallet = vm.addr(_demoKeys()[i]);
+            if (d.human) {
+                assertEq(d.worldPass.walletOf(_demoNullifier(i)), wallet, "nullifier bound to the wallet");
+                assertEq(d.worldPass.nullifierOf(wallet), _demoNullifier(i), "wallet bound to the nullifier");
+                assertEq(d.worldPass.committed(_demoNullifier(i)), amounts[i], "bid committed per human");
+            } else {
+                assertEq(d.module.committed(wallet), amounts[i], "bid committed");
+            }
             total += amounts[i];
         }
         assertEq(d.auction.nextBidId(), amounts.length, "one bid per wallet, none repeated");
         assertEq(vm.parseJsonUint(_json(), ".bids.count"), amounts.length);
         assertEq(IERC20(Sepolia.USDC).balanceOf(address(d.auction)), total, "USDC pulled via Permit2");
+        if (d.human) _checkRejections();
+    }
+
+    /// @dev The revert data DemoBid recorded is exactly what `submitBid` would revert with, per case.
+    function _checkRejections() internal view {
+        string memory j = _json();
+        _checkRejection(
+            j,
+            "secondWallet",
+            abi.encodeWithSelector(
+                IWorldPassModule.NotEligible.selector, IWorldPassModule.Reason.NullifierBoundToOtherWallet
+            )
+        );
+        _checkRejection(
+            j,
+            "expiredPass",
+            abi.encodeWithSelector(IWorldPassModule.NotEligible.selector, IWorldPassModule.Reason.Expired)
+        );
+        uint256 cap = ListingDay.APPLICANT_CAP;
+        _checkRejection(j, "overCap", abi.encodeWithSelector(IEligibilityModule.CapExceeded.selector, cap + 1, cap));
+    }
+
+    function _checkRejection(string memory j, string memory name, bytes memory hookError) internal pure {
+        string memory k = string.concat(".rejectedBids.", name);
+        assertEq(vm.parseJsonBytes(j, string.concat(k, ".hookError")), hookError, name);
+        assertEq(
+            vm.parseJsonBytes(j, string.concat(k, ".revertData")),
+            abi.encodeWithSelector(ValidationHookLib.ValidationHookCallFailed.selector, hookError),
+            string.concat(name, ": wrapped by the CCA")
+        );
     }
 
     function _settle(Deployment memory d) internal returns (Deployment memory) {
@@ -204,7 +263,7 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
 
     function _checkJson() internal view {
         string memory j = _json();
-        string[34] memory keys = [
+        string[37] memory keys = [
             ".chainId",
             ".label",
             ".deployBlock",
@@ -219,7 +278,10 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
             ".external.stateView",
             ".external.lbpStrategy",
             ".contracts.mockSME",
-            ".contracts.allowAllModule",
+            _human() ? ".contracts.worldPassModule" : ".contracts.allowAllModule",
+            ".contracts.eligibilityModule",
+            ".eligibility.mode",
+            ".eligibility.cap",
             ".contracts.auctionValidationHook",
             ".contracts.listingHook",
             ".contracts.listingPolicyReceiver",
@@ -251,9 +313,17 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
 
     // ---------------------------------------------------------------- env
 
+    function _forkFile() internal view returns (string memory) {
+        return _human() ? FORK_FILE_HUMAN : FORK_FILE;
+    }
+
     function _setEnv() internal {
-        vm.setEnv("DEPLOYMENTS_FILE", FORK_FILE);
-        vm.setEnv("DEMO_LABEL", "fork");
+        vm.setEnv("ELIGIBILITY", _eligibility());
+        vm.setEnv("DEPLOYMENTS_FILE", _forkFile());
+        vm.setEnv("DEMO_LABEL", _human() ? "fork-human" : "fork");
+        vm.setEnv("ENS_TICKER", "acme");
+        vm.setEnv("PASS_SIGNER_KEY", vm.toString(bytes32(passSignerKey)));
+        vm.setEnv("PASS_SIGNER_ADDRESS", vm.toString(vm.addr(passSignerKey)));
         vm.setEnv("PRIVATE_KEY", vm.toString(bytes32(deployerKey)));
         vm.setEnv("FUNDER_KEY", vm.toString(bytes32(deployerKey)));
         vm.setEnv("TREASURY_KEY", vm.toString(bytes32(treasuryKey)));
@@ -268,7 +338,8 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
         vm.setEnv("DEMO_WALLET_KEYS", keys);
     }
 
-    function _key(string memory name) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encode("listing-day fork key", name)));
+    /// @dev Separate keys per mode, so an open and a human run can share one fork (DemoScripts.fork.t.sol).
+    function _key(string memory name) internal view returns (uint256) {
+        return uint256(keccak256(abi.encode(_human() ? "listing-day fork key human" : "listing-day fork key", name)));
     }
 }

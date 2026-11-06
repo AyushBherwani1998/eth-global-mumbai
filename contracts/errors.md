@@ -2,7 +2,7 @@
 
 Selectors come from `forge inspect <Contract> errors` on this commit. The ABIs live in `out/` after `forge build`, or
 import the interfaces `src/interfaces/IAuctionValidationHook.sol`, `src/interfaces/IEligibilityModule.sol`,
-`src/interfaces/IListingHook.sol`, `src/interfaces/IListingPolicy.sol` and `src/interfaces/IListingPolicyReceiver.sol`.
+`src/interfaces/IWorldPassModule.sol`, `src/interfaces/IListingHook.sol`, `src/interfaces/IListingPolicy.sol` and `src/interfaces/IListingPolicyReceiver.sol`.
 
 ## How a rejected bid looks
 
@@ -25,9 +25,12 @@ if (outer.errorName === "ValidationHookCallFailed") {
     abi: [...auctionValidationHookAbi, ...eligibilityModuleAbi],
     data: outer.args[0],
   });
-  // inner.errorName: "BidAboveCap" | "CapExceeded" | "SenderMustBeOwner" | ...
+  // inner.errorName: "BidAboveCap" | "CapExceeded" | "SenderMustBeOwner" | "NotEligible" | ...
 }
 ```
+
+On a human listing add `worldPassModuleAbi` (`abis/IWorldPassModule.json`); `NotEligible`'s argument is the reason
+number in the table under [World ID passes](#world-id-passes-worldpassmodule-human-listings).
 
 The same wrapping applies to `eth_estimateGas` / `eth_call` simulations, so the bid sheet can pre-check a bid.
 
@@ -38,11 +41,39 @@ The same wrapping applies to `eth_estimateGas` / `eth_call` simulations, so the 
 | `BidAboveCap(uint256 maxPrice, uint256 capQ96)` | `0xc9cb70dc` | `AuctionValidationHook` | `maxPrice` is above 190 points (`capQ96` = 150,533,508,776,980) | "Max price is above the 1.90 USDC / lot cap" |
 | `SenderMustBeOwner()` | `0x35a4298c` | `AuctionValidationHook` | The wallet sending the bid is not the bid `owner` | "Bids must be placed from the owning wallet" |
 | `OnlyAuction()` | `0xd75a4849` | `AuctionValidationHook` | `validate` called by anything but the bound auction, or before `setAuction` | Misconfiguration: auction not bound yet |
-| `CapExceeded(uint256 newTotal, uint256 cap)` | `0xf480e285` | `AllowAllModule` (via `IEligibilityModule`) | Cumulative budget for this wallet would exceed 20 USDC (`cap` = 20,000,000). `newTotal` includes the rejected bid | "Over the 20 USDC per-applicant limit; you can still commit `cap - committed`" |
-| `OnlyHook()` | `0x5a91834f` | `AllowAllModule` (via `IEligibilityModule`) | Module called by anything but its hook. Never seen through the CCA | Misconfiguration |
+| `CapExceeded(uint256 newTotal, uint256 cap)` | `0xf480e285` | `AllowAllModule` / `WorldPassModule` (via `IEligibilityModule`) | Cumulative budget would exceed 20 USDC (`cap` = 20,000,000): per wallet on an open listing, **per person** (nullifier) on a human one. `newTotal` includes the rejected bid | "Over the 20 USDC per-applicant limit; you can still commit `cap - committed`" |
+| `NotEligible(uint8 reason)` | `0x1737ee52` | `WorldPassModule` | Human listing: the World ID pass in `hookData` was refused; `reason` below | See [World ID passes](#world-id-passes-worldpassmodule-human-listings) |
+| `OnlyHook()` | `0x5a91834f` | `AllowAllModule` / `WorldPassModule` (via `IEligibilityModule`) | Module called by anything but its hook. Never seen through the CCA | Misconfiguration |
 
 All amounts are raw USDC units (6 decimals). Prices are CCA Q96; points = `priceQ96 / 792281625142`.
 Remaining budget for a wallet: `AllowAllModule.remaining(wallet)`; committed so far: `AllowAllModule.committed(wallet)`.
+On a human listing: `WorldPassModule.committed(WorldPassModule.nullifierOf(wallet))` (cap from the pass, 20 USDC).
+
+### World ID passes (WorldPassModule, human listings)
+
+On a listing with ENS `listingday.eligibility = human`, `hookData` must be the `EligibilityPass` + signature from
+`services/verify` ([API](../services/verify/API.md)). The module checks, in this order, and reverts
+`NotEligible(reason)` (ABI: `NotEligible(uint8)`, the enum `IWorldPassModule.Reason`):
+
+| `reason` | Name | When | Suggested UI copy |
+|---|---|---|---|
+| 0 | `MissingPass` | `hookData` is empty (e.g. an open-listing bid sheet on a human listing) | "Verify with World ID to bid" |
+| 1 | `InvalidPass` | `hookData` shorter than a pass + signature, or a zero nullifier | Bug |
+| 2 | `WrongSigner` | Signature isn't from `signer()` (tampered pass, another backend, malformed / high-s signature) | Bug / misconfiguration |
+| 3 | `Expired` | `block.timestamp > pass.expiry` (passes live 10 minutes) | "Your verification expired, verify again" |
+| 4 | `WrongWallet` | `pass.wallet` is not both the bid `owner` and the sender | "Bid from the wallet you verified" |
+| 5 | `WrongAuction` | `pass.auction` is not this hook's auction | "Verify again for this listing" |
+| 6 | `NullifierBoundToOtherWallet` | This person already bid from another wallet (the first accepted bid binds nullifier and wallet) | "You already bid from another wallet" |
+| 7 | `WalletBoundToOtherNullifier` | This wallet already bid as another person | "This wallet is linked to someone else" |
+
+Then `CapExceeded(newTotal, cap)` if the person's cumulative budget would exceed `pass.cap`. The `AuctionValidationHook`
+checks (`SenderMustBeOwner`, `BidAboveCap`) run before the module. Revert data recorded by the scripted demo:
+`.rejectedBids.{secondWallet,expiredPass,overCap}.revertData` in the human deployments file.
+
+Reads: `signer()`, `hook()`, `walletOf(nullifier)`, `nullifierOf(wallet)`, `committed(nullifier)`, `PASS_TYPEHASH()`
+(`0x3c53d17404e8fe8e64dcc5d8bd70c23fe30eccce9116a1f83bd790bca88dda54` =
+`keccak256("EligibilityPass(bytes32 nullifier,address wallet,address auction,uint128 cap,uint64 expiry)")`),
+`DOMAIN_SEPARATOR()`, `hashPass(pass)`, `eip712Domain()` (name `ListingDay WorldPass`, version `1`).
 
 ## Admin / deploy errors from our contracts (direct calls, not wrapped)
 
@@ -54,7 +85,7 @@ Remaining budget for a wallet: `AllowAllModule.remaining(wallet)`; committed so 
 | `TokenMismatch(address expected, address actual)` | `0xf902523f` | `AuctionValidationHook.setAuction` | The auction sells a different token |
 | `CurrencyMismatch(address expected, address actual)` | `0x5d06997e` | `AuctionValidationHook.setAuction` | The auction raises a different currency (not Sepolia USDC) |
 | `AuctionAlreadyStarted(uint64 startBlock)` | `0x7eaa8843` | `AuctionValidationHook.setAuction` | Called at or after the auction's `startBlock` |
-| `ZeroAddress()` | `0xd92e233d` | hook constructor / `setAuction`, `AllowAllModule` constructor | A required address is zero |
+| `ZeroAddress()` | `0xd92e233d` | hook constructor / `setAuction`, `AllowAllModule` / `WorldPassModule` constructors | A required address is zero (incl. the pass signer) |
 | `InvalidCap()` | `0xcadd5a68` | hook / `AllowAllModule` constructors | Cap is zero |
 | `ModuleHookMismatch(address moduleHook)` | `0xe9734c49` | hook constructor | The module was deployed for a different hook address |
 | `ZeroRecipient()` | `0xd27b4443` | `MockSME` constructor | Supply recipient is zero |
@@ -241,6 +272,8 @@ Always look ids up by label with `findTokenId(label)`, and key app state on the 
 | `ProxyDeployed(address indexed sender, address indexed proxyAddress, uint256 salt, address implementation)` | `0x0a2c575ff341b41da136c9ccae74ec230a927a024d18f0dccf46d123f28f5f54` | ENS `VerifiableFactory` (UserRegistry and resolver proxies) |
 | `AuctionSet(address indexed auction)` | `0x4da9b3b7ca08b559bc11eb42bb6961e0813372ed0b55f0e9b68b76cf0207fce8` | `AuctionValidationHook` |
 | `BudgetCommitted(address indexed owner, uint128 amount, uint256 total)` | `0xdcf8d4699e0d58f02a056a45185d9fcb9b0146943452ac620b0cd3281acb56aa` | `AllowAllModule` |
+| `BudgetCommitted(bytes32 indexed nullifier, address indexed wallet, uint128 amount, uint256 total)` | `0xb098e0bc2b25b36615b0050023f0b05503473ec35ed186df7282c9de6a9baef9` | `WorldPassModule` (per person) |
+| `NullifierBound(bytes32 indexed nullifier, address indexed wallet)` | `0x4dc8b8de296376797676ed0fba6c1df2b7ced8ba63666494c78596c34b56e027` | `WorldPassModule`: a person's first accepted bid |
 | `BidSubmitted(uint256 indexed id, address indexed owner, uint256 priceQ96, uint128 amount)` | `0x650baad5cd8ca09b8f580be220fa04ce2ba905a041f764b6a3fe2c848eb70540` | CCA |
 | `BidExited(uint256 indexed bidId, address indexed owner, uint256 tokensFilled, uint256 currencyRefunded)` | `0x054fe6469466a0b4d2a6ae4b100e5f9c494c958f04b4000f44d470088dd97930` | CCA |
 | `TokensClaimed(uint256 indexed bidId, address indexed owner, uint256 tokensFilled)` | `0x880f2ef2613b092f1a0a819f294155c98667eb294b7e6bf7a3810278142c1a1c` | CCA |

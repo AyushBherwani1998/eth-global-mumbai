@@ -7,9 +7,11 @@ import {ListingPolicyReceiver} from "../../src/ListingPolicyReceiver.sol";
 import {MockSME} from "../../src/MockSME.sol";
 import {IListingHook} from "../../src/interfaces/IListingHook.sol";
 import {ListingPolicy} from "../../src/interfaces/IListingPolicy.sol";
+import {EligibilityPass} from "../../src/interfaces/IWorldPassModule.sol";
 import {Sepolia} from "../../src/libraries/Constants.sol";
 import {ListingPrice} from "../../src/libraries/ListingPrice.sol";
 import {AllowAllModule} from "../../src/modules/AllowAllModule.sol";
+import {WorldPassModule} from "../../src/modules/WorldPassModule.sol";
 import {IContinuousClearingAuction} from "continuous-clearing-auction/src/interfaces/IContinuousClearingAuction.sol";
 import {Script, console2} from "forge-std/Script.sol";
 import {Vm} from "forge-std/Vm.sol";
@@ -79,6 +81,9 @@ abstract contract DemoBase is Script {
 
     string internal constant DEFAULT_DEPLOYMENTS_FILE = "deployments/sepolia.json";
     string internal constant DEFAULT_LABEL = "acme-v1";
+    string internal constant DEFAULT_HUMAN_LABEL = "acme-human-v1";
+    /// @dev Same lifetime as the passes services/verify signs.
+    uint64 internal constant PASS_TTL = 10 minutes;
 
     // ---------------------------------------------------------------- state read back from the json
 
@@ -87,7 +92,11 @@ abstract contract DemoBase is Script {
         address treasury;
         address creBroadcaster;
         MockSME token;
+        /// @dev Set on an `open` listing (ELIGIBILITY=open), else zero.
         AllowAllModule module;
+        /// @dev Set on a `human` listing (ELIGIBILITY=human), else zero.
+        WorldPassModule worldPass;
+        bool human;
         AuctionValidationHook validationHook;
         ListingHook hook;
         ListingPolicyReceiver receiver;
@@ -107,7 +116,36 @@ abstract contract DemoBase is Script {
     }
 
     function _label() internal view returns (string memory) {
-        return vm.envOr("DEMO_LABEL", string(DEFAULT_LABEL));
+        return vm.envOr("DEMO_LABEL", _human() ? string(DEFAULT_HUMAN_LABEL) : string(DEFAULT_LABEL));
+    }
+
+    /// @dev `open` (AllowAllModule: per-wallet cap) or `human` (WorldPassModule: World ID pass per bid). The
+    ///      validation hook's module is immutable, so each mode is its own listing (label, token, hook, auction).
+    function _eligibility() internal view returns (string memory mode) {
+        mode = vm.envOr("ELIGIBILITY", string("open"));
+        bytes32 h = keccak256(bytes(mode));
+        require(h == keccak256("open") || h == keccak256("human"), "ELIGIBILITY must be open or human");
+    }
+
+    function _human() internal view returns (bool) {
+        return keccak256(bytes(_eligibility())) == keccak256("human");
+    }
+
+    /// @dev The verify backend's pass signer (services/verify PASS_SIGNER_KEY). Deploy needs only its address;
+    ///      scripted bids on a human listing also need the key, since they sign their own passes.
+    function _passSigner() internal view returns (address) {
+        address a = vm.envOr("PASS_SIGNER_ADDRESS", address(0));
+        if (a != address(0)) return a;
+        uint256 key = vm.envOr("PASS_SIGNER_KEY", uint256(0));
+        require(
+            key != 0, "ELIGIBILITY=human: set PASS_SIGNER_ADDRESS (or PASS_SIGNER_KEY) = the verify backend's signer"
+        );
+        return vm.addr(key);
+    }
+
+    /// @dev World ID action of the listing: `listingday-<ENS ticker>` (what services/verify requests).
+    function _worldAction() internal view returns (string memory) {
+        return string.concat("listingday-", vm.envOr("ENS_TICKER", string("acme")));
     }
 
     /// @dev Issuer: deploys everything, owns the hooks and the receiver, launches the auction.
@@ -191,6 +229,8 @@ abstract contract DemoBase is Script {
         d.creBroadcaster = _jsonAddress(j, ".creBroadcaster");
         d.token = MockSME(_jsonAddress(j, ".contracts.mockSME"));
         d.module = AllowAllModule(_jsonAddress(j, ".contracts.allowAllModule"));
+        d.worldPass = WorldPassModule(_jsonAddress(j, ".contracts.worldPassModule"));
+        d.human = address(d.worldPass) != address(0);
         d.validationHook = AuctionValidationHook(_jsonAddress(j, ".contracts.auctionValidationHook"));
         d.hook = ListingHook(_jsonAddress(j, ".contracts.listingHook"));
         d.receiver = ListingPolicyReceiver(_jsonAddress(j, ".contracts.listingPolicyReceiver"));
@@ -222,6 +262,24 @@ abstract contract DemoBase is Script {
 
     function _salt(string memory what) internal view returns (bytes32) {
         return keccak256(abi.encode("listing-day", _label(), what));
+    }
+
+    // ---------------------------------------------------------------- World ID passes (human listings)
+
+    /// @dev Stand-in nullifier for scripted demo wallet `i`: the scripts play the verify backend (no World ID
+    ///      proof), so these are labelled, per-listing values, never real World ID nullifiers.
+    function _demoNullifier(uint256 i) internal view returns (bytes32) {
+        return keccak256(abi.encode("listing-day scripted demo human", _label(), i));
+    }
+
+    /// @dev `hookData` exactly as services/verify returns it: `abi.encode(pass, signature)`, EIP-712 signed with
+    ///      PASS_SIGNER_KEY for `module`'s domain.
+    function _passHookData(WorldPassModule module, EligibilityPass memory pass) internal view returns (bytes memory) {
+        uint256 key = vm.envOr("PASS_SIGNER_KEY", uint256(0));
+        require(key != 0, "scripted bids on a human listing sign passes with PASS_SIGNER_KEY (the backend's key)");
+        require(vm.addr(key) == module.signer(), "PASS_SIGNER_KEY is not WorldPassModule.signer()");
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, module.hashPass(pass));
+        return abi.encode(pass, abi.encodePacked(r, s, v));
     }
 
     // ---------------------------------------------------------------- pool helpers

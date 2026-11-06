@@ -2,10 +2,10 @@ name: contracts
 
 on:
   pull_request:
-    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", "services/verify/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
   push:
     branches: [main]
-    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", "services/verify/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
 
 jobs:
   test:
@@ -28,6 +28,11 @@ jobs:
       - name: Build
         run: forge build
 
+      # A few blocks behind the head, so every node behind a load-balanced public RPC already has the fork block
+      # (otherwise forks fail with "block not found"). Every fork test and script below uses it.
+      - name: Pin the Sepolia fork block
+        run: echo "SEPOLIA_FORK_BLOCK=$(( $(cast block-number --rpc-url "$SEPOLIA_RPC_URL") - 5 ))" >> "$GITHUB_ENV"
+
       - name: Format
         run: forge fmt --check
 
@@ -39,6 +44,9 @@ jobs:
 
       - name: Demo scripts end to end on a Sepolia fork (no broadcast)
         run: make demo-fork
+
+      - name: Demo scripts for a World ID (human) listing on a Sepolia fork (no broadcast)
+        run: make demo-fork ELIGIBILITY=human
 
       - name: ENSv2 ticker namespace scripts on a Sepolia fork (no broadcast)
         run: make ens-fork

@@ -13,7 +13,7 @@ import {console2} from "forge-std/Script.sol";
 ///   listingday.pool         v4 PoolId (known at deploy: the hook pins the key)
 ///   listingday.hook         ListingHook
 ///   listingday.policy       eip155:<chainId>:<ListingPolicyReceiver>
-///   listingday.eligibility  ENS_ELIGIBILITY (default `open`; `human` once the World ID module lands)
+///   listingday.eligibility  `human` if the listing's module is the WorldPassModule (ELIGIBILITY=human), else `open`
 ///   description, url, avatar  ENS_DESCRIPTION / ENS_URL / ENS_AVATAR (defaults below)
 ///
 /// `listingday.status` is not written here: only the receiver writes it (EnsStatusRole, then every CRE report).
@@ -82,10 +82,21 @@ contract EnsRecords is EnsBase {
         r[3] = Record(
             KEY_POLICY, string.concat("eip155:", vm.toString(block.chainid), ":", vm.toString(address(d.receiver)))
         );
-        r[4] = Record(KEY_ELIGIBILITY, vm.envOr("ENS_ELIGIBILITY", string("open")));
+        r[4] = Record(KEY_ELIGIBILITY, _eligibilityRecord(d));
         r[5] = Record(KEY_DESCRIPTION, vm.envOr("ENS_DESCRIPTION", _defaultDescription(d)));
         r[6] = Record(KEY_URL, vm.envOr("ENS_URL", string(DEFAULT_URL)));
         r[7] = Record(KEY_AVATAR, vm.envOr("ENS_AVATAR", _defaultAvatar(d)));
+    }
+
+    /// @dev Follows the deployed module, so ENS never advertises an eligibility the hook does not enforce.
+    ///      ENS_ELIGIBILITY, if set, must agree.
+    function _eligibilityRecord(Deployment memory d) internal view returns (string memory mode) {
+        mode = d.human ? "human" : "open";
+        string memory asked = vm.envOr("ENS_ELIGIBILITY", string(""));
+        require(
+            bytes(asked).length == 0 || keccak256(bytes(asked)) == keccak256(bytes(mode)),
+            string.concat("ENS_ELIGIBILITY=", asked, " but the listing's module is ", mode, ": unset it")
+        );
     }
 
     function _defaultDescription(Deployment memory d) internal view returns (string memory) {

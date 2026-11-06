@@ -1,0 +1,26 @@
+{
+  "name": "@listing-day/verify",
+  "version": "0.1.0",
+  "private": true,
+  "description": "World ID verify backend for Listing Day: RP-signed IDKit requests, POST /api/v4/verify, nullifier -> wallet store, EIP-712 EligibilityPass signer",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/index.ts",
+    "start:env": "node --disable-warning=ExperimentalWarning --env-file=.env src/index.ts",
+    "test": "node --disable-warning=ExperimentalWarning --test test/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "fixtures": "node scripts/gen-fixtures.ts"
+  },
+  "dependencies": {
+    "@worldcoin/idkit-server": "1.2.0",
+    "viem": "2.57.16"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "@worldcoin/idkit-core": "4.6.0",
+    "typescript": "^5.8.0"
+  }
+}

@@ -26,6 +26,8 @@ links.
 | `DEMO_LABEL` | no | CREATE2 salt namespace, default `acme-v1`. Change it (e.g. `acme-v2`) to deploy a fresh listing next to an old one |
 | `ENS_OWNER_KEY` | no | ENS step 5: the exchange key that owns `listingday.eth` and the UserRegistry root roles. Default `PRIVATE_KEY` |
 | `ISSUER_KEY` | no | ENS step 5: owns `acme.listingday.eth` and its resolver, writes the records. Default `PRIVATE_KEY` (the deployer is the issuer) |
+| `ELIGIBILITY` | no | `open` (default: `AllowAllModule`, 20 USDC per wallet) or `human` (`WorldPassModule`: a World ID pass per bid, 20 USDC per person). Section 6 |
+| `PASS_SIGNER_ADDRESS` / `PASS_SIGNER_KEY` | human only | The verify backend's pass signer (`PASS_SIGNER_KEY` in `../services/verify/.env`). Deploy needs the address (or the key); `make bids` needs the key. Section 6 |
 
 Copy `.env.example` to `.env` and fill it in; the Makefile loads it. Never commit `.env`.
 
@@ -45,10 +47,10 @@ Optional tuning (defaults are the plan.md §4/§12 demo):
 | `POLICY_MAX_AGE` | 86400 | deploy: receiver `maxAge` (policy fails closed to halted after this) |
 | `LP_REMOVE_BPS` | 1000 | halt: share of the LP removed while halted (10%) |
 | `FUND_USDC` / `FUND_ETH` | 20 USDC / 0.02 ETH | fund: target balance per demo wallet (only the shortfall is sent) |
-| `DEPLOYMENTS_FILE` | `deployments/sepolia.json` | every step |
+| `DEPLOYMENTS_FILE` | `deployments/sepolia.json` (`deployments/sepolia-human.json` with `ELIGIBILITY=human`) | every step |
 | `ENS_PARENT_LABEL` / `ENS_TICKER` | `listingday` / `acme` | ENS: the names |
 | `ENS_DURATION` | 31536000 (1 year) | ENS: `listingday.eth` registration, at least 2419200 (28 days); about 8.0 MockUSDC per year |
-| `ENS_ELIGIBILITY` | `open` | ENS records: `listingday.eligibility` (`human` once the World ID module is live) |
+| `ENS_ELIGIBILITY` | unset | ENS records: leave unset, `listingday.eligibility` follows the deployed module (`open` / `human`); if set it must agree |
 | `ENS_DESCRIPTION` / `ENS_URL` / `ENS_AVATAR` | MockSME name + summary / the repo / inline SVG | ENS records |
 | `ENS_SECRET` | derived from `ENS_OWNER_KEY` | ENS: commit secret (deterministic so the reveal run recomputes it) |
 
@@ -81,12 +83,15 @@ Tools: Foundry 1.x (`foundryup`), `jq`, `make`, `bash`. From the repo root, `git
 ```bash
 export SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 make demo-fork     # whole flow in one process on a fork, every step twice, asserts after each step
+make demo-fork ELIGIBILITY=human   # the same for a World ID listing (section 6)
 make ens-fork      # the ENSv2 steps in one process on a fork (deploy + launch, listingday.eth, acme, records, status)
 make demo-anvil    # every step, ENS included, as its own --broadcast process against a local anvil fork (needs anvil)
 ```
 
-`make demo-fork` ends with `DemoFork: all steps passed; wrote deployments/sepolia-fork.json`, `make ens-fork` with
-`EnsFork: all steps passed; wrote deployments/sepolia-ens-fork.json`. `make demo-anvil` ends with
+`make demo-fork` ends with `DemoFork (open): all steps passed; wrote deployments/sepolia-fork.json` (`(human)` and
+`sepolia-fork-human.json` with `ELIGIBILITY=human`), `make ens-fork` with
+`EnsFork: all steps passed; wrote deployments/sepolia-ens-fork.json and deployments/sepolia-ens-fork-human.json`
+(the second file is the swap-in to a human listing, section 6). `make demo-anvil` ends with
 `anvil rehearsal done: deployments/anvil.json` (`KEEP_ANVIL=1` leaves the chain running at `http://127.0.0.1:8546`
 to point the frontend at). The files are git-ignored and show the shape of the real one.
 
@@ -182,13 +187,15 @@ forge verify-contract $(jq -r .contracts.listingPolicyReceiver deployments/sepol
 
 - **`deployments/sepolia.json`**: everything the app needs, written by the steps above.
   - `chainId`, `label`, `deployBlock`, `deployer` (issuer), `issuer`, `treasury`, `creBroadcaster`
-  - `contracts`: `mockSME`, `allowAllModule`, `auctionValidationHook`, `listingHook`, `listingPolicyReceiver`
+  - `contracts`: `mockSME`, `allowAllModule` (open) or `worldPassModule` (human), `eligibilityModule` (either), `auctionValidationHook`, `listingHook`, `listingPolicyReceiver`
+  - `eligibility`: `mode` (`open` / `human`, = ENS `listingday.eligibility`), `module`, `cap`; human only: `passSigner`, `worldAction` (`listingday-<ticker>`), `passTtlSeconds`
   - `external`: `usdc`, `permit2`, `ccaFactory`, `liquidityLauncher`, `lbpStrategy`, `poolManager`, `positionManager`, `stateView`, `quoter`, `universalRouter`, `creMockForwarder`, `create2Factory`
   - `pool`: `poolId`, `poolKey` (`currency0`, `currency1`, `fee`, `tickSpacing`, `hooks`), `usdcIsCurrency0`, `listingDayBandBps`, `listingDaySeconds`
   - `receiverConfig`: `forwarder`, `broadcaster`, `chainSelector` (string), `maxAge`
   - `params`: share supply, auction supply, LP reserve, floor / issue / cap points and their Q96 prices, applicant cap, graduation threshold, LP rate
   - `auction`: `address`, `startBlock`, `bidWindowEndBlock`, `endBlock`, `claimBlock`, `migrationBlock`, `floorPriceQ96`, `tickSpacingQ96`, `requiredCurrencyRaised`, `totalSupply`, `reservedTokenAmountForLP`, `tokensRecipient`, `fundsRecipient`, `validationHook`
   - `bids`: `count`, `committedTotal`, `list[]` of `{id, owner, amount, maxPriceQ96, maxPricePoints, startBlock}`
+  - `rejectedBids` (human only): `secondWallet`, `expiredPass`, `overCap`, each `{expected, wallet, amount, hookData, hookError, revertData}`: what `submitBid` reverts with, for the frontend's error decoding
   - `results`: `graduated`, `currencyRaised`, `clearingPriceQ96`, `clearingPoints`, `totalCleared`, `unsoldSwept`, `migrated`, `listingSqrtPriceX96`, `listingPointsE2`, `listedAt`, `listingDayEndsAt`, `poolLiquidity`, `treasuryUsdc`, `treasuryShares`, `lpTokenId`
   - `trade`: `swapRouter` (PoolSwapTest), `trader`, the in-band result, the out-of-band error, revert data, band, and the `cast` command
   - `halt`: `halted`, `policyVersion`, `lastExecutionId`, `haltedSwapRevertData`, `lpTokenId`, `lpLiquidityBefore`, `lpRemovedLiquidity`
@@ -197,8 +204,9 @@ forge verify-contract $(jq -r .contracts.listingPolicyReceiver deployments/sepol
 
   Numbers above 2^53 (token amounts in wei, sqrt prices, the chain selector) are JSON strings.
 - **`abis/*.json`**: plain ABI arrays (`make abis` regenerates them from the build; CI checks they're current). Ours:
-  `MockSME`, `AllowAllModule`, `AuctionValidationHook`, `ListingHook`, `ListingPolicyReceiver` and their interfaces
-  `IListingHook`, `IListingPolicyReceiver`, `IAuctionValidationHook`, `IEligibilityModule`. External:
+  `MockSME`, `AllowAllModule`, `WorldPassModule`, `AuctionValidationHook`, `ListingHook`, `ListingPolicyReceiver` and
+  their interfaces `IListingHook`, `IListingPolicyReceiver`, `IAuctionValidationHook`, `IEligibilityModule`,
+  `IWorldPassModule`. External:
   `IContinuousClearingAuction`, `ILBPStrategy`, `ILiquidityLauncher`, `IAllowanceTransfer` (Permit2), `IPoolManager`,
   `IPositionManager`, `IStateView`, `IV4Quoter`, `PoolSwapTest`, `IERC20Metadata`. ENSv2 (official, from the
   contracts-v2 tag): `abis/ensv2/` `ETHRegistrar`, `ETHRegistry`, `UserRegistryImpl` (the `listingday.eth` registry),
@@ -206,6 +214,7 @@ forge verify-contract $(jq -r .contracts.listingPolicyReceiver deployments/sepol
   `StandardRentPriceOracle`, `MockUSDC`.
 - ENS reads: the [frontend read guide](README.md#frontend-read-guide) (viem `getEnsAddress` / `getEnsText`, `ccipRead: false`).
 - Error selectors and event topics: [`errors.md`](errors.md).
+- Human listings: the verify backend's HTTP contract, [`../services/verify/API.md`](../services/verify/API.md).
 
 ## 5. ENSv2 ticker namespace (chunk 6)
 
@@ -262,3 +271,47 @@ receiver keeps its role until the issuer revokes it:
 | `... is owned by someone other than ISSUER_KEY` | The ticker belongs to another issuer key: use that key, or another `ENS_TICKER` |
 | `PRIVATE_KEY is not the receiver owner` | `setStatusMirror` is owner-only: `PRIVATE_KEY` must be the deployer |
 | `listingday.status` didn't change after a report | Check the receiver's `StatusMirrorFailed` event; `EACUnauthorizedAccountRoles` means the role is missing (`make ens-status-role`). `syncStatus()` retries |
+
+## 6. Human listing (World ID, chunk 7)
+
+A human listing runs the same steps with `ELIGIBILITY=human`. The validation hook's module is immutable, so it is its
+own launch: a new label (default `acme-human-v1`), MockSME, `WorldPassModule` + `AuctionValidationHook`, ListingHook,
+receiver and auction, in `deployments/sepolia-human.json`. Every bid then needs `hookData`: an EIP-712
+`EligibilityPass` that [`../services/verify`](../services/verify/README.md) signs after a World ID Proof of Human.
+
+> **Manual step.** Needs the owner's World Developer Portal app (app id, RP id, RP signing key, a staging action
+> `listingday-acme`), listed in [`../services/verify/README.md`](../services/verify/README.md#manual-check-idkit-simulator-staging).
+> Rehearsed on a fork (`make demo-fork ELIGIBILITY=human`, `make ens-fork`, `DemoScripts.fork.t.sol`, in CI);
+> nothing is deployed.
+
+```bash
+# contracts/.env: ELIGIBILITY=human and PASS_SIGNER_KEY (= services/verify's PASS_SIGNER_KEY), or only
+# PASS_SIGNER_ADDRESS if you won't run the scripted bids
+make deploy launch                        # ELIGIBILITY=human from .env, file deployments/sepolia-human.json
+make -s verify-listings > /tmp/listings   # LISTINGS for services/verify
+cd ../services/verify && LISTINGS="$(cat /tmp/listings)" npm run start:env
+cd ../../contracts && make ens-records ens-status-role   # acme -> the human listing, listingday.eligibility = human
+make wait-start bids wait-migration settle trade halt    # as section 3
+```
+
+| Step | Difference from an open listing |
+|---|---|
+| `make deploy` | Deploys `WorldPassModule(hook, signer = PASS_SIGNER_ADDRESS)` instead of `AllowAllModule`, writes `contracts.worldPassModule` and the `eligibility` section. Refuses a label already deployed with the other mode |
+| `make bids` | The script plays the verify backend: it signs each demo wallet a 10-minute pass with `PASS_SIGNER_KEY` for a labelled stand-in nullifier (`keccak256("listing-day scripted demo human", label, i)`, never a real World ID nullifier) and passes it as `hookData`. Then it asks the hook, as the auction (simulated, nothing sent), to judge three bids that must fail and records them in `.rejectedBids`: a second wallet with wallet 0's nullifier (`NotEligible(6)`), an expired pass (`NotEligible(3)`), one USDC over the cap (`CapExceeded`). Real bidders get their passes from the frontend + backend instead |
+| `make ens-records` | Writes `listingday.eligibility = human` because the module is the `WorldPassModule` (`ENS_ELIGIBILITY` can't override it) |
+
+Switching the ticker from the open listing to the human one (the swap-in that `make ens-fork` rehearses): deploy and
+launch the human listing, then `make ens-records ens-status-role` with the human deployments file. That re-points
+`acme.listingday.eth` (auction, pool, hook, policy, `addr`, eligibility) and grants the new receiver the status role;
+revoke the old receiver's role as in section 5.
+
+Gas (unit-test gas report): `WorldPassModule` deploys for 1.16M (`AllowAllModule`: 0.32M). Its `check` costs ~78k on
+a person's first bid (`AllowAllModule`: ~25k), mostly the signature recovery and the two new bindings.
+
+| Symptom | Fix |
+|---|---|
+| `ELIGIBILITY=human: set PASS_SIGNER_ADDRESS (or PASS_SIGNER_KEY)` | Set it to the verify backend's pass signer |
+| `PASS_SIGNER_KEY is not WorldPassModule.signer()` | `make bids` signs with a different key than the module trusts: use the backend's key |
+| `this DEMO_LABEL was deployed with the other ELIGIBILITY` | The label's hook already has the other module: pick a new `DEMO_LABEL` |
+| `ENS_ELIGIBILITY=open but the listing's module is human` | Unset `ENS_ELIGIBILITY` |
+| Bids revert `NotEligible(3)` | Pass expired (10 minutes): verify again |

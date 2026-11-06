@@ -23,6 +23,9 @@ import {StdAssertions} from "forge-std/StdAssertions.sol";
 ///         UserRegistry, ticker, records, status role), each run twice for idempotency, then real CRE-style reports
 ///         through the live MockKeystoneForwarder that the receiver mirrors into `listingday.status`. All reads go
 ///         through the Universal Resolver (`EnsRead`). Writes `deployments/sepolia-ens-fork.json`.
+///         Then the swap-in: the issuer relaunches `acme` as a human listing (WorldPassModule, plan.md §8), and the
+///         same ENS steps point the ticker at it with `listingday.eligibility = human`
+///         (`deployments/sepolia-ens-fork-human.json`).
 ///
 ///   forge script script/ens/EnsFork.s.sol --fork-url $SEPOLIA_RPC_URL       (or: make ens-fork)
 ///
@@ -31,6 +34,7 @@ import {StdAssertions} from "forge-std/StdAssertions.sol";
 /// `listingday-fork.eth` instead; nothing else changes. Nothing is broadcast.
 contract EnsFork is EnsBase, StdAssertions {
     string internal constant FORK_FILE = "deployments/sepolia-ens-fork.json";
+    string internal constant FORK_FILE_HUMAN = "deployments/sepolia-ens-fork-human.json";
     string internal constant FALLBACK_PARENT_LABEL = "listingday-fork";
 
     uint256 internal deployerKey = _key("deployer");
@@ -48,8 +52,9 @@ contract EnsFork is EnsBase, StdAssertions {
         grantStatusRole();
         reportStatus();
         checkResolution();
+        swapInHumanListing();
         console2.log("");
-        console2.log("EnsFork: all steps passed; wrote", FORK_FILE);
+        console2.log("EnsFork: all steps passed; wrote", FORK_FILE, "and", FORK_FILE_HUMAN);
     }
 
     // ---------------------------------------------------------------- steps (public: reused by the fork tests)
@@ -64,7 +69,8 @@ contract EnsFork is EnsBase, StdAssertions {
         vm.setEnv("TREASURY_KEY", vm.toString(bytes32(deployerKey)));
         vm.setEnv("CRE_BROADCASTER_KEY", vm.toString(bytes32(broadcasterKey)));
         vm.setEnv("ENS_TICKER", DEFAULT_TICKER);
-        vm.setEnv("ENS_ELIGIBILITY", "open");
+        vm.setEnv("ELIGIBILITY", "open");
+        vm.setEnv("ENS_ELIGIBILITY", "");
         bool taken = !REGISTRAR.isAvailable(DEFAULT_PARENT_LABEL)
             && ETH_REGISTRY.findOwner(DEFAULT_PARENT_LABEL) != vm.addr(exchangeKey);
         vm.setEnv("ENS_PARENT_LABEL", taken ? FALLBACK_PARENT_LABEL : DEFAULT_PARENT_LABEL);
@@ -218,6 +224,39 @@ contract EnsFork is EnsBase, StdAssertions {
         assertEq(vm.parseJsonString(j, ".ens.records.['listingday.status']"), "listed");
         assertTrue(vm.parseJsonBool(j, ".ens.statusRole.granted"));
         assertFalse(vm.parseJsonBool(j, ".ens.ticker.transferable"));
+    }
+
+    /// @dev Same ticker, same issuer; the validation hook's module is immutable, so `human` is a new launch.
+    function swapInHumanListing() public {
+        address openAuction = vm.parseJsonAddress(_json(), ".auction.address");
+        vm.setEnv("ELIGIBILITY", "human");
+        vm.setEnv("DEPLOYMENTS_FILE", FORK_FILE_HUMAN);
+        vm.setEnv("DEMO_LABEL", "ens-fork-human");
+        vm.setEnv("PASS_SIGNER_ADDRESS", vm.toString(vm.addr(_key("passSigner"))));
+        if (vm.exists(FORK_FILE_HUMAN)) vm.removeFile(FORK_FILE_HUMAN);
+        deployListing();
+        Deployment memory d = _load();
+        assertTrue(d.human, "human listing");
+        assertEq(d.worldPass.signer(), vm.addr(_key("passSigner")));
+
+        vm.setEnv("ENS_ELIGIBILITY", "open");
+        (bool ok,) = address(new EnsRecords()).call(abi.encodeCall(EnsRecords.run, ()));
+        assertFalse(ok, "ENS_ELIGIBILITY must agree with the module");
+        vm.setEnv("ENS_ELIGIBILITY", "");
+
+        new EnsRecords().run();
+        assertEq(vm.parseJsonString(_json(), ".ens.records.['listingday.eligibility']"), "human");
+        new EnsStatusRole().run();
+        ListingPolicy memory p;
+        _report(_receiver(), p);
+
+        EnsRead.Resolved memory r = new EnsRead().resolve(_tickerName());
+        assertEq(r.texts[0], vm.toString(address(d.auction)), "ticker points at the human auction");
+        assertTrue(address(d.auction) != openAuction, "a new auction");
+        assertEq(r.texts[2], vm.toString(address(d.hook)), "hook of the human listing");
+        assertEq(r.texts[4], "listed", "status mirrored by the human listing's receiver");
+        assertEq(r.texts[5], "human", "eligibility");
+        assertEq(r.addr, address(d.token), "addr = the human listing's MockSME");
     }
 
     // ---------------------------------------------------------------- internal
