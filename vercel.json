@@ -1,6 +1,6 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "installCommand": "npm ci --prefix services/api && ln -sfn services/api/node_modules node_modules",
+  "installCommand": "npm ci",
   "buildCommand": "",
   "framework": null,
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
