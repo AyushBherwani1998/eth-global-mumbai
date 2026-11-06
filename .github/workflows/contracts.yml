@@ -2,10 +2,10 @@ name: contracts
 
 on:
   pull_request:
-    paths: ["contracts/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
   push:
     branches: [main]
-    paths: ["contracts/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
 
 jobs:
   test:
