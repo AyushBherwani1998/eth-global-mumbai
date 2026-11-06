@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity 0.8.26;
 
-import {Sepolia} from "../../src/libraries/Constants.sol";
+import {Sepolia, SepoliaEns} from "../../src/libraries/Constants.sol";
 import {SepoliaForkTest} from "../utils/SepoliaForkTest.sol";
 
 interface IHasPoolManager {
@@ -20,6 +20,17 @@ interface ICcaFactoryView {
 
 interface IInitializerHookView {
     function authorized() external view returns (address);
+}
+
+interface IEnsV2Links {
+    function ETH_REGISTRY() external view returns (address);
+    function rentPriceOracle() external view returns (address);
+    function isPaymentToken(address token) external view returns (bool);
+    function LABEL_STORE() external view returns (address);
+    function getSubregistry(string calldata label) external view returns (address);
+    function implementation() external view returns (address);
+    function ROOT_REGISTRY() external view returns (address);
+    function decimals() external view returns (uint8);
 }
 
 contract SepoliaAddressesForkTest is SepoliaForkTest {
@@ -64,5 +75,51 @@ contract SepoliaAddressesForkTest is SepoliaForkTest {
 
         assertEq(ICcaFactoryView(Sepolia.CCA_FACTORY).protocolFeeController(), address(0));
         assertEq(IInitializerHookView(Sepolia.INITIALIZER_HOOK_REFERENCE).authorized(), Sepolia.LBP_STRATEGY);
+    }
+
+    function test_fork_ensV2_haveCode() public view {
+        address[13] memory all = [
+            SepoliaEns.ROOT_REGISTRY,
+            SepoliaEns.ETH_REGISTRY,
+            SepoliaEns.ETH_REGISTRAR,
+            SepoliaEns.RENT_PRICE_ORACLE,
+            SepoliaEns.LABEL_STORE,
+            SepoliaEns.VERIFIABLE_FACTORY,
+            SepoliaEns.USER_REGISTRY_IMPL,
+            SepoliaEns.PERMISSIONED_RESOLVER_IMPL,
+            SepoliaEns.UNIVERSAL_RESOLVER,
+            SepoliaEns.MANAGED_UNIVERSAL_RESOLVER_PROXY,
+            SepoliaEns.UNIVERSAL_RESOLVER_V2,
+            SepoliaEns.ENS_MOCK_USDC,
+            SepoliaEns.ENS_MOCK_DAI
+        ];
+        for (uint256 i; i < all.length; i++) {
+            assertGt(all[i].code.length, 0, vm.toString(all[i]));
+        }
+    }
+
+    /// @dev The ENSv2 deployment hangs together the way contracts-v2 `v2-mainnet-deployment-1` describes it.
+    function test_fork_ensV2_crossLinks() public view {
+        assertEq(IEnsV2Links(SepoliaEns.ROOT_REGISTRY).getSubregistry("eth"), SepoliaEns.ETH_REGISTRY, "root -> eth");
+        assertEq(IEnsV2Links(SepoliaEns.ETH_REGISTRAR).ETH_REGISTRY(), SepoliaEns.ETH_REGISTRY, "registrar");
+        assertEq(IEnsV2Links(SepoliaEns.ETH_REGISTRAR).rentPriceOracle(), SepoliaEns.RENT_PRICE_ORACLE, "oracle");
+        assertTrue(IEnsV2Links(SepoliaEns.RENT_PRICE_ORACLE).isPaymentToken(SepoliaEns.ENS_MOCK_USDC), "MockUSDC");
+        assertTrue(IEnsV2Links(SepoliaEns.RENT_PRICE_ORACLE).isPaymentToken(SepoliaEns.ENS_MOCK_DAI), "MockDAI");
+        // Circle's Sepolia USDC is accepted too; the scripts pay in the mintable ENS MockUSDC so no faucet is needed.
+        assertTrue(IEnsV2Links(SepoliaEns.RENT_PRICE_ORACLE).isPaymentToken(Sepolia.USDC), "Circle USDC");
+        assertEq(IEnsV2Links(SepoliaEns.ENS_MOCK_USDC).decimals(), 6);
+        assertEq(IEnsV2Links(SepoliaEns.ETH_REGISTRY).LABEL_STORE(), SepoliaEns.LABEL_STORE, "eth label store");
+        assertEq(IEnsV2Links(SepoliaEns.USER_REGISTRY_IMPL).LABEL_STORE(), SepoliaEns.LABEL_STORE, "user label store");
+        assertEq(
+            IEnsV2Links(SepoliaEns.UNIVERSAL_RESOLVER).implementation(),
+            SepoliaEns.MANAGED_UNIVERSAL_RESOLVER_PROXY,
+            "0xeEeE... -> managed proxy"
+        );
+        assertEq(
+            IEnsV2Links(SepoliaEns.MANAGED_UNIVERSAL_RESOLVER_PROXY).implementation(),
+            SepoliaEns.UNIVERSAL_RESOLVER_V2,
+            "managed proxy -> UniversalResolverV2"
+        );
+        assertEq(IEnsV2Links(SepoliaEns.UNIVERSAL_RESOLVER_V2).ROOT_REGISTRY(), SepoliaEns.ROOT_REGISTRY, "UR root");
     }
 }

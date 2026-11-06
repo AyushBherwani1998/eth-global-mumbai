@@ -1,0 +1,35 @@
+{
+  "name": "@listing-day/api",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thin read + prepare proxy between the Listing Day app and Sepolia (live eth_call / getLogs, no cache, no indexer)",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "exports": {
+    "./types": "./src/types.ts"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "dev": "node --watch src/index.ts",
+    "test": "node --test test/*.test.ts",
+    "test:integration": "bash scripts/integration.sh",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint .",
+    "abis": "node scripts/gen-abis.ts",
+    "abis:check": "node scripts/gen-abis.ts --check"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.6",
+    "hono": "^4.13.16",
+    "viem": "^2.57.16"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^22.15.0",
+    "eslint": "^10.14.0",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1"
+  }
+}

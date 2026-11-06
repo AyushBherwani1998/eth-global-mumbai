@@ -2,10 +2,10 @@ name: contracts
 
 on:
   pull_request:
-    paths: ["contracts/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
   push:
     branches: [main]
-    paths: ["contracts/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
 
 jobs:
   test:
@@ -36,3 +36,12 @@ jobs:
 
       - name: Fork tests (Sepolia)
         run: forge test --match-path 'test/fork/*' -vv
+
+      - name: Demo scripts end to end on a Sepolia fork (no broadcast)
+        run: make demo-fork
+
+      - name: ENSv2 ticker namespace scripts on a Sepolia fork (no broadcast)
+        run: make ens-fork
+
+      - name: Frontend ABIs are current
+        run: make abis-check
