@@ -8,7 +8,7 @@ import { createClient } from "../src/chain.ts";
 import { loadConfig } from "../src/config.ts";
 
 const FIXTURE = resolve(import.meta.dirname, "fixtures/deployment.json");
-const config = loadConfig({ DEPLOYMENTS_FILES: FIXTURE, RPC_URL: "http://127.0.0.1:1/secret-key", CORS_ORIGINS: "https://app.example" });
+const config = loadConfig({ DEPLOYMENTS_FILES: FIXTURE, RPC_URL: "http://127.0.0.1:1/secret-key", CORS_ORIGINS: "https://app.example,https://*.vercel.app" });
 const app = createApp({ config, client: createClient(config) });
 
 const post = (path: string, body: unknown) =>
@@ -23,6 +23,7 @@ test("/health reports a dead RPC as 503 without leaking the URL path", async () 
   assert.equal(h.rpc, "http://127.0.0.1:1");
   assert.equal(h.deployments[0].ticker, "acme");
   assert.equal(h.deployments[0].ok, true);
+  assert.equal(h.deployments[0].file, "deployment.json");
   assert.ok(h.error);
   assert.equal(redactRpc("https://user:pw@rpc.example/v2/KEY"), "https://rpc.example");
 });
@@ -31,7 +32,9 @@ test("unknown ticker and route are 404 with an error body", async () => {
   const res = await app.request("/v1/listings/nope");
   assert.equal(res.status, 404);
   assert.deepEqual(await res.json(), { error: { code: "UNKNOWN_TICKER", message: 'no listing "nope" in DEPLOYMENTS_FILES' } });
-  for (const p of ["/v1/policy/nope", "/v1/market/nope/swaps", "/v1/auction/nope/clearing"]) assert.equal((await app.request(p)).status, 404);
+  for (const p of ["/v1/policy/nope", "/v1/policy/nope/history", "/v1/market/nope", "/v1/market/nope/swaps", "/v1/auction/nope/clearing", "/v1/issuer/nope", "/v1/portfolio/0x0000000000000000000000000000000000000001?ticker=nope"]) {
+    assert.equal((await app.request(p)).status, 404, p);
+  }
   const route = await app.request("/v2/nothing");
   assert.equal(route.status, 404);
   assert.equal((await route.json()).error.code, "NOT_FOUND");
@@ -43,6 +46,9 @@ test("query validation is 400", async () => {
   assert.equal((await app.request("/v1/bids?owner=nope")).status, 400);
   assert.equal((await app.request("/v1/market/acme/swaps?limit=0")).status, 400);
   assert.equal((await app.request("/v1/market/acme/swaps?fromBlock=-1")).status, 400);
+  assert.equal((await app.request("/v1/market/acme?limit=1001")).status, 400);
+  assert.equal((await app.request("/v1/portfolio/0x12")).status, 400);
+  assert.equal((await app.request("/v1/issuer/acme?address=nope")).status, 400);
 });
 
 test("prepare body validation is 400 before any RPC call", async () => {
@@ -88,4 +94,37 @@ test("CORS allows the configured origin only; responses are no-store", async () 
   const other = await app.request("/v1/listings/nope", { headers: { origin: "https://evil.example" } });
   assert.equal(other.headers.get("access-control-allow-origin"), null);
   assert.equal(other.headers.get("cache-control"), "no-store");
+  const preview = await app.request("/v1/config", { headers: { origin: "https://pr-21.vercel.app" } });
+  assert.equal(preview.headers.get("access-control-allow-origin"), "https://pr-21.vercel.app");
+  const nested = await app.request("/v1/config", { headers: { origin: "https://a.b.vercel.app" } });
+  assert.equal(nested.headers.get("access-control-allow-origin"), null);
+});
+
+test("/v1/config serves the deployment addresses without RPC", async () => {
+  const res = await app.request("/v1/config");
+  assert.equal(res.status, 200);
+  const c = await res.json();
+  assert.equal(c.chainId, 31337);
+  assert.equal(c.frontendEnv.apiUrl, "NEXT_PUBLIC_API_URL");
+  assert.deepEqual(c.errors, []);
+  const [l] = c.listings;
+  assert.equal(l.ticker, "acme");
+  assert.equal(l.contracts.listingHook, l.pool.poolKey.hooks);
+  assert.equal(typeof l.contracts.token, "string");
+  assert.equal(typeof l.external.usdc, "string");
+  assert.equal(l.external.ensUniversalResolver, undefined);
+  assert.equal(typeof l.ens.universalResolver, "string");
+  assert.equal(l.offer.floorPrice, 0.8);
+
+  const broken = loadConfig({ DEPLOYMENTS_FILES: `${FIXTURE},/secret/dir/missing.json#x`, RPC_URL: "http://127.0.0.1:1" });
+  const b = await (await createApp({ config: broken, client: createClient(broken) }).request("/v1/config")).json();
+  assert.equal(b.listings.length, 1);
+  assert.equal(b.errors[0].file, "missing.json");
+  assert.doesNotMatch(JSON.stringify(b), /secret/);
+});
+
+test("/v1/errors lists the hook errors by exact name", async () => {
+  const { errors } = await (await app.request("/v1/errors")).json();
+  const names = new Set(errors.map((e: { name: string }) => e.name));
+  for (const n of ["DirectionalWidening", "OutOfBand", "Halted", "CoolingOff", "CapExceeded", "ValidationHookCallFailed"]) assert.ok(names.has(n), n);
 });

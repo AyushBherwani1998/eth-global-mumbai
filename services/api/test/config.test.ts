@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { SEPOLIA, loadConfig, parseDeployment, readDeployments, type DeploymentJson } from "../src/config.ts";
+import { SEPOLIA, loadConfig, originAllowed, parseDeployment, readDeployments, type DeploymentJson } from "../src/config.ts";
 
 const FIXTURE = resolve(import.meta.dirname, "fixtures/deployment.json");
 const json = JSON.parse(readFileSync(FIXTURE, "utf8")) as DeploymentJson;
@@ -80,4 +80,34 @@ test("readDeployments reports unreadable files instead of throwing", () => {
   assert.equal(ok?.listing?.ticker, "acme");
   assert.equal(bad?.listing, undefined);
   assert.match(bad?.error ?? "", /not found/);
+});
+
+test("the committed Sepolia deployments file parses with the ENS registry, wallets and LP token", () => {
+  const [d] = readDeployments(loadConfig({}));
+  const l = d?.listing;
+  assert.ok(l, d?.error);
+  assert.equal(l.chainId, SEPOLIA.chainId);
+  assert.equal(l.token, "0x8F902CABeD3D72bd21EFaaC878a490E81aF78152");
+  assert.equal(l.auction, "0xF36d09f6C780bde8f09000d87e47B9D3E2EE5aE3");
+  assert.equal(l.ens.registry, "0x6e79404aA7cAB39d8ACd921eD5277Ab5A101deE8");
+  assert.equal(l.ens.label, "acme");
+  assert.equal(l.issuer, "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9");
+  assert.equal(l.lpTokenId, 41464n);
+  assert.equal(loadConfig({}).explorerUrl, "https://sepolia.etherscan.io");
+  assert.equal(loadConfig({ DEPLOYMENTS_FILES: FIXTURE }).explorerUrl, null);
+  assert.equal(loadConfig({ EXPLORER_URL: "https://scan.example/" }).explorerUrl, "https://scan.example");
+});
+
+test("originAllowed: exact origins, * and one-label wildcards", () => {
+  const allow = ["https://app.example", "https://*.vercel.app", "http://localhost:3000"];
+  assert.equal(originAllowed("https://app.example", allow), true);
+  assert.equal(originAllowed("https://APP.example", allow), true);
+  assert.equal(originAllowed("https://pr-21-team.vercel.app", allow), true);
+  assert.equal(originAllowed("https://a.b.vercel.app", allow), false);
+  assert.equal(originAllowed("https://vercel.app", allow), false);
+  assert.equal(originAllowed("http://x.vercel.app", allow), false);
+  assert.equal(originAllowed("https://x.vercel.app.evil.com", allow), false);
+  assert.equal(originAllowed("http://localhost:3001", allow), false);
+  assert.equal(originAllowed("", allow), false);
+  assert.equal(originAllowed("https://anything.example", ["*"]), true);
 });

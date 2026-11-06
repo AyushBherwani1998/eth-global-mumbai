@@ -2,16 +2,32 @@
  * POST /v1/prepare/*: unsigned calldata for the wallet plus a simulation from the user's address. The server never
  * signs or sends anything; MetaMask sends `steps` in order (approvals first, `needed: false` ones skipped).
  */
-import { encodeAbiParameters, encodeFunctionData, encodePacked, getAddress, isAddress, maxUint256, type Address, type Hex } from "viem";
+import { decodeFunctionResult, encodeAbiParameters, encodeFunctionData, encodePacked, getAddress, isAddress, maxUint256, type Address, type Hex } from "viem";
 
-import { ccaAbi, erc20Abi, permit2Abi, quoterAbi, universalRouterAbi } from "./abis.ts";
+import { ccaAbi, erc20Abi, permit2Abi, quoterAbi, stateViewAbi, universalRouterAbi } from "./abis.ts";
 import type { Listing } from "./config.ts";
 import { head, type Ctx, type Head } from "./context.ts";
 import { badRequest, conflict, notFound } from "./errors.ts";
-import { auctionState, planExit } from "./reads/auction.ts";
+import { auctionState, bidKey, planExit } from "./reads/auction.ts";
+import { poolState } from "./reads/market.ts";
 import { decodeRevert, revertDataOf } from "./revert.ts";
-import type { Permit2Info, Prepared, PreparedStep, Simulation, TxRequest } from "./types.ts";
-import { ONE_POINT_Q96, SHARE_DECIMALS, USDC_DECIMALS, parseAmount, pointsToQ96, priceToPoints, q96ToPoints, q96ToPrice, shares, usdc } from "./units.ts";
+import type { BidDetails, ClaimDetails, DecodedError, ExitDetails, Permit2Info, Prepared, PreparedStep, Simulation, SwapDetails, SwapQuote, TxRequest } from "./types.ts";
+import {
+  ONE_POINT_Q96,
+  SHARE_DECIMALS,
+  USDC_DECIMALS,
+  parseAmount,
+  pointsToQ96,
+  priceChangeBps,
+  priceToPoints,
+  q96ToPoints,
+  q96ToPrice,
+  round,
+  shares,
+  sqrtPriceAfterExactIn,
+  sqrtPriceX96ToPrice,
+  usdc,
+} from "./units.ts";
 
 const MAX_UINT128 = (1n << 128n) - 1n;
 /** Universal Router command and v4 router actions (v4-periphery `Actions`). */
@@ -158,7 +174,7 @@ async function permit2Steps(
   };
 }
 
-async function finish(
+async function finish<D>(
   ctx: Ctx,
   l: Listing,
   h: Head,
@@ -166,8 +182,8 @@ async function finish(
   from: Address,
   steps: PreparedStep[],
   permit2: Permit2Info | null,
-  details: Record<string, unknown>,
-): Promise<Prepared> {
+  details: D,
+): Promise<Prepared<D>> {
   const main = steps.at(-1)!;
   const sim = await simulate(ctx, l, from, steps.filter((s) => s.needed), h);
   return { ticker: l.ticker, action, to: main.to, data: main.data, value: main.value, from, chainId: ctx.config.chainId, steps, permit2, simulate: sim, details };
@@ -175,7 +191,7 @@ async function finish(
 
 // ------------------------------------------------------------------------------------------ bid
 
-export async function prepareBid(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared> {
+export async function prepareBid(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared<BidDetails>> {
   if (!l.auction) throw conflict("NOT_LAUNCHED", `${l.ticker} has no auction yet (run make launch)`);
   const owner = parseAddress(body.owner, "owner");
   const amount = amountFrom(body, "budget", "budgetRaw", USDC_DECIMALS, MAX_UINT128);
@@ -208,7 +224,7 @@ export async function prepareBid(ctx: Ctx, l: Listing, body: Record<string, unkn
     needed: true,
   });
   const balance = await ctx.client.readContract({ address: usdcAddr, abi: erc20Abi, functionName: "balanceOf", args: [owner], blockNumber: h.number });
-  return finish(ctx, l, h, "bid", owner, steps, info, {
+  return finish<BidDetails>(ctx, l, h, "bid", owner, steps, info, {
     auction: l.auction,
     owner,
     budget: usdc(amount),
@@ -262,7 +278,31 @@ export function encodeV4ExactInSingle(p: {
   return { commands: encodePacked(["uint8"], [V4_SWAP]), inputs: [input] };
 }
 
-export async function prepareSwap(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared> {
+/** The post-swap sqrt price the hook rejected (OutOfBand / DirectionalWidening carry it). */
+export function sqrtAfterFromRevert(e: DecodedError): bigint | null {
+  const v = e.name === "OutOfBand" ? e.args.sqrtPriceX96 : e.name === "DirectionalWidening" ? e.args.postSqrtPriceX96 : undefined;
+  return typeof v === "string" && /^\d+$/.test(v) ? BigInt(v) : null;
+}
+
+/** Pool sqrt price right after `calls` land (StateView read appended to the simulated block); null if anything fails. */
+async function probeSqrtPriceAfter(ctx: Ctx, l: Listing, from: Address, calls: TxRequest[], h: Head): Promise<bigint | null> {
+  const slot0 = encodeFunctionData({ abi: stateViewAbi, functionName: "getSlot0", args: [l.poolId] });
+  try {
+    const [result] = await ctx.client.simulateBlocks({
+      blockNumber: h.number,
+      validation: false,
+      blocks: [{ calls: [...calls, tx(l.external.stateView, slot0)].map((c) => ({ account: from, to: c.to, data: c.data, value: BigInt(c.value) })) }],
+    });
+    const results = result?.calls ?? [];
+    if (results.length !== calls.length + 1 || results.some((r) => r.status !== "success")) return null;
+    const [sqrt] = decodeFunctionResult({ abi: stateViewAbi, functionName: "getSlot0", data: results.at(-1)!.data });
+    return sqrt > 0n ? sqrt : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function prepareSwap(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared<SwapDetails>> {
   const from = parseAddress(body.from, "from");
   const side = body.side;
   if (side !== "buy" && side !== "sell") throw badRequest('side must be "buy" or "sell"');
@@ -319,18 +359,42 @@ export async function prepareSwap(ctx: Ctx, l: Listing, body: Record<string, unk
   const usdcIn = side === "buy" ? amountIn : quoteOut;
   const sharesAmt = side === "buy" ? quoteOut : amountIn;
   const avgPrice = usdcIn !== null && sharesAmt !== null && sharesAmt > 0n ? Math.round((usdc(usdcIn) / shares(sharesAmt)) * 1000 * 10_000) / 10_000 : null;
-  return finish(ctx, l, h, "swap", from, steps, info, {
+
+  const pool = await poolState(ctx, l, h);
+  const before = pool.sqrtPriceX96 > 0n ? pool.sqrtPriceX96 : null;
+  let after: bigint | null = null;
+  let afterSource: SwapQuote["priceAfterSource"] = null;
+  if (quoteError) {
+    after = sqrtAfterFromRevert(quoteError);
+    if (after !== null) afterSource = "revert";
+  } else if (before !== null) {
+    after = await probeSqrtPriceAfter(ctx, l, from, steps.filter((s) => s.needed), h);
+    if (after !== null) afterSource = "simulation";
+    else {
+      after = sqrtPriceAfterExactIn({ sqrtPriceX96: before, liquidity: pool.liquidity, amountIn, feePips: l.poolKey.fee, zeroForOne });
+      if (after !== null) afterSource = "estimate";
+    }
+  }
+  const usdc0 = l.usdcIsCurrency0;
+  const priceBefore = before === null ? null : sqrtPriceX96ToPrice(before, usdc0);
+  const quote: SwapQuote = {
+    ok: quoteError === null,
+    amountOut: quoteOut === null ? null : fmtOut(quoteOut),
+    avgPrice,
+    priceBefore,
+    priceAfter: after === null ? null : sqrtPriceX96ToPrice(after, usdc0),
+    priceImpactBps: before !== null && after !== null ? priceChangeBps(before, after, usdc0) : null,
+    avgPriceVsSpotBps: avgPrice !== null && priceBefore ? round((avgPrice / priceBefore - 1) * 10_000, 2) : null,
+    priceAfterSource: afterSource,
+    error: quoteError,
+    raw: { sqrtPriceBeforeX96: before?.toString() ?? null, sqrtPriceAfterX96: after?.toString() ?? null },
+  };
+  return finish<SwapDetails>(ctx, l, h, "swap", from, steps, info, {
     side,
     router,
     zeroForOne,
     amountIn: side === "buy" ? usdc(amountIn) : shares(amountIn),
-    quote: {
-      ok: quoteError === null,
-      amountOut: quoteOut === null ? null : fmtOut(quoteOut),
-      /** Average execution price (USDC / lot), before fees are separated out. */
-      avgPrice,
-      error: quoteError,
-    },
+    quote,
     minOut: fmtOut(minOut),
     slippageBps,
     deadline: Number(deadline),
@@ -356,7 +420,7 @@ function bidIdOf(v: unknown, field: string): bigint {
   return BigInt(v);
 }
 
-export async function prepareExit(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared> {
+export async function prepareExit(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared<ExitDetails>> {
   if (!l.auction) throw conflict("NOT_LAUNCHED", `${l.ticker} has no auction yet`);
   const id = bidIdOf(body.bidId, "bidId");
   const h = await head(ctx);
@@ -377,8 +441,9 @@ export async function prepareExit(ctx: Ctx, l: Listing, body: Record<string, unk
           description: `Exit bid ${id} (refund + fill accounting; tokens are claimed separately)`,
           needed: true,
         };
-  return finish(ctx, l, h, "exit", from, [step], null, {
+  return finish<ExitDetails>(ctx, l, h, "exit", from, [step], null, {
     bidId: Number(id),
+    key: bidKey(l.auction, id),
     owner: getAddress(bid.owner),
     function: plan.fn ?? "exitBid",
     reason: plan.fn === null ? plan.reason : null,
@@ -386,7 +451,7 @@ export async function prepareExit(ctx: Ctx, l: Listing, body: Record<string, unk
   });
 }
 
-export async function prepareClaim(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared> {
+export async function prepareClaim(ctx: Ctx, l: Listing, body: Record<string, unknown>): Promise<Prepared<ClaimDetails>> {
   if (!l.auction) throw conflict("NOT_LAUNCHED", `${l.ticker} has no auction yet`);
   const ids =
     body.bidIds !== undefined
@@ -415,8 +480,9 @@ export async function prepareClaim(ctx: Ctx, l: Listing, body: Record<string, un
           description: `Claim the shares filled by bids ${ids.join(", ")}`,
           needed: true,
         };
-  return finish(ctx, l, h, "claim", from, [step], null, {
+  return finish<ClaimDetails>(ctx, l, h, "claim", from, [step], null, {
     bidIds: ids.map(Number),
+    keys: ids.map((id) => bidKey(l.auction!, id)),
     owner,
     tokensFilled: bids.reduce((s, b) => s + shares(b.tokensFilled), 0),
     exited: bids.map((b) => b.exitedBlock !== 0n),

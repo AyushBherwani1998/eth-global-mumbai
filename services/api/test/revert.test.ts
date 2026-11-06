@@ -1,8 +1,11 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { test } from "node:test";
-import { BaseError, encodeErrorResult, parseAbi, type Hex } from "viem";
+import { BaseError, encodeErrorResult, parseAbi, toFunctionSelector, type Hex } from "viem";
 
-import { allErrorsAbi } from "../src/abis.ts";
+import { allErrorsAbi, errorCatalog } from "../src/abis.ts";
+import { sqrtAfterFromRevert } from "../src/prepare.ts";
 import { decodeRevert, revertDataOf } from "../src/revert.ts";
 
 const enc = (errorName: string, args: readonly unknown[] = []) => encodeErrorResult({ abi: allErrorsAbi, errorName, args } as never) as Hex;
@@ -68,4 +71,29 @@ test("revertDataOf walks viem error causes", () => {
   const err = new BaseError("call failed", { cause: inner });
   assert.equal(revertDataOf(err), outOfBand);
   assert.equal(revertDataOf(new Error("x")), null);
+});
+
+test("every error in contracts/errors.md decodes to its exact name, and is in the catalog", () => {
+  const md = readFileSync(resolve(import.meta.dirname, "../../../contracts/errors.md"), "utf8");
+  const rows = [...md.matchAll(/^\|\s*`(\w+)\(([^`]*)\)`\s*\|\s*`(0x[0-9a-f]{8})`/gm)];
+  assert.ok(rows.length >= 80, `parsed ${rows.length} rows`);
+  const catalog = new Map(errorCatalog().map((e) => [e.selector, e.name]));
+  for (const [, name, , selector] of rows) {
+    // Zero words decode for every argument type (dynamic ones as empty), so this checks the selector -> name map.
+    const d = decodeRevert(`${selector}${"0".repeat(64 * 6)}` as Hex);
+    assert.equal(d.name, name, `${selector} decodes as ${d.name}, errors.md says ${name}`);
+    assert.equal(catalog.get(selector as Hex), name);
+  }
+  for (const name of ["DirectionalWidening", "OutOfBand", "Halted", "CoolingOff", "CapExceeded", "BidAboveCap"]) {
+    assert.ok(rows.some((r) => r[1] === name), `${name} documented`);
+  }
+  for (const e of errorCatalog()) assert.equal(toFunctionSelector(e.signature), e.selector);
+});
+
+test("hook band errors give the rejected post-swap price", () => {
+  assert.equal(sqrtAfterFromRevert(decodeRevert(wrapped)), 1_840_722_885_164_987_285_154_412_915_757_571_830n);
+  const dir = decodeRevert(enc("DirectionalWidening", [5n, 7n, 9n]));
+  assert.equal(dir.name, "DirectionalWidening");
+  assert.equal(sqrtAfterFromRevert(dir), 7n);
+  assert.equal(sqrtAfterFromRevert(decodeRevert(enc("Halted"))), null);
 });
