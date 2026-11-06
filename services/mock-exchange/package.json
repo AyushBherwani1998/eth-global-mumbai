@@ -1,0 +1,19 @@
+{
+  "name": "@listing-day/mock-exchange",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Mock exchange policy API read by the Listing Day CRE workflow and edited by the issuer console",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "test": "node --test test/*.test.ts",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.0",
+    "typescript": "^5.8.0"
+  }
+}
