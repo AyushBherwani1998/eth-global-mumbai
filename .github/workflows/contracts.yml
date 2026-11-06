@@ -1,0 +1,38 @@
+name: contracts
+
+on:
+  pull_request:
+    paths: ["contracts/**", ".gitmodules", ".github/workflows/contracts.yml"]
+  push:
+    branches: [main]
+    paths: ["contracts/**", ".gitmodules", ".github/workflows/contracts.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: contracts
+    env:
+      # Repo secret if set, otherwise a public Sepolia RPC.
+      SEPOLIA_RPC_URL: ${{ secrets.SEPOLIA_RPC_URL || 'https://ethereum-sepolia-rpc.publicnode.com' }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: stable
+
+      - name: Build
+        run: forge build
+
+      - name: Format
+        run: forge fmt --check
+
+      - name: Unit tests
+        run: forge test --no-match-path 'test/fork/*' -vv
+
+      - name: Fork tests (Sepolia)
+        run: forge test --match-path 'test/fork/*' -vv
