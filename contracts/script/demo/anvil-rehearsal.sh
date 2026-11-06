@@ -4,6 +4,8 @@
 # collects real tx hashes. Uses throwaway keys funded through anvil cheats; nothing touches Sepolia.
 # `make -e`: these throwaway keys win over a .env the Makefile would otherwise load.
 #   SEPOLIA_RPC_URL=<rpc> script/demo/anvil-rehearsal.sh      (or: make demo-anvil; KEEP_ANVIL=1 leaves it running)
+# SEPOLIA_FORK_BLOCK pins the fork block (default: head - 5); the RPC must still serve that block's state.
+# ANVIL_EXTERNAL=1 reuses an anvil the caller already runs on ANVIL_PORT (forked with --chain-id 31337).
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -27,12 +29,17 @@ for i in 0 1 2 3 4 5 6 7; do wallets+=("$(key "wallet$i")"); done
 DEMO_WALLET_KEYS="$(IFS=,; echo "${wallets[*]}")"
 export DEMO_WALLET_KEYS
 
-# A few blocks behind the head, so every node behind a load-balanced public RPC already has the fork block.
-fork_block="$(( $(cast block-number --rpc-url "$SEPOLIA_RPC_URL") - 5 ))"
-anvil --fork-url "$SEPOLIA_RPC_URL" --fork-block-number "$fork_block" --chain-id 31337 --port "$port" --block-time 2 --silent &
-anvil_pid=$!
-trap 'kill $anvil_pid 2>/dev/null || true' EXIT
+anvil_pid=""
+if [[ "${ANVIL_EXTERNAL:-0}" != "1" ]]; then
+  # A few blocks behind the head, so every node behind a load-balanced public RPC already has the fork block.
+  fork_block="${SEPOLIA_FORK_BLOCK:-$(( $(cast block-number --rpc-url "$SEPOLIA_RPC_URL") - 5 ))}"
+  echo "forking Sepolia at block $fork_block"
+  anvil --fork-url "$SEPOLIA_RPC_URL" --fork-block-number "$fork_block" --chain-id 31337 --port "$port" --block-time 2 --silent &
+  anvil_pid=$!
+  trap 'kill $anvil_pid 2>/dev/null || true' EXIT
+fi
 for _ in $(seq 1 60); do cast block-number --rpc-url "$RPC_URL" > /dev/null 2>&1 && break; sleep 1; done
+[[ "$(cast chain-id --rpc-url "$RPC_URL")" == "31337" ]] || { echo "no anvil (chain id 31337) at $RPC_URL" >&2; exit 1; }
 
 usdc=0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238
 funder="$(cast wallet address "$PRIVATE_KEY")"
@@ -61,7 +68,7 @@ status="$(jq -r '.ens.records["listingday.status"]' "$DEPLOYMENTS_FILE")"
 
 make -e export-json DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
 echo "anvil rehearsal done: $DEPLOYMENTS_FILE"
-if [[ "${KEEP_ANVIL:-0}" == "1" ]]; then
+if [[ "${KEEP_ANVIL:-0}" == "1" && -n "$anvil_pid" ]]; then
   echo "KEEP_ANVIL=1: anvil keeps running at $RPC_URL (e.g. point the frontend at it); Ctrl-C to stop"
   wait "$anvil_pid"
 fi

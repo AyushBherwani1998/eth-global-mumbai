@@ -88,7 +88,10 @@ make demo-anvil    # every step, ENS included, as its own --broadcast process ag
 `make demo-fork` ends with `DemoFork: all steps passed; wrote deployments/sepolia-fork.json`, `make ens-fork` with
 `EnsFork: all steps passed; wrote deployments/sepolia-ens-fork.json`. `make demo-anvil` ends with
 `anvil rehearsal done: deployments/anvil.json` (`KEEP_ANVIL=1` leaves the chain running at `http://127.0.0.1:8546`
-to point the frontend at). The files are git-ignored and show the shape of the real one.
+to point the frontend at, or [`services/api`](../services/api/README.md) with
+`RPC_URL=http://127.0.0.1:8546 DEPLOYMENTS_FILES=../../contracts/deployments/anvil.json`). `SEPOLIA_FORK_BLOCK` pins the
+fork block (default: head - 5; the RPC must still serve that block's state), and `ANVIL_EXTERNAL=1` reuses an anvil
+already running on `ANVIL_PORT`. The files are git-ignored and show the shape of the real one.
 
 ## 3. The real run
 
