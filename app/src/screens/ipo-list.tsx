@@ -146,8 +146,8 @@ function Head({ listing }: { listing: Listing }) {
     <Link href={hrefFor(listing)} className="flex items-center gap-3">
       <TickerLogo ipo={listing} size={40} />
       <span className="min-w-0 flex-1">
-        <span className="t-card-title block truncate text-text">{listing.name}</span>
-        <span className="t-label block truncate">
+        <span className="t-card-title block [overflow-wrap:anywhere] text-text">{listing.name}</span>
+        <span className="t-label block [overflow-wrap:anywhere]">
           <TickerMark ticker={listing.ticker} symbol={listing.symbol} /> · {listing.ensName}
         </span>
       </span>

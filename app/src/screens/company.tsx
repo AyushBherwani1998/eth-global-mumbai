@@ -373,7 +373,7 @@ type ListedTab = "overview" | "trades" | "rejected" | "details";
 
 function ListedCompany({ listing }: { listing: ListingDetail }) {
   const params = useSearchParams();
-  const { connected, address, portfolio } = useApp();
+  const { connected, portfolio } = useApp();
   const marketRead = useMarket(listing.ticker);
   const { error, loading, retry, refreshing } = marketRead;
 
@@ -764,7 +764,7 @@ function ruleWord(policy: Policy | null): string {
 
 function ruleSentence(policy: Policy | null): string {
   if (!policy) return "The trading limits are published once the shares list.";
-  return ruleCopy(policy)?.text ?? "Trades go through at any price the market reaches.";
+  return ruleCopy(policy)?.text ?? "Trades must finish within today’s price limits.";
 }
 
 /** Short button word for a closed gate. */

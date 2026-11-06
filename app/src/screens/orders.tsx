@@ -126,7 +126,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function OrdersScreen() {
-  const { connected, connect, address, runTx, notify, txBusy } = useApp();
+  const { connected, address, runTx, notify, txBusy } = useApp();
   const [over, setOver] = useState<Override>({});
   const [busy, setBusy] = useState<string | "all" | null>(null);
   const [tab, setTab] = useState<Tab>("applications");
@@ -423,8 +423,8 @@ function ApplicationGroup({
       <Link href={hrefFor({ ticker })} className="flex min-h-16 items-center gap-3 py-2">
         <TickerLogo ipo={listing ?? { ticker }} size={40} />
         <span className="min-w-0 flex-1">
-          <span className="t-list-title block truncate text-text">{listing?.name ?? ticker.toUpperCase()}</span>
-          <span className="num t-label block truncate">
+          <span className="t-list-title block [overflow-wrap:anywhere] text-text">{listing?.name ?? ticker.toUpperCase()}</span>
+          <span className="num t-label block [overflow-wrap:anywhere]">
             {listing && <TickerMark ticker={listing.ticker} symbol={listing.symbol} />} {listing ? "· " : ""}
             {groupSub(listing)}
           </span>
@@ -486,8 +486,8 @@ function ApplicationTable({ groups, busy, onAct }: { groups: Group[]; busy: stri
         <span className="flex items-center gap-3">
           <TickerLogo ipo={r.listing ?? { ticker: r.bid.ticker }} size={28} />
           <span className="min-w-0">
-            <span className="block truncate text-text">{r.listing?.name ?? r.bid.ticker.toUpperCase()}</span>
-            <span className="num t-label block truncate">{groupSub(r.listing)}</span>
+            <span className="block [overflow-wrap:anywhere] text-text">{r.listing?.name ?? r.bid.ticker.toUpperCase()}</span>
+            <span className="num t-label block [overflow-wrap:anywhere]">{groupSub(r.listing)}</span>
           </span>
         </span>
       ),
@@ -530,7 +530,7 @@ function TradeRow({ row }: { row: OrderRow }) {
     <div className="flex min-h-16 items-start gap-3 py-3">
       <TickerLogo ipo={row.listing} size={40} />
       <span className="min-w-0 flex-1">
-        <span className="t-list-title block truncate text-text">{row.listing.name}</span>
+        <span className="t-list-title block [overflow-wrap:anywhere] text-text">{row.listing.name}</span>
         <span className="num t-label block">
           <TickerMark ticker={row.listing.ticker} symbol={row.listing.symbol} /> · {row.title}
         </span>
@@ -552,7 +552,7 @@ function TradeTable({ rows }: { rows: OrderRow[] }) {
         <span className="flex items-center gap-3">
           <TickerLogo ipo={r.listing} size={28} />
           <span className="min-w-0">
-            <span className="block truncate text-text">{r.listing.name}</span>
+            <span className="block [overflow-wrap:anywhere] text-text">{r.listing.name}</span>
             <span className="t-label block">
               <TickerMark ticker={r.listing.ticker} symbol={r.listing.symbol} />
             </span>

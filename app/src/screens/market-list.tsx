@@ -384,10 +384,10 @@ function RuleChanges({ rows }: { rows: Row[] }) {
             <Link href={hrefFor(n.listing)} className="flex min-h-14 items-center gap-3 py-3">
               <TickerLogo ipo={n.listing} size={28} />
               <span className="min-w-0 flex-1">
-                <span className="t-body block truncate text-text">
+                <span className="t-body block [overflow-wrap:anywhere] text-text">
                   {n.listing.name}: {n.headline.toLowerCase()}
                 </span>
-                <span className="t-label block truncate">{n.detail}</span>
+                <span className="t-label block [overflow-wrap:anywhere]">{n.detail}</span>
               </span>
               <span className="t-label shrink-0">{timeIST(n.at / 1000)}</span>
             </Link>
