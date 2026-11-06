@@ -11,7 +11,7 @@ import { useState, type ReactNode } from "react";
 import { Logo } from "@/components/shell";
 import { Button, Card, TickerLogo, cx } from "@/components/ui";
 import { shortAddr } from "@/lib/format";
-import { ensName, getIpo } from "@/lib/mock";
+import { ensName } from "@/lib/mock";
 import { useIssuerSession } from "./session";
 
 /** Console page width: wider and denser than the investor 1200px container. */
@@ -38,7 +38,7 @@ export function Notice({ title, children, className }: { title: string; children
  */
 export function DemoModeNotice({ className }: { className?: string }) {
   const { gate } = useIssuerSession();
-  if (gate === "checked") return null;
+  if (gate !== "demo") return null;
   return (
     <Notice title="Demo mode. Nobody is being checked." className={cx("mt-4", className)}>
       No listing owner address is set for this build, so this console does not know whether you own anything. Anyone who
@@ -53,9 +53,11 @@ export function GateLine({ className }: { className?: string }) {
   const { gate, address, owner } = useIssuerSession();
   return (
     <p className={cx("t-label", className)}>
-      {gate === "checked"
-        ? `Signed in as ${shortAddr(address ?? "")}, which matches the listing owner ${shortAddr(owner ?? "")}.`
-        : `Signed in as ${shortAddr(address ?? "")}. Not checked against any owner address.`}
+      {gate === "api"
+        ? `Signed in as ${shortAddr(address ?? "")}, which the exchange reads as the issuer (the owner of the listing's name).`
+        : gate === "checked"
+          ? `Signed in as ${shortAddr(address ?? "")}, which matches the listing owner ${shortAddr(owner ?? "")}.`
+          : `Signed in as ${shortAddr(address ?? "")}. Not checked against any owner address.`}
     </p>
   );
 }
@@ -91,9 +93,8 @@ export function CommandBlock({ label, command, note }: { label?: string; command
 
 /** Header + listings navigation. Rendered by every signed-in console screen. */
 export function ConsoleShell({ children }: { children: ReactNode }) {
-  const { address, ensName: signedInEns, signOut, listings } = useIssuerSession();
+  const { address, ensName: signedInEns, signOut, rows } = useIssuerSession();
   const path = usePathname();
-  const open = listings.filter((t) => getIpo(t));
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -115,17 +116,14 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
             <ConsoleNavLink href="/console" active={path === "/console"}>
               All listings
             </ConsoleNavLink>
-            {open.map((t) => {
-              const ipo = getIpo(t)!;
-              return (
-                <ConsoleNavLink key={t} href={`/console/${t}`} active={path === `/console/${t}`}>
-                  <span className="flex items-center gap-2">
-                    <TickerLogo ipo={ipo} size={20} />
-                    {ipo.name}
-                  </span>
-                </ConsoleNavLink>
-              );
-            })}
+            {rows.map((ipo) => (
+              <ConsoleNavLink key={ipo.ticker} href={`/console/${ipo.ticker}`} active={path === `/console/${ipo.ticker}`}>
+                <span className="flex items-center gap-2">
+                  <TickerLogo ipo={ipo} size={20} />
+                  {ipo.name}
+                </span>
+              </ConsoleNavLink>
+            ))}
           </nav>
         </ConsoleContainer>
       </header>
@@ -152,10 +150,18 @@ function ConsoleNavLink({ href, active, children }: { href: string; active: bool
 
 /** Signed in, but this wallet is not the listing owner. */
 export function NotTheOwner({ ticker }: { ticker?: string }) {
-  const { address, owner } = useIssuerSession();
+  const { address, owner, gate, error, retry } = useIssuerSession();
   return (
     <ConsoleShell>
       <div className="max-w-[640px] py-10">
+        {error && (
+          <Notice title="We couldn't check who the issuer is" className="mb-6">
+            {error.sentence}{" "}
+            <button type="button" onClick={retry} className="text-gain-text">
+              Retry
+            </button>
+          </Notice>
+        )}
         <p className="t-label-sm text-text-2">Not your listing</p>
         <h1 className="t-page-title mt-2 text-text">This console is for the listing owner</h1>
         <p className="t-body mt-2 text-text-2">
@@ -170,7 +176,7 @@ export function NotTheOwner({ ticker }: { ticker?: string }) {
           </p>
           <p className="t-label flex min-h-12 items-center justify-between gap-4 py-2">
             <span>The listing owner is</span>
-            <span className="num t-mono text-text">{shortAddr(owner ?? "")}</span>
+            <span className="num t-mono text-text">{gate === "api" ? "The owner of the listing's name, per the exchange" : shortAddr(owner ?? "")}</span>
           </p>
         </div>
       </div>

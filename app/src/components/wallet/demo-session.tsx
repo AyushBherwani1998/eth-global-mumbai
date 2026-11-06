@@ -6,13 +6,15 @@
 // so `connect()` would do nothing and the whole demo would be stuck signed out.
 // Rather than ship that, a build with no app id mounts this instead: the same
 // three ways in that Privy would offer, in our own sheet, with the same
-// WalletSession shape. A browser wallet gives a real address; email gives a
-// deterministic demo address, the way an embedded wallet would.
+// WalletSession shape. A browser wallet gives a real address and can sign;
+// email gives a deterministic demo address, the way an embedded wallet would,
+// but has no keys, so it (like the demo account) can look but not send.
 
-import { useCallback, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { getAddress, keccak256, toHex } from "viem";
 import { createPortal } from "react-dom";
 import { WALLET } from "@/lib/mock";
+import type { Eip1193, WalletSigner } from "@/lib/tx";
 import { Button, Sheet } from "../ui";
 import { WalletSessionContext, type WalletSession } from "./session-context";
 import { useEnsName } from "./ens";
@@ -72,8 +74,47 @@ export function demoAddressFor(seed: string) {
   return getAddress(`0x${h.slice(-40)}`);
 }
 
-type Eip1193 = { request: (a: { method: string; params?: unknown[] }) => Promise<unknown> };
-const injected = (): Eip1193 | null => (window as unknown as { ethereum?: Eip1193 }).ethereum ?? null;
+type Injected = Eip1193 & {
+  on?: (event: string, fn: (...args: unknown[]) => void) => void;
+  removeListener?: (event: string, fn: (...args: unknown[]) => void) => void;
+};
+const injected = (): Injected | null => (window as unknown as { ethereum?: Injected }).ethereum ?? null;
+
+/** The browser wallet, switched to `chainId` on each send. Only for a `via: "wallet"` sign-in. */
+function injectedSigner(address: string): WalletSigner {
+  return {
+    address,
+    label: "your browser wallet",
+    provider: async (chainId) => {
+      const eth = injected();
+      if (!eth) throw new Error("No wallet app was found in this browser.");
+      if (Number(await eth.request({ method: "eth_chainId" })) !== chainId) {
+        await eth.request({ method: "wallet_switchEthereumChain", params: [{ chainId: `0x${chainId.toString(16)}` }] });
+      }
+      return eth;
+    },
+  };
+}
+
+/** The injected wallet's chain, kept current through `chainChanged`. */
+function useInjectedChainId(active: boolean): number | null {
+  const [chainId, setChainId] = useState<number | null>(null);
+  useEffect(() => {
+    const eth = active ? injected() : null;
+    if (!eth) return;
+    let live = true;
+    const onChain = (id: unknown) => {
+      if (live) setChainId(Number(id) || null);
+    };
+    eth.request({ method: "eth_chainId" }).then(onChain, () => {});
+    eth.on?.("chainChanged", onChain);
+    return () => {
+      live = false;
+      eth.removeListener?.("chainChanged", onChain);
+    };
+  }, [active]);
+  return active ? chainId : null;
+}
 
 export function DemoSessionProvider({ children }: { children: ReactNode }) {
   const ready = useSyncExternalStore(subscribe, clientReady, serverReady);
@@ -87,6 +128,9 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
 
   const address = stored?.address ?? null;
   const ensName = useEnsName(address);
+  const canSign = stored?.via === "wallet" && !!address;
+  const signer = useMemo(() => (canSign && address ? injectedSigner(address) : null), [canSign, address]);
+  const chainId = useInjectedChainId(canSign);
 
   const value = useMemo<WalletSession>(
     () => ({
@@ -97,8 +141,10 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
       ensName,
       login: () => setOpen(true),
       logout: () => store(null),
+      signer,
+      chainId,
     }),
-    [ready, address, ensName],
+    [ready, address, ensName, signer, chainId],
   );
 
   return (

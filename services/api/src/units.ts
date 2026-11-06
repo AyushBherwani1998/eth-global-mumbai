@@ -113,6 +113,64 @@ export function priceToPoints(price: number | string): bigint {
   return pointsE2 / 100n;
 }
 
+const MIN_SQRT_PRICE = 4_295_128_739n;
+const MAX_SQRT_PRICE = 1_461_446_703_485_210_103_287_273_052_203_988_822_378_723_970_342n;
+const BPS = 10_000n;
+const BAND_SCALE = 10n ** 18n;
+
+/** floor(sqrt(n)), as OpenZeppelin `Math.sqrt`. */
+export function isqrt(n: bigint): bigint {
+  if (n < 0n) throw new Error("isqrt of a negative number");
+  if (n < 2n) return n;
+  let x = BigInt(Math.floor(Math.sqrt(Number(n))));
+  // Newton from a float seed, then settle on the floor.
+  for (;;) {
+    const y = (x + n / x) >> 1n;
+    if (y >= x) break;
+    x = y;
+  }
+  while (x * x > n) x -= 1n;
+  while ((x + 1n) * (x + 1n) <= n) x += 1n;
+  return x;
+}
+
+/** `ListingBand.bounds`: pool sqrtPriceX96 bounds of a ±`bps` share-price band around `refSqrtPriceX96`. */
+export function bandBounds(refSqrtPriceX96: bigint, bps: number, usdcIsCurrency0: boolean): [bigint, bigint] {
+  const b = BigInt(bps);
+  const up = isqrt((BPS + b) * 10n ** 32n);
+  const down = isqrt((BPS - b) * 10n ** 32n);
+  const ceilDiv = (n: bigint, d: bigint) => (n + d - 1n) / d;
+  const [lo, hi] = usdcIsCurrency0
+    ? [ceilDiv(refSqrtPriceX96 * BAND_SCALE, up), (refSqrtPriceX96 * BAND_SCALE) / down]
+    : [ceilDiv(refSqrtPriceX96 * down, BAND_SCALE), (refSqrtPriceX96 * up) / BAND_SCALE];
+  const clamp = (x: bigint) => (x < MIN_SQRT_PRICE ? MIN_SQRT_PRICE : x > MAX_SQRT_PRICE ? MAX_SQRT_PRICE : x);
+  return [clamp(lo), clamp(hi)];
+}
+
+/** Signed share-price change from one pool sqrt price to another, in bps (2 decimals). */
+export function priceChangeBps(fromSqrtPriceX96: bigint, toSqrtPriceX96: bigint, usdcIsCurrency0: boolean): number | null {
+  const a = sqrtPriceX96ToPriceQ96(fromSqrtPriceX96, usdcIsCurrency0);
+  const b = sqrtPriceX96ToPriceQ96(toSqrtPriceX96, usdcIsCurrency0);
+  if (a === 0n) return null;
+  return Number(((b - a) * 1_000_000n) / a) / 100;
+}
+
+/**
+ * Pool sqrt price after an exact-input swap that stays inside one liquidity range (v4 SqrtPriceMath, LP fee taken
+ * from the input). Exact for the demo's single full-range position; an estimate when other ranges would be crossed.
+ */
+export function sqrtPriceAfterExactIn(p: { sqrtPriceX96: bigint; liquidity: bigint; amountIn: bigint; feePips: number; zeroForOne: boolean }): bigint | null {
+  const { sqrtPriceX96, liquidity, zeroForOne } = p;
+  if (sqrtPriceX96 === 0n || liquidity === 0n) return null;
+  const amount = (p.amountIn * (1_000_000n - BigInt(p.feePips))) / 1_000_000n;
+  if (zeroForOne) {
+    const num = liquidity * Q96;
+    const den = num + amount * sqrtPriceX96;
+    return (num * sqrtPriceX96 + den - 1n) / den;
+  }
+  return sqrtPriceX96 + (amount * Q96) / liquidity;
+}
+
 /** Full-range position token amounts at `sqrtPriceX96` for `liquidity`, ignoring the range edges. */
 export function fullRangeAmounts(liquidity: bigint, sqrtPriceX96: bigint): { amount0: bigint; amount1: bigint } {
   if (sqrtPriceX96 === 0n) return { amount0: 0n, amount1: 0n };

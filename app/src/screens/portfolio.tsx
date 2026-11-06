@@ -2,10 +2,11 @@
 
 // Portfolio (UX.md 3.8): what I own, what it's worth, how it did today.
 //
-// Everything here is something the backend can actually answer. Shares held
-// and shares ready to collect come from this wallet's applications
-// (GET /v1/bids?owner=, `filledShares` and `actions.claim`); the price comes
-// from GET /v1/market/:ticker. There is no cost basis anywhere on chain, so
+// Everything here is something the backend can actually answer, from
+// GET /v1/portfolio/:address: wallet balances (USDC, ETH), shares held (the
+// token balance, so shares bought on the market count even with no IPO
+// application), shares ready to collect, and the mark price and value. Today's
+// move comes from the GET /v1/market/:ticker price points. There is no cost basis anywhere on chain, so
 // there is no "invested", no "since you bought" and no average price, and the
 // pool's own LP position is not attributable to a wallet, so the liquidity and
 // fee cards are gone with it.
@@ -20,20 +21,22 @@ import { CompanyLogo, TickerMark, logoColor, markVar } from "@/components/compan
 import { Sparkline } from "@/components/sparkline";
 import { Card, Change, Details, EmptyState, KV, ListRow, SectionTitle, Table, TextLink, TickerLogo, cx, type Column } from "@/components/ui";
 import { lotFixed, shares, shortAddr, usdc } from "@/lib/format";
-import { COPY, dayOpenOf, isListed, lastPriceOf, nowSeconds, pricePoints } from "@/lib/adapt";
+import { COPY, dayOpenOf, holdingRows, isListed, lastPriceOf, nowSeconds, orCopy, pricePoints } from "@/lib/adapt";
 import { ApiErrorCard } from "@/lib/api-state";
 import { FAUCET_URL } from "@/lib/mock";
 import type { Listing } from "@/lib/api";
-import { merge2, useBids, useListings, useQuotes } from "@/lib/live";
+import { merge2, useListings, useQuotes } from "@/lib/live";
 import { BottomSpacer } from "./common";
 
 type Holding = {
   ticker: string;
   listing: Listing | undefined;
-  /** Shares already collected into the wallet. */
+  /** Shares in the wallet (token balance). */
   held: number;
   /** Shares won and waiting to be collected. */
   waiting: number;
+  /** Applications not settled yet: their share count is unknown until then. */
+  pending: number;
   last: number | null;
   value: number | null;
   points: { time: number; value: number }[];
@@ -41,6 +44,13 @@ type Holding = {
 };
 
 const toneClass = (n: number) => (n >= 0 ? "text-gain-text" : "text-loss-text");
+
+function holdingSub(r: Holding): string {
+  const parts = [`${shares(r.held + r.waiting)} shares`];
+  if (r.waiting > 0) parts.push(`${shares(r.waiting)} to collect`);
+  if (r.pending > 0) parts.push(`${r.pending} ${r.pending === 1 ? "application" : "applications"} to settle`);
+  return parts.join(" · ");
+}
 
 /**
  * Totals band (UI.md 2.12, UX.md 3.8): the hero of the page. Every figure is
@@ -55,12 +65,12 @@ function TotalsBand({
 }: {
   totalValue: number;
   waiting: number;
-  cash: number;
+  cash: number | null;
   today: { abs: number; rel: number } | null;
 }) {
   const cells: { label: string; value: string; tone?: number }[] = [
     { label: "Ready to collect", value: waiting > 0 ? `${shares(waiting)} shares` : "Nothing waiting" },
-    { label: "USDC available", value: usdc(cash) },
+    { label: "USDC available", value: orCopy(cash, usdc, "Loading") },
   ];
   return (
     <Card className="mt-3 p-0">
@@ -118,45 +128,39 @@ function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
 }
 
 export function PortfolioScreen() {
-  const { connected, usdcBalance, ethBalance, address, ensName } = useApp();
+  const { connected, connect, usdcBalance, ethBalance, address, ensName, portfolio } = useApp();
 
   const listings = useListings();
   const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
-  const bids = useBids(connected ? address : null);
   const quotes = useQuotes(all.filter(isListed).map((l) => l.ticker));
-  const { error, loading, retry, refreshing } = merge2(listings, bids);
+  const { error, loading, retry, refreshing } = merge2(listings, portfolio);
   const nowSec = nowSeconds(listings.data?.now);
 
-  const rows: Holding[] = useMemo(() => {
-    const byTicker = new Map<string, { held: number; waiting: number }>();
-    for (const b of bids.data?.bids ?? []) {
-      const cur = byTicker.get(b.ticker) ?? { held: 0, waiting: 0 };
-      if (b.claimed) cur.held += b.filledShares ?? 0;
-      else if (b.actions.claim) cur.waiting += b.filledShares ?? 0;
-      byTicker.set(b.ticker, cur);
-    }
-    return [...byTicker.entries()]
-      .filter(([, v]) => v.held + v.waiting > 0)
-      .map(([ticker, v]) => {
-        const listing = all.find((l) => l.ticker === ticker);
-        const quote = quotes.data?.find((q) => q.ticker === ticker);
-        const points = pricePoints(quote?.swaps ?? null);
-        const last = lastPriceOf(quote?.market ?? null, quote?.swaps ?? null) ?? listing?.clearingPrice ?? null;
-        const open = dayOpenOf(points, nowSec) ?? last;
-        const qty = v.held + v.waiting;
-        return {
-          ticker,
-          listing,
-          held: v.held,
-          waiting: v.waiting,
-          last,
-          value: last === null ? null : (qty * last) / 1000,
-          points,
-          today: last !== null && open ? { abs: (qty * (last - open)) / 1000, rel: ((last - open) / open) * 100 } : null,
-        };
-      })
-      .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
-  }, [bids.data, quotes.data, all, nowSec]);
+  const rows: Holding[] = useMemo(
+    () =>
+      holdingRows(portfolio.data)
+        .map((h) => {
+          const listing = all.find((l) => l.ticker === h.ticker);
+          const quote = quotes.data?.find((q) => q.ticker === h.ticker);
+          const points = pricePoints(quote?.market ?? null);
+          const last = h.price ?? lastPriceOf(quote?.market ?? null);
+          const open = dayOpenOf(points, nowSec) ?? last;
+          const qty = h.shares + h.unclaimedShares;
+          return {
+            ticker: h.ticker,
+            listing,
+            held: h.shares,
+            waiting: h.unclaimedShares,
+            pending: h.pendingBids,
+            last,
+            value: h.value,
+            points,
+            today: last !== null && open ? { abs: (qty * (last - open)) / 1000, rel: ((last - open) / open) * 100 } : null,
+          };
+        })
+        .sort((a, b) => (b.value ?? 0) - (a.value ?? 0)),
+    [portfolio.data, quotes.data, all, nowSec],
+  );
 
   // Signed out this page has nothing of its own to show, so it says exactly
   // what fills it, in the words the signed-in page uses for those same
@@ -194,7 +198,7 @@ export function PortfolioScreen() {
   const anyToday = rows.some((r) => r.today !== null);
   const todayRel = totalValue - todayAbs > 0 ? (todayAbs / (totalValue - todayAbs)) * 100 : 0;
   const waiting = rows.reduce((s, r) => s + r.waiting, 0);
-  const lowCash = usdcBalance < 20;
+  const lowCash = usdcBalance !== null && usdcBalance < 20;
 
   const cash = (
     <>
@@ -202,7 +206,7 @@ export function PortfolioScreen() {
       <Card className="p-4">
         <div className="flex items-baseline justify-between gap-4">
           <p className="t-body text-text">USDC available</p>
-          <p className="num t-list-title text-text">{usdc(usdcBalance)}</p>
+          <p className="num t-list-title text-text">{orCopy(usdcBalance, usdc, "Loading")}</p>
         </div>
         <p className="t-label mt-1">This is what you can spend on shares and IPO applications.</p>
         {lowCash && (
@@ -212,7 +216,7 @@ export function PortfolioScreen() {
         )}
         <Details className="mt-3">
           <div className="divide-y divide-line">
-            <KV k="ETH for network fees" v={ethBalance.toFixed(4)} />
+            <KV k="ETH for network fees" v={orCopy(ethBalance, (n) => n.toFixed(4), "Loading")} />
             <KV k="Signed in as" v={ensName ?? shortAddr(address)} />
           </div>
         </Details>
@@ -241,7 +245,7 @@ export function PortfolioScreen() {
           {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
           <EmptyState
             title="Nothing here yet"
-            body="Shares you get from an IPO show up here once you collect them."
+            body="Shares you buy, or get from an IPO once you collect them, show up here."
             action={{ label: "See companies", href: "/" }}
           />
           <div className="mt-2 lg:max-w-[400px]">{cash}</div>
@@ -261,8 +265,7 @@ export function PortfolioScreen() {
             <span className="block truncate text-text">{r.listing?.name ?? r.ticker.toUpperCase()}</span>
             <span className="num t-label block">
               {r.listing && <TickerMark ticker={r.ticker} symbol={r.listing.symbol} />} {r.listing ? "· " : ""}
-              {shares(r.held + r.waiting)} shares
-              {r.waiting > 0 ? ` · ${shares(r.waiting)} to collect` : ""}
+              {holdingSub(r)}
             </span>
           </span>
         </span>
@@ -323,7 +326,7 @@ export function PortfolioScreen() {
                   href={`/stock/${r.ticker}`}
                   logo={<TickerLogo ipo={r.listing ?? { ticker: r.ticker }} size={40} />}
                   title={r.listing?.name ?? r.ticker.toUpperCase()}
-                  sub={`${shares(r.held + r.waiting)} shares${r.waiting > 0 ? ` · ${shares(r.waiting)} to collect` : ""}`}
+                  sub={holdingSub(r)}
                   sparkline={r.points.length > 1 ? <Sparkline points={r.points} width={56} height={26} up={(r.today?.abs ?? 0) >= 0} /> : undefined}
                   right={r.value === null ? COPY.noPrice : usdc(r.value)}
                   rightSub={r.today ? <Change abs={r.today.abs} rel={r.today.rel} /> : undefined}

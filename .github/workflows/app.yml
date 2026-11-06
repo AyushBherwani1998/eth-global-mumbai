@@ -1,0 +1,32 @@
+name: app
+
+on:
+  pull_request:
+    paths: ["app/**", "services/api/src/types.ts", ".github/workflows/app.yml"]
+  push:
+    branches: [main]
+    paths: ["app/**", "services/api/src/types.ts", ".github/workflows/app.yml"]
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    # The whole repository is checked out: app/ type-imports services/api/src/types.ts.
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: app/package.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: app/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - name: Unit tests (wallet and API mocked; nothing signs or broadcasts)
+        run: pnpm test
+      - run: pnpm typecheck
+      - run: pnpm build

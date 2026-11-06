@@ -130,7 +130,8 @@ function route(url, search, body) {
     }
     if (seg.length === 3) {
       if (!e.market) return { code: "NOT_LAUNCHED" };
-      return { body: e.market };
+      const limit = Number(search.get("limit") ?? 0);
+      return { body: limit > 0 ? { ...e.market, trades: e.market.trades.slice(0, limit), tradesLimit: limit } : e.market };
     }
     return { code: "NOT_FOUND" };
   }
@@ -139,6 +140,16 @@ function route(url, search, body) {
     const ticker = search.get("ticker");
     if (ticker && !known(ticker)) return { code: "UNKNOWN_TICKER" };
     return { body: f.bidsFor(search.get("owner"), ticker) };
+  }
+
+  if (seg[1] === "portfolio" && seg.length === 3) {
+    if (!/^0x[0-9a-fA-F]{40}$/.test(seg[2])) return { code: "BAD_REQUEST" };
+    return { body: f.portfolio(seg[2]) };
+  }
+
+  if (seg[1] === "issuer" && seg.length === 3) {
+    if (!known(seg[2])) return { code: "UNKNOWN_TICKER" };
+    return { body: f.issuer(seg[2], search.get("address")) };
   }
 
   if (seg[1] === "eligibility" && seg.length === 2) {

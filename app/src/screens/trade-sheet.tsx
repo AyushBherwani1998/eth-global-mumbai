@@ -4,15 +4,27 @@
 // row that says what is allowed and how to fix it, and a single primary action.
 // The same form is the bottom sheet on phone and the sticky panel on desktop,
 // so `useTradeForm` returns the body and the footer separately.
+//
+// Every number here is the exchange server's (POST /v1/prepare/swap): the
+// quote, the price after, the minimum you get, and whether the trading rule
+// allows it (the server simulates the swap against the hook). There is no
+// local estimate. Pressing the button prepares again with the minimum you were
+// shown pinned, sends any approvals the server lists, then the swap
+// (components/providers.tsx `runTx`).
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { AlertTriangle, Check } from "lucide-react";
 import { useApp } from "@/components/providers";
 import { TickerMark } from "@/components/company/logos";
-import { AmountField, Button, Details, KV, Segmented, Sheet, Stepper, TextLink, TickerLogo, cx } from "@/components/ui";
-import { lotFixed, shares, timeIST, usdc } from "@/lib/format";
-import { PORTFOLIO, type Ipo, type Market, type Rejected } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText, quote } from "@/lib/policy";
+import { AmountField, Button, Details, KV, Segmented, Sheet, Stepper, TickerLogo, cx } from "@/components/ui";
+import { lotFixed, shares, usdc } from "@/lib/format";
+import type { Ipo, Market, Rejected } from "@/lib/mock";
+import { band, bandDigits } from "@/lib/policy";
+import { api, type DecodedError, type Prepared, type SwapDetails } from "@/lib/api";
+import { sharesHeld } from "@/lib/adapt";
+import { useQuote } from "@/lib/use-quote";
+import { SHARE_DECIMALS, USDC_DECIMALS, formatRaw, parseAmount, slippageToBps } from "@/lib/units";
+import type { TxProgress } from "@/lib/tx";
 
 export type TradeSide = "buy" | "sell";
 
@@ -21,82 +33,145 @@ type Opts = {
   market: Market;
   side: TradeSide;
   setSide: (s: TradeSide) => void;
-  /** Called after a successful trade (the sheet closes, the panel resets). */
+  /** Called after a confirmed trade (the sheet closes, the panel resets). */
   onDone?: () => void;
+  /** A sent swap that the network reverted. */
   onRejected?: (r: Rejected) => void;
 };
 
-/** Plain-English verdict: what happened and what to do about it. */
-function ruleCheck(market: Market, priceAfter: number, ok: boolean, reason?: string) {
-  const p = market.policy;
-  const d = bandDigits(p.referencePrice, p.bandBps);
-  const { lo, hi } = band(p.referencePrice, p.bandBps);
-  if (ok) return { ok: true as const, text: `Allowed · within today's limits ${lotFixed(lo, d)} to ${lotFixed(hi, d)}`, fix: "" };
-  if (reason === "Halted")
-    return { ok: false as const, text: `Not allowed: trading is halted since ${timeIST(p.since)}.`, fix: "Try again after the exchange lifts the pause." };
-  if (reason === "DirectionalWidening")
-    return {
-      ok: false as const,
-      text: `Not allowed: this trade would push the price to ${priceAfter.toFixed(3)}, further from ${lotFixed(p.referencePrice)} than the ${bandText(p.referencePrice, SURVEILLANCE_BAND_BPS)} allowed today.`,
-      fix: "Try a smaller amount or the other side.",
-    };
-  const above = priceAfter > hi;
-  return {
-    ok: false as const,
-    text: `Not allowed: this trade would push the price to ${priceAfter.toFixed(3)}, ${above ? "above" : "below"} today's limit of ${lotFixed(above ? hi : lo, d)}.`,
-    fix: "Try a smaller amount.",
-  };
+type Verdict = { ok: true; text: string } | { ok: false; text: string; fix: string } | { ok: null; text: string };
+
+/** Plain-English verdict from the server's quote and simulation: what happens and what to do about it. */
+function verdictOf(market: Market, p: Prepared<SwapDetails>): Verdict {
+  const pol = market.policy;
+  const d = bandDigits(pol.referencePrice, pol.bandBps);
+  const { lo, hi } = band(pol.referencePrice, pol.bandBps);
+  const q = p.details.quote;
+  const err: DecodedError | null = (!q.ok ? q.error : null) ?? (p.simulate.ok === false ? p.simulate.error : null);
+  if (err) {
+    const after = q.priceAfter;
+    if ((err.name === "OutOfBand" || err.name === "DirectionalWidening") && after !== null) {
+      const above = after > hi;
+      return {
+        ok: false,
+        text: `Not allowed: this trade would push the price to ${after.toFixed(3)}, ${above ? "above" : "below"} today's limit of ${lotFixed(above ? hi : lo, d)}.`,
+        fix: err.name === "DirectionalWidening" ? "Try a smaller amount or the other side." : "Try a smaller amount.",
+      };
+    }
+    return { ok: false, text: `Not allowed: ${err.message}`, fix: "" };
+  }
+  if (p.simulate.ok === null) return { ok: null, text: "The exchange couldn't check this in advance. It checks again before your wallet sends it." };
+  return { ok: true, text: `Allowed · within today's limits ${lotFixed(lo, d)} to ${lotFixed(hi, d)}` };
 }
 
+const pct = (bps: number | null) => (bps === null ? "Not available" : `${bps >= 0 ? "+" : "-"}${(Math.abs(bps) / 100).toFixed(2)}%`);
+
 export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }: Opts): { body: ReactNode; footer: ReactNode } {
-  const { usdcBalance, sendTx } = useApp();
-  const held = PORTFOLIO.holdings.find((h) => h.ticker === ipo.ticker)?.shares ?? 0;
+  const { connected, connect, address, portfolio, usdcBalance, runTx, canSign, txBusy, demoData } = useApp();
+  const held = sharesHeld(portfolio.data, ipo.ticker);
+  const holding = portfolio.data?.holdings.find((h) => h.ticker === ipo.ticker) ?? null;
   const [amount, setAmount] = useState(side === "buy" ? "1" : "1000");
   const [slippage, setSlippage] = useState<"0.5" | "1" | "2">("0.5");
-  const [sellAllowed, setSellAllowed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState<TxProgress | null>(null);
+
+  const decimals = side === "buy" ? USDC_DECIMALS : SHARE_DECIMALS;
+  const parsed = parseAmount(amount, decimals);
+  const slippageBps = slippageToBps(slippage);
+  const from = address as `0x${string}`;
+
+  // Exact balances (raw units) for the "more than you have" check; unknown until the portfolio loads.
+  const balanceRaw = side === "buy" ? portfolio.data?.balances.raw.usdc : holding?.raw.balance;
+  const shortOfMoney = parsed.ok && balanceRaw !== undefined && parsed.raw > BigInt(balanceRaw);
+
+  const key = connected && parsed.ok ? `${ipo.ticker}:${from}:${side}:${parsed.raw}:${slippageBps}` : null;
+  const quote = useQuote(key, () => api.prepareSwap({ ticker: ipo.ticker, from, side, amountRaw: parsed.ok ? parsed.raw.toString() : "0", slippageBps }));
+  const prepared = quote.status === "ready" && quote.value.details?.quote ? quote.value : null;
+  const verdict = prepared ? verdictOf(market, prepared) : null;
+  const q = prepared?.details.quote ?? null;
+  const approvals = prepared ? prepared.steps.filter((s) => s.needed && s.kind !== "swap") : [];
 
   const lastPrice = market.prices[market.prices.length - 1].value;
-  const a = Number(amount) || 0;
-  const q = useMemo(() => quote({ side, amount: a, liquidity: market.liquidity, policy: market.policy }), [side, a, market]);
-  const check = ruleCheck(market, q.priceAfter, q.verdict.ok, q.verdict.ok ? undefined : q.verdict.reason);
-  const minOut = q.out * (1 - Number(slippage) / 100);
-  const needsPermission = side === "sell" && !sellAllowed;
-  const shortOfMoney = side === "buy" ? a > usdcBalance : a > held;
 
   const switchSide = (s: TradeSide) => {
     setSide(s);
     setAmount(s === "buy" ? "1" : "1000");
   };
 
-  const permission = async () => {
+  const send = async () => {
+    if (!prepared || !parsed.ok || busy || txBusy) return;
+    const amountRaw = parsed.raw.toString();
+    // Pin the minimum the user was shown: a re-prepare after approvals reads a
+    // fresh quote, and must not quietly accept a worse fill than this.
+    const minOutRaw = prepared.details.raw.minOut;
     setBusy(true);
-    const r = await sendTx({ title: "Allow this app to sell your shares", success: "You can now sell these shares" });
-    if (r.ok) setSellAllowed(true);
-    setBusy(false);
+    try {
+      const r = await runTx<SwapDetails>({
+        title: side === "buy" ? `Buying ${ipo.name} shares` : `Selling ${ipo.name} shares`,
+        success: side === "buy" ? `Bought ${ipo.name} shares` : `Sold ${ipo.name} shares`,
+        failTitle: side === "buy" ? "Your purchase didn't go through" : "Your sale didn't go through",
+        prepare: () => api.prepareSwap({ ticker: ipo.ticker, from, side, amountRaw, minOutRaw, slippageBps }),
+        guard: (p) => (p.details.quote && !p.details.quote.ok ? (p.details.quote.error?.message ?? "The exchange won't take this trade right now.") : null),
+        onProgress: setProgress,
+      });
+      if (r.ok) onDone?.();
+      else if (r.reason === "reverted" && r.tx)
+        onRejected?.({
+          time: new Date().toISOString(),
+          side,
+          usdc: side === "buy" ? parsed.value : (q?.amountOut ?? 0),
+          priceAfter: q?.priceAfter ?? lastPrice,
+          reason: "Reverted",
+          detail: r.message,
+          tx: r.tx,
+        });
+    } finally {
+      setBusy(false);
+      setProgress(null);
+    }
   };
 
-  const send = async () => {
-    setBusy(true);
-    const blocked = !q.verdict.ok;
-    const r = await sendTx({
-      title: side === "buy" ? `Buying ${ipo.name} shares` : `Selling ${ipo.name} shares`,
-      success: side === "buy" ? `Bought ${shares(q.out)} shares` : `Sold ${shares(a)} shares for ${usdc(q.out)} USDC`,
-      revert: blocked ? (q.verdict.ok ? undefined : q.verdict.reason) : undefined,
-      revertTitle: blocked ? `Rejected: ${check.text.replace("Not allowed: ", "")} ${check.fix}` : undefined,
-    });
-    if (!r.ok && !q.verdict.ok)
-      onRejected?.({
-        time: new Date().toISOString(),
-        side,
-        usdc: side === "buy" ? a : q.out,
-        priceAfter: q.priceAfter,
-        reason: q.verdict.reason,
-        detail: check.text.replace("Not allowed: ", ""),
-        tx: r.tx,
-      });
-    if (r.ok) onDone?.();
-    setBusy(false);
+  const max = () => {
+    const raw = side === "buy" ? portfolio.data?.balances.raw.usdc : holding?.raw.balance;
+    if (raw !== undefined) setAmount(formatRaw(BigInt(raw), decimals));
+  };
+
+  const have =
+    side === "buy"
+      ? usdcBalance === null
+        ? connected
+          ? "Loading your balance"
+          : "Sign in to see your balance"
+        : `You have ${usdc(usdcBalance)} USDC`
+      : portfolio.data
+        ? `You own ${shares(held)} shares`
+        : connected
+          ? "Loading your shares"
+          : "Sign in to see your shares";
+
+  const quoteLine = (): ReactNode => {
+    if (!connected) return <KV k="You'll get about" v="Sign in for a quote" />;
+    if (!parsed.ok) return <KV k="You'll get about" v={amount.trim() ? parsed.error : "Enter an amount"} />;
+    if (quote.status === "loading" && !prepared) return <KV k="You'll get about" v="Getting a quote…" />;
+    if (quote.status === "error") return <KV k="You'll get about" v="No quote" sub={(quote.error as { sentence?: string })?.sentence ?? "The exchange couldn't quote this. Try again."} />;
+    if (quote.status === "ready" && !q) return <KV k="You'll get about" v="No quote" sub={demoData ? "Quotes need the live exchange server, not demo data." : "The exchange sent no quote for this."} />;
+    if (!q || !prepared) return null;
+    if (!q.ok || q.amountOut === null)
+      return <KV k="You'll get about" v="Nothing: not allowed" sub={q.priceAfter !== null ? `The price would end at ${q.priceAfter.toFixed(3)}` : undefined} />;
+    return (
+      <>
+        <KV
+          k="You'll get about"
+          v={side === "buy" ? `${shares(q.amountOut)} shares` : `${usdc(q.amountOut)} USDC`}
+          sub={`At least ${side === "buy" ? shares(prepared.details.minOut) : usdc(prepared.details.minOut)} after ${slippage}% price movement`}
+        />
+        <KV
+          k="Price after your trade"
+          v={q.priceAfter === null ? "Not available" : q.priceAfter.toFixed(3)}
+          sub={`Price now ${lotFixed(q.priceBefore ?? lastPrice)}${q.avgPrice !== null ? ` · you pay on average ${lotFixed(q.avgPrice)}` : ""}`}
+        />
+      </>
+    );
   };
 
   const body = (
@@ -118,33 +193,38 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
         value={amount}
         onChange={setAmount}
         unit={side === "buy" ? "USDC" : "shares"}
-        onMax={() => setAmount(side === "buy" ? String(usdcBalance) : String(held))}
+        onMax={balanceRaw !== undefined ? max : undefined}
         error={
           shortOfMoney
             ? side === "buy"
-              ? `You have ${usdc(usdcBalance)} USDC. Enter that or less.`
+              ? `You have ${usdc(usdcBalance ?? 0)} USDC. Enter that or less.`
               : `You own ${shares(held)} shares. Enter that or less.`
             : undefined
         }
-        helper={side === "buy" ? `You have ${usdc(usdcBalance)} USDC` : `You own ${shares(held)} shares`}
+        helper={have}
       />
 
-      <div className="mt-4 divide-y divide-line">
-        <KV
-          k="You'll get about"
-          v={side === "buy" ? `${shares(q.out)} shares` : `${usdc(q.out)} USDC`}
-          sub={`At least ${side === "buy" ? shares(minOut) : usdc(minOut)} after ${slippage}% price movement`}
-        />
-        <KV k="Price after your trade" v={q.priceAfter.toFixed(3)} sub={`Price now ${lotFixed(lastPrice)}`} />
-      </div>
+      <div className="mt-4 divide-y divide-line">{quoteLine()}</div>
 
-      <div className={cx("mt-4 flex min-h-12 items-start gap-2 border-y border-line py-3", check.ok ? "text-gain-text" : "text-loss-text")}>
-        {check.ok ? <Check className="mt-0.5 size-4 shrink-0" aria-hidden /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />}
-        <span className="t-body">
-          {check.text}
-          {!check.ok && <span className="block text-text">{check.fix}</span>}
-        </span>
-      </div>
+      {verdict && (
+        <div
+          className={cx(
+            "mt-4 flex min-h-12 items-start gap-2 border-y border-line py-3",
+            verdict.ok === true ? "text-gain-text" : verdict.ok === false ? "text-loss-text" : "text-text-2",
+          )}
+        >
+          {verdict.ok === true ? <Check className="mt-0.5 size-4 shrink-0" aria-hidden /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />}
+          <span className="t-body">
+            {verdict.text}
+            {verdict.ok === false && verdict.fix && <span className="block text-text">{verdict.fix}</span>}
+          </span>
+        </div>
+      )}
+      {prepared?.details.warnings?.map((w) => (
+        <p key={w} className="t-label mt-2">
+          {w}
+        </p>
+      ))}
 
       <Details title="More options" className="mt-2">
         <div className="flex min-h-12 items-center justify-between gap-4 py-2">
@@ -161,59 +241,59 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
           />
         </div>
         <div className="divide-y divide-line">
-          <KV k="Effect on the price" v={`${q.impactPct >= 0 ? "+" : "-"}${Math.abs(q.impactPct).toFixed(2)}%`} />
+          <KV k="Effect on the price" v={pct(q?.priceImpactBps ?? null)} />
+          <KV k="Average price vs price now" v={pct(q?.avgPriceVsSpotBps ?? null)} />
         </div>
       </Details>
 
       <Details className="mt-2">
         <div className="divide-y divide-line">
           <KV k="Route" v="Universal Router · Uniswap v4 pool" />
-          <KV k="Quote source" v="Quoter (exact in)" />
+          <KV k="Quote source" v="Exchange server · V4Quoter (exact in)" />
           <KV k="Pool id" v={ipo.records.pool ? `${ipo.records.pool.slice(0, 10)}…${ipo.records.pool.slice(-6)}` : "Not set yet"} mono />
-          <KV k="Raw price after" v={q.priceAfter.toFixed(6)} mono />
+          {q?.priceAfter != null && <KV k="Raw price after" v={`${q.priceAfter.toFixed(6)} (${q.priceAfterSource ?? "unknown"})`} mono />}
+          {prepared && <KV k="Checked with" v={`${prepared.simulate.method} at block ${prepared.simulate.block}`} mono />}
+          {(q?.error ?? prepared?.simulate.error) && <KV k="Reason code" v={(q?.error ?? prepared?.simulate.error)?.name} mono />}
           <KV k="Rule mirrored" v={`ListingHook.afterSwap · ${market.policy.mode}`} mono />
         </div>
       </Details>
     </>
   );
 
+  const stepTitles = [...approvals.map((s) => s.description), side === "buy" ? "Buy" : "Sell"];
+  const current = progress && progress.phase !== "preparing" ? Math.min(stepTitles.length, progress.index + 1) : 1;
+  const canSend = connected && canSign && !!prepared && verdict?.ok !== false && !shortOfMoney && !busy && !txBusy;
+
   const footer = (
     <>
-      {side === "sell" && (
+      {approvals.length > 0 && (
         <Stepper
           className="mb-3"
-          current={needsPermission ? 1 : 2}
-          steps={[
-            { title: "Allow selling", sub: "Allow this app to sell your shares. One-time, you can turn it off later." },
-            { title: "Confirm", sub: "Confirm the sale. The price you see is the price you get, within the movement you accept." },
-          ]}
+          current={busy ? current : 1}
+          steps={stepTitles.map((title, i) => ({
+            title,
+            sub: i < approvals.length ? "A one-time approval in your wallet. It lets this trade move your tokens." : "Confirm the trade. You get at least the minimum shown.",
+          }))}
         />
       )}
-      {needsPermission ? (
-        <Button variant="sell" size="bar" className="w-full" busy={busy} disabled={busy || a <= 0} onClick={permission}>
-          {busy ? "Check your wallet app" : "Allow this app to sell your shares"}
+      {!connected ? (
+        <Button variant={side === "buy" ? "buy" : "sell"} size="bar" className="w-full" onClick={connect}>
+          Sign in to trade
         </Button>
       ) : (
-        <Button
-          variant={side === "buy" ? "buy" : "sell"}
-          size="bar"
-          className="w-full"
-          busy={busy}
-          disabled={busy || a <= 0 || shortOfMoney || !check.ok}
-          onClick={send}
-        >
+        <Button variant={side === "buy" ? "buy" : "sell"} size="bar" className="w-full" busy={busy} disabled={!canSend} onClick={send}>
           {busy
             ? "Check your wallet app"
-            : !check.ok
+            : verdict?.ok === false
               ? "Not allowed today"
               : side === "buy"
-                ? `Buy for ${usdc(a)} USDC`
-                : `Sell ${shares(a)} shares`}
+                ? `Buy for ${parsed.ok ? usdc(parsed.value) : "0"} USDC`
+                : `Sell ${parsed.ok ? shares(parsed.value) : "0"} shares`}
         </Button>
       )}
-      {!check.ok && !needsPermission && (
-        <p className="mt-2 text-center">
-          <TextLink onClick={send}>Send anyway to see it rejected</TextLink>
+      {connected && !canSign && (
+        <p className="t-label mt-2 text-center">
+          {demoData ? "This is demo data, so nothing can be sent." : "This sign-in can look but not send. Sign in with a wallet to trade."}
         </p>
       )}
     </>
@@ -246,7 +326,8 @@ export function TradeSheet({
       <div className="flex items-center gap-3 pb-1">
         <TickerLogo ipo={ipo} size={36} />
         <span className="t-label">
-          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} />
+          {ipo.sector ? ` · ${ipo.sector}` : ""}
         </span>
       </div>
       {body}

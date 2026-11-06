@@ -44,7 +44,10 @@ export type Config = {
   rpcUrl: string;
   /** Expected chain id: CHAIN_ID, else the first deployment's `chainId`, else Sepolia. */
   chainId: number;
+  /** Exact origins, `*`, or one-label wildcards such as `https://*.vercel.app` (see `originAllowed`). */
   corsOrigins: string[];
+  /** Block explorer base URL for tx / address links (EXPLORER_URL; Etherscan for Sepolia; null otherwise). */
+  explorerUrl: string | null;
   deployments: { path: string; ticker: string | null }[];
   parentName: string;
   logsMaxRange: bigint;
@@ -79,9 +82,12 @@ export type DeploymentJson = {
   auction?: Record<string, number | string>;
   results?: Record<string, number | string | boolean>;
   trade?: Record<string, unknown>;
+  creBroadcaster?: string;
   ens?: {
-    parent?: { name?: string };
+    parent?: { name?: string; subregistry?: string };
     ticker?: { label?: string; name?: string; resolver?: string };
+    resolver?: { address?: string };
+    userRegistry?: { address?: string };
     external?: Record<string, string>;
   };
 };
@@ -105,6 +111,14 @@ export type Listing = {
   receiver: Address | null;
   auction: Address | null;
   treasury: Address | null;
+  /** Deployment wallets as recorded by the scripts (not authoritative: read roles onchain). */
+  deployer: Address | null;
+  issuer: Address | null;
+  creBroadcaster: Address | null;
+  /** ENSv2 registry holding the ticker label (the parent's UserRegistry), the ticker's resolver, the ETH registry. */
+  ens: { label: string; registry: Address | null; resolver: Address | null; ethRegistry: Address | null };
+  /** The LBPStrategy's full-range LP position (PositionManager NFT), after `make settle`. */
+  lpTokenId: bigint | null;
   /** Demo bid blocks etc. (`auction` section), absent before `make launch`. */
   startBlock: bigint | null;
   endBlock: bigint | null;
@@ -143,11 +157,32 @@ function envAddress(env: NodeJS.ProcessEnv, key: string): Address | undefined {
   return getAddress(v);
 }
 
+/**
+ * Resolve a deployments JSON path.
+ * Relative paths are tried against `services/api` (local + Docker), then `process.cwd()`
+ * (Vercel with Root Directory = repo root, where cwd is `/var/task`), then with a leading
+ * `../../` stripped against cwd so the default `../../contracts/deployments/sepolia.json`
+ * still finds the file when the function is bundled away from `services/api`.
+ */
+export function resolveDeploymentPath(p: string): string {
+  if (isAbsolute(p)) return p;
+  const fromService = resolve(SERVICE_ROOT, p);
+  if (existsSync(fromService)) return fromService;
+  const fromCwd = resolve(process.cwd(), p);
+  if (existsSync(fromCwd)) return fromCwd;
+  const stripped = p.replace(/^(?:\.\.\/)+/, "");
+  if (stripped !== p) {
+    const fromCwdStripped = resolve(process.cwd(), stripped);
+    if (existsSync(fromCwdStripped)) return fromCwdStripped;
+  }
+  return fromService;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const files = envList(env.DEPLOYMENTS_FILES || env.DEPLOYMENTS_FILE);
   const deployments = (files.length ? files : ["../../contracts/deployments/sepolia.json"]).map((entry) => {
     const [p = "", ticker] = entry.split("#");
-    return { path: isAbsolute(p) ? p : resolve(SERVICE_ROOT, p), ticker: ticker?.trim().toLowerCase() || null };
+    return { path: resolveDeploymentPath(p), ticker: ticker?.trim().toLowerCase() || null };
   });
 
   let chainId = env.CHAIN_ID ? Number(env.CHAIN_ID) : NaN;
@@ -162,10 +197,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
 
   return {
     port: Number(env.PORT || 8788),
-    host: env.HOST || "127.0.0.1",
+    host: env.HOST || (env.PORT ? "0.0.0.0" : "127.0.0.1"),
     rpcUrl: env.RPC_URL || env.SEPOLIA_RPC_URL || "https://ethereum-sepolia-rpc.publicnode.com",
     chainId,
     corsOrigins: envList(env.CORS_ORIGINS || "http://localhost:3000,http://127.0.0.1:3000"),
+    explorerUrl: env.EXPLORER_URL?.trim().replace(/\/+$/, "") || (chainId === SEPOLIA.chainId ? "https://sepolia.etherscan.io" : null),
     deployments,
     parentName: env.ENS_PARENT_NAME?.trim() || "listingday.eth",
     logsMaxRange,
@@ -182,6 +218,25 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       ensUniversalResolver: envAddress(env, "ENS_UNIVERSAL_RESOLVER_ADDRESS"),
     },
   };
+}
+
+/**
+ * CORS allowlist match. Entries are exact origins (`https://thamba.vercel.app`), `*`, or a pattern whose `*`
+ * stands for exactly one DNS label (`https://*.vercel.app` matches `https://pr-21.vercel.app`, not
+ * `https://a.b.vercel.app` or `https://evil-vercel.app`). Scheme and port must match exactly.
+ */
+export function originAllowed(origin: string, allowed: readonly string[]): boolean {
+  for (const entry of allowed) {
+    if (entry === "*" || entry.toLowerCase() === origin.toLowerCase()) return true;
+    if (!entry.includes("*")) continue;
+    const re = new RegExp(`^${entry.split("*").map(escapeRegExp).join("[a-z0-9-]+")}$`, "i");
+    if (re.test(origin)) return true;
+  }
+  return false;
+}
+
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readJson(path: string): DeploymentJson {
@@ -279,6 +334,16 @@ export function parseDeployment(
     receiver: addr(c.listingPolicyReceiver),
     auction: addr(a.address),
     treasury: addr(json.treasury),
+    deployer: addr(json.deployer),
+    issuer: addr(json.issuer),
+    creBroadcaster: addr(json.creBroadcaster),
+    ens: {
+      label: json.ens?.ticker?.label ?? ensName.split(".")[0] ?? ticker,
+      registry: addr(json.ens?.userRegistry?.address) ?? addr(json.ens?.parent?.subregistry),
+      resolver: addr(json.ens?.ticker?.resolver) ?? addr(json.ens?.resolver?.address),
+      ethRegistry: addr(ensExt.ethRegistry),
+    },
+    lpTokenId: optBig(json.results?.lpTokenId),
     startBlock: optBig(a.startBlock),
     endBlock: optBig(a.endBlock),
     claimBlock: optBig(a.claimBlock),

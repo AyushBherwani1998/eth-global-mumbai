@@ -18,9 +18,18 @@ import type {
   BidsResponse,
   ClearingPoint,
   ClearingResponse,
+  BidDetails,
+  BidStatus,
+  ClaimDetails,
+  DecodedError,
   Eligibility,
   EnsView,
+  ExitDetails,
+  HaltCause,
+  HaltSpan,
   Health,
+  Holding,
+  IssuerView,
   Listing,
   ListingDetail,
   ListingsResponse,
@@ -28,11 +37,16 @@ import type {
   MarketView,
   Offer,
   PolicyView,
+  Portfolio,
   Prepared,
+  PreparedStep,
   PrepareBidBody,
   PrepareClaimBody,
   PrepareExitBody,
   PrepareSwapBody,
+  RefPoint as ApiRefPoint,
+  SwapDetails,
+  SwapQuote,
   SwapsResponse,
   Trade,
 } from "../../../services/api/src/types";
@@ -40,12 +54,21 @@ import type {
 export type {
   Auction,
   Bid,
+  BidDetails,
+  BidStatus,
   BidsResponse,
+  ClaimDetails,
   ClearingPoint,
   ClearingResponse,
+  DecodedError,
   Eligibility,
   EnsView,
+  ExitDetails,
+  HaltCause,
+  HaltSpan,
   Health,
+  Holding,
+  IssuerView,
   Listing,
   ListingDetail,
   ListingsResponse,
@@ -53,7 +76,16 @@ export type {
   MarketView,
   Offer,
   PolicyView,
+  Portfolio,
   Prepared,
+  PreparedStep,
+  PrepareBidBody,
+  PrepareClaimBody,
+  PrepareExitBody,
+  PrepareSwapBody,
+  ApiRefPoint,
+  SwapDetails,
+  SwapQuote,
   SwapsResponse,
   Trade,
 };
@@ -258,15 +290,19 @@ export const api = {
   eligibility: (ticker: string, address: string) => get<Eligibility>(`/v1/eligibility${query({ ticker, address })}`),
 
   policy: (ticker: string) => get<PolicyView>(`/v1/policy/${encodeURIComponent(ticker)}`),
-  market: (ticker: string) => get<MarketView>(`/v1/market/${encodeURIComponent(ticker)}`),
+  /** `limit` is how many recent trades (and price points) come back: 1 to 1000, server default 100. */
+  market: (ticker: string, opts: { limit?: number } = {}) => get<MarketView>(`/v1/market/${encodeURIComponent(ticker)}${query(opts)}`),
   swaps: (ticker: string, opts: { limit?: number; fromBlock?: number } = {}) =>
     get<SwapsResponse>(`/v1/market/${encodeURIComponent(ticker)}/swaps${query(opts)}`),
 
-  // Writes are prepared here and signed in the wallet; the proxy never signs.
-  prepareBid: (body: PrepareBidBody) => send<Prepared>("POST", "/v1/prepare/bid", body),
-  prepareSwap: (body: PrepareSwapBody) => send<Prepared>("POST", "/v1/prepare/swap", body),
-  prepareExit: (body: PrepareExitBody) => send<Prepared>("POST", "/v1/prepare/exit", body),
-  prepareClaim: (body: PrepareClaimBody) => send<Prepared>("POST", "/v1/prepare/claim", body),
+  portfolio: (address: string) => get<Portfolio>(`/v1/portfolio/${encodeURIComponent(address)}`),
+  issuer: (ticker: string, address: string) => get<IssuerView>(`/v1/issuer/${encodeURIComponent(ticker)}${query({ address })}`),
+
+  // Writes are prepared here and signed in the wallet (lib/tx.ts); the proxy never signs.
+  prepareBid: (body: PrepareBidBody) => send<Prepared<BidDetails>>("POST", "/v1/prepare/bid", body),
+  prepareSwap: (body: PrepareSwapBody) => send<Prepared<SwapDetails>>("POST", "/v1/prepare/swap", body),
+  prepareExit: (body: PrepareExitBody) => send<Prepared<ExitDetails>>("POST", "/v1/prepare/exit", body),
+  prepareClaim: (body: PrepareClaimBody) => send<Prepared<ClaimDetails>>("POST", "/v1/prepare/claim", body),
 };
 
 // ---------------------------------------------------------------------------
@@ -291,4 +327,8 @@ export const POLL = {
   eligibility: 30_000,
   /** Is the server up, and is it serving a chain or fixtures. */
   health: 60_000,
+  /** Your balances: they change when you trade, and every send refreshes them. */
+  portfolio: 15_000,
+  /** Who the issuer of a listing is changes only with ENS ownership. */
+  issuer: 120_000,
 } as const;

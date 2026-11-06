@@ -1,7 +1,9 @@
 # api-stub: the backend, without a chain
 
-The real backend is `services/api`. It needs `contracts/deployments/<network>.json`,
-which only exists after a deploy, so it cannot run in a fresh checkout.
+The real backend is `services/api`. It reads `contracts/deployments/sepolia.json`
+(Acme, already deployed) over a Sepolia RPC, so it runs from a fresh checkout
+with network access. Use this stub when there is no network, or to see every
+lifecycle phase at once.
 
 This is a stand-in. Same routes, same JSON shapes (`services/api/README.md`),
 same error envelope, served from fixtures. It exists so the app can be run and
@@ -54,8 +56,17 @@ description, which is where a real issuer would put it.
 
 Routes: `/health`, `/v1/listings`, `/v1/listings/:ticker`, `/v1/ens/:ticker`,
 `/v1/auction/:ticker`, `/v1/auction/:ticker/clearing`, `/v1/bids`,
-`/v1/eligibility`, `/v1/policy/:ticker`, `/v1/market/:ticker`,
-`/v1/market/:ticker/swaps`, and `POST /v1/prepare/{bid,swap,exit,claim}`.
+`/v1/eligibility`, `/v1/policy/:ticker`, `/v1/market/:ticker` (with `?limit=`),
+`/v1/market/:ticker/swaps`, `/v1/portfolio/:address`, `/v1/issuer/:ticker?address=`,
+and `POST /v1/prepare/{bid,swap,exit,claim}`.
+
+`/v1/prepare/*` answers with `details.stub: true` and no quote. The app refuses
+to send anything built from it and says quotes need the live server.
+
+`/v1/issuer/:ticker` treats the demo wallet in `mock/wallet.json` as the issuer
+of the listings it lists under `isIssuerFor`. `/v1/portfolio/:address` also
+holds 5,000 `nirmaan` shares bought on the market, so a holding with no
+application behind it is on screen.
 
 Series (pool prices, trades, auction checkpoints) are built relative to the
 moment the server starts, so the 5m / 1H / 1D chart windows always have data:

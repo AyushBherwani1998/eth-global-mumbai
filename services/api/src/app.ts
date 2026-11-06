@@ -1,15 +1,22 @@
+import { basename } from "node:path";
+
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
 import { BaseError } from "viem";
 
-import { readDeployments } from "./config.ts";
+import { errorCatalog } from "./abis.ts";
+import { originAllowed, readDeployments } from "./config.ts";
 import { allListings, getListing, head, type Ctx } from "./context.ts";
 import { HttpError, badRequest } from "./errors.ts";
 import { parseAddress, prepareBid, prepareClaim, prepareExit, prepareSwap } from "./prepare.ts";
 import { auctionView, bidsView, clearingSeries, eligibilityView } from "./reads/auction.ts";
+import { configView } from "./reads/config.ts";
+import { issuerView } from "./reads/issuer.ts";
 import { ensView, listingDetail, listingSummary } from "./reads/listing.ts";
 import { marketView, policyView, swapsView } from "./reads/market.ts";
-import type { ApiError, BidsResponse, ClearingResponse, Health, ListingsResponse } from "./types.ts";
+import { policyHistory } from "./reads/policy-history.ts";
+import { portfolioView } from "./reads/portfolio.ts";
+import type { ApiError, BidsResponse, ClearingResponse, ErrorCatalog, Health, ListingsResponse } from "./types.ts";
 import { iso } from "./units.ts";
 
 /** JSON with bigint -> string, so a stray raw value can never crash a response. */
@@ -55,6 +62,12 @@ function uintQuery(c: Context, name: string): bigint | undefined {
   return BigInt(v);
 }
 
+function limitQuery(c: Context): number {
+  const limit = Number(uintQuery(c, "limit") ?? 100n);
+  if (limit < 1 || limit > 1000) throw badRequest("limit must be in [1, 1000]");
+  return limit;
+}
+
 export function createApp(ctx: Ctx): Hono {
   const app = new Hono();
   const origins = ctx.config.corsOrigins;
@@ -62,7 +75,7 @@ export function createApp(ctx: Ctx): Hono {
   app.use(
     "*",
     cors({
-      origin: origins.includes("*") ? "*" : origins,
+      origin: origins.includes("*") ? "*" : (origin) => (originAllowed(origin, origins) ? origin : null),
       allowMethods: ["GET", "POST", "OPTIONS"],
       allowHeaders: ["content-type"],
       maxAge: 600,
@@ -85,9 +98,10 @@ export function createApp(ctx: Ctx): Hono {
   app.notFound((c) => json(c, errorBody("NOT_FOUND", `no route ${c.req.method} ${c.req.path}`), 404));
 
   app.get("/health", async (c) => {
-    const deployments = readDeployments(ctx.config).map((d) =>
-      d.error === undefined ? { file: d.file, ticker: d.ticker, ok: true } : { file: d.file, ticker: d.ticker, ok: false, error: d.error },
-    );
+    const deployments = readDeployments(ctx.config).map((d) => {
+      const file = basename(d.file);
+      return d.error === undefined ? { file, ticker: d.ticker, ok: true } : { file, ticker: d.ticker, ok: false, error: d.error.split(d.file).join(file) };
+    });
     const base = { chainId: ctx.config.chainId, rpc: redactRpc(ctx.config.rpcUrl), deployments };
     try {
       const [rpcChainId, block] = await Promise.all([ctx.client.getChainId(), ctx.client.getBlockNumber()]);
@@ -154,17 +168,43 @@ export function createApp(ctx: Ctx): Hono {
     return json(c, await policyView(ctx, l, await head(ctx)));
   });
 
+  app.get("/v1/policy/:ticker/history", async (c) => {
+    const l = getListing(ctx, c.req.param("ticker"));
+    return json(c, await policyHistory(ctx, l, await head(ctx)));
+  });
+
   app.get("/v1/market/:ticker", async (c) => {
     const l = getListing(ctx, c.req.param("ticker"));
-    return json(c, await marketView(ctx, l, await head(ctx)));
+    const limit = limitQuery(c);
+    return json(c, await marketView(ctx, l, await head(ctx), { limit }));
   });
 
   app.get("/v1/market/:ticker/swaps", async (c) => {
     const l = getListing(ctx, c.req.param("ticker"));
-    const limit = Number(uintQuery(c, "limit") ?? 100n);
-    if (limit < 1 || limit > 1000) throw badRequest("limit must be in [1, 1000]");
+    const limit = limitQuery(c);
     const fromBlock = uintQuery(c, "fromBlock");
     return json(c, await swapsView(ctx, l, await head(ctx), { limit, fromBlock }));
+  });
+
+  app.get("/v1/issuer/:ticker", async (c) => {
+    const l = getListing(ctx, c.req.param("ticker"));
+    const q = c.req.query("address");
+    const address = q ? parseAddress(q, "address") : null;
+    return json(c, await issuerView(ctx, l, await head(ctx), address));
+  });
+
+  app.get("/v1/portfolio/:address", async (c) => {
+    const address = parseAddress(c.req.param("address"), "address");
+    const ticker = c.req.query("ticker");
+    const ls = ticker ? [getListing(ctx, ticker)] : allListings(ctx);
+    return json(c, await portfolioView(ctx, ls, await head(ctx), address));
+  });
+
+  app.get("/v1/config", (c) => json(c, configView(ctx.config)));
+
+  app.get("/v1/errors", (c) => {
+    const out: ErrorCatalog = { errors: errorCatalog() };
+    return json(c, out);
   });
 
   const prepare = { bid: prepareBid, swap: prepareSwap, exit: prepareExit, claim: prepareClaim } as const;

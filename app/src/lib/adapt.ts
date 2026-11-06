@@ -14,7 +14,7 @@
 // Nothing is printed where a sector used to be.
 
 import type { Market, Policy, PricePoint, RefPoint, Trade as MockTrade } from "./mock";
-import type { Listing, MarketEvent, MarketView, PolicyView, SwapsResponse, Trade } from "./api";
+import type { Eligibility, HaltCause, HaltSpan, Holding, Listing, MarketEvent, MarketView, PolicyView, Portfolio, Trade } from "./api";
 
 // ---------------------------------------------------------------------------
 // Null copy. One phrase per missing value, never "—", "null" or "NaN".
@@ -47,15 +47,41 @@ export function orTime(t: string | null | undefined, fmt: (v: string) => string,
 // Prices
 // ---------------------------------------------------------------------------
 
-/** Chart points from the swaps endpoint (oldest first already). */
-export function pricePoints(swaps: SwapsResponse | null): PricePoint[] {
-  return swaps ? swaps.prices.map((p) => ({ time: p.time, value: p.value })) : [];
+/** Chart points from the market read (one per swap, post-swap pool price, oldest first). */
+export function pricePoints(market: MarketView | null): PricePoint[] {
+  return market ? market.prices.map((p) => ({ time: p.time, value: p.value })) : [];
+}
+
+/**
+ * Price points with the halt windows marked. A halted pool takes no swaps, so
+ * a halt has no points of its own; this adds a flat pair at the last price at
+ * each span's start and end (or `nowSec` while it runs), flagged `halted`, so
+ * the chart can shade the window. Spans before the first trade start at the
+ * first trade's price; with no trades there is nothing to draw.
+ */
+export function withHalts(points: PricePoint[], spans: HaltSpan[], nowSec: number): PricePoint[] {
+  if (points.length === 0 || spans.length === 0) return points;
+  const priceAt = (t: number) => {
+    let v = points[0].value;
+    for (const p of points) {
+      if (p.time > t) break;
+      v = p.value;
+    }
+    return v;
+  };
+  const extra: PricePoint[] = [];
+  for (const s of spans) {
+    const end = s.toTime ?? Math.max(nowSec, s.fromTime);
+    const v = priceAt(s.fromTime);
+    extra.push({ time: s.fromTime, value: v, halted: true }, { time: end, value: v, halted: true });
+  }
+  return [...points, ...extra].sort((a, b) => a.time - b.time || Number(!!a.halted) - Number(!!b.halted));
 }
 
 /** The number to show as "the price": the pool price, else the last trade, else the listing price. */
-export function lastPriceOf(market: MarketView | null, swaps: SwapsResponse | null): number | null {
+export function lastPriceOf(market: MarketView | null): number | null {
   if (market?.price != null) return market.price;
-  const pts = pricePoints(swaps);
+  const pts = pricePoints(market);
   if (pts.length) return pts[pts.length - 1].value;
   return market?.listingPrice ?? null;
 }
@@ -109,50 +135,118 @@ export function toPolicy(p: PolicyView | null | undefined): Policy | null {
   };
 }
 
-export function toTrades(swaps: SwapsResponse | null): MockTrade[] {
-  if (!swaps) return [];
-  return swaps.trades.map((t: Trade) => ({
+/** `price` is each trade's own average fill price (`avgPrice`), not the pool price after it. */
+export function toTrades(market: MarketView | null): MockTrade[] {
+  if (!market) return [];
+  return market.trades.map((t: Trade) => ({
     time: t.time,
     side: t.side,
     usdc: t.usdc,
     shares: t.shares,
-    price: t.price,
+    price: t.avgPrice,
     tx: t.tx,
   }));
 }
 
 /**
- * One flat reference point: today's band. The proxy does not serve a band
- * history (it would have to replay every policy report), so the chart gets the
- * band in force now rather than a made-up past one.
+ * The reference and band as they changed: one step per policy span from the
+ * server's replay of `Listed` / `PolicyApplied` logs, so the chart's limit
+ * lines follow the band that was actually in force at each time.
  */
-export function toReference(policy: Policy | null, firstTime: number): RefPoint[] {
-  if (!policy) return [];
-  return [{ time: firstTime, value: policy.referencePrice, mode: policy.mode, bandBps: policy.bandBps }];
+export function toReference(market: MarketView | null): RefPoint[] {
+  if (!market) return [];
+  return market.reference.map((r) => ({ time: r.time, value: r.value, mode: r.mode, bandBps: r.bandBps }));
 }
 
 /**
- * The legacy `Market` the trade sheet takes. Null when the pool has no price or
- * no band yet: there is nothing to quote against, so the screen shows that
- * instead of a form.
+ * The legacy `Market` the chart and banner take. Null when the pool has no
+ * price or no band yet: there is nothing to draw against, so the screen shows
+ * that instead.
  */
-export function toMarket(market: MarketView | null, swaps: SwapsResponse | null): Market | null {
+export function toMarket(market: MarketView | null): Market | null {
   if (!market) return null;
   const policy = toPolicy(market.policy);
-  const prices = pricePoints(swaps);
+  const prices = pricePoints(market);
   if (!policy || prices.length === 0) return null;
+  const head = market.reference.at(-1)?.time ?? prices[prices.length - 1].time;
   return {
     usdcIsCurrency0: market.usdcIsCurrency0,
     policy,
     liquidity: market.liquidity,
     // Reverted swaps emit no logs, so the proxy never sees them (README).
-    // The only rejects the app can show are the ones it watched happen.
     rejected: [],
     events: market.events.map((e) => ({ time: e.time, kind: e.kind, label: e.label })),
-    prices,
-    reference: toReference(policy, prices[0].time),
-    trades: toTrades(swaps),
+    prices: withHalts(prices, market.haltSpans, head),
+    reference: toReference(market),
+    trades: toTrades(market),
   };
+}
+
+// ---------------------------------------------------------------------------
+// Can this trade right now?
+// ---------------------------------------------------------------------------
+
+export type TradeGate =
+  | { open: true }
+  | { open: false; cause: HaltCause | "notListed" | "unknown"; title: string; body: string; until: string | null };
+
+/**
+ * Whether the pool takes a swap now, from the server's `tradingOpen` /
+ * `haltCause` (the hook's own order of checks). A cool-off blocks swaps
+ * without `halted` being set, so `halted` alone is not enough.
+ */
+export function tradeGate(market: MarketView | null): TradeGate {
+  if (!market) return { open: false, cause: "unknown", title: "Checking the market", body: "Loading the latest trading rules.", until: null };
+  if (!market.listed) return { open: false, cause: "notListed", title: "Not trading yet", body: "This company has not listed, so its shares cannot be bought or sold yet.", until: null };
+  if (market.tradingOpen) return { open: true };
+  const p = market.policy;
+  switch (market.haltCause) {
+    case "coolingOff":
+      return {
+        open: false,
+        cause: "coolingOff",
+        title: "Cooling off after a halt",
+        body: "Trading has just come back from a halt, so buying and selling stay paused for a few minutes.",
+        until: p.coolOffUntil,
+      };
+    case "stale":
+      return {
+        open: false,
+        cause: "stale",
+        title: "Trading paused",
+        body: "The exchange's price limits are out of date, so trading is paused until the next update lands.",
+        until: null,
+      };
+    case "report":
+      return { open: false, cause: "report", title: "Trading halted", body: "The exchange halted trading in this company. You can't buy or sell until it resumes.", until: null };
+    default:
+      return { open: false, cause: "unknown", title: "Trading paused", body: "The pool is not taking trades right now.", until: null };
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Your money
+// ---------------------------------------------------------------------------
+
+/** Shares this wallet holds in `ticker` (ERC20 balance), whether or not it ever bid. */
+export function sharesHeld(portfolio: Portfolio | null, ticker: string): number {
+  return portfolio?.holdings.find((h) => h.ticker === ticker)?.shares ?? 0;
+}
+
+/** Holdings worth a row: shares in the wallet, shares to collect, or bids still open. */
+export function holdingRows(portfolio: Portfolio | null): Holding[] {
+  return (portfolio?.holdings ?? []).filter((h) => h.shares > 0 || h.unclaimedShares > 0 || h.pendingBids > 0);
+}
+
+export type BidRoom =
+  | { known: false }
+  | { known: true; cap: number; committed: number; remaining: number; atCap: boolean };
+
+/** The per-wallet budget cap from /v1/eligibility. Unknown when the module does not report one. */
+export function bidRoom(e: Eligibility | null): BidRoom {
+  if (!e || e.cap === null || e.remaining === null) return { known: false };
+  const remaining = Math.max(0, e.remaining);
+  return { known: true, cap: e.cap, committed: e.committed ?? e.cap - remaining, remaining, atCap: remaining <= 0 };
 }
 
 /**

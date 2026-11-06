@@ -16,7 +16,10 @@ import { TickerMark } from "@/components/company/logos";
 import { EditAvatarSheet, UserAvatar } from "@/components/avatar";
 import { Button, Card, Change, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
 import { blocksToCountdown, changeVs, lotFixed, shortAddr, usdc } from "@/lib/format";
-import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, dayOpen, getMarket, type Ipo } from "@/lib/mock";
+import { FAUCET_URL } from "@/lib/mock";
+import { COPY, dayOpenOf, flagFor, lastPriceOf, nowSeconds, orCopy, pricePoints } from "@/lib/adapt";
+import type { Listing, MarketView } from "@/lib/api";
+import { useBids, useListings, useQuotes } from "@/lib/live";
 
 // ---------------------------------------------------------------------------
 // The brand mark (components/brand, design/brand/TOKENS.md). The old inline
@@ -467,30 +470,35 @@ export function SearchButton() {
  * change, with a Watch / Halted word), IPO open or upcoming, and closed but not
  * listed. Search results use these; list screens can reuse them.
  */
-export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: boolean }) {
+export function CompanyResultRow({
+  ipo,
+  market,
+  currentBlock,
+  nowSec,
+  hasMoneyIn,
+}: {
+  ipo: Listing;
+  market: MarketView | null;
+  currentBlock: number;
+  nowSec: number;
+  hasMoneyIn?: boolean;
+}) {
   const href = `/stock/${ipo.ticker}`;
   const logo = <TickerLogo ipo={ipo} size={40} />;
 
   if (ipo.phase === "listed") {
-    const m = getMarket(ipo.ticker);
-    const last = m ? m.prices[m.prices.length - 1].value : (ipo.clearingPrice ?? 0);
-    const open = dayOpen(ipo.ticker) ?? last;
-    const ch = changeVs(last, open);
-    const halted = m?.policy.halted || m?.policy.mode === "halted";
-    const watch = !halted && (m?.policy.mode === "surveillance" || m?.policy.mode === "directional");
+    const last = lastPriceOf(market) ?? ipo.clearingPrice;
+    const open = dayOpenOf(pricePoints(market), nowSec) ?? last;
+    const ch = last !== null && open !== null ? changeVs(last, open) : null;
     return (
       <ListRow
         href={href}
         logo={logo}
         title={ipo.name}
-        sub={
-          <>
-            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
-          </>
-        }
-        flag={halted ? { text: "Halted", tone: "loss" } : watch ? { text: "Watch", tone: "warn" } : undefined}
-        right={lotFixed(last)}
-        rightSub={<Change abs={ch.abs} rel={ch.rel} />}
+        sub={<TickerMark ticker={ipo.ticker} symbol={ipo.symbol} />}
+        flag={flagFor(market)}
+        right={last === null ? COPY.noPrice : lotFixed(last)}
+        rightSub={ch ? <Change abs={ch.abs} rel={ch.rel} /> : undefined}
       />
     );
   }
@@ -503,8 +511,8 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
         title={ipo.name}
         sub={
           <>
-            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · IPO open · closes in{" "}
-            {blocksToCountdown((ipo.endBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · IPO open
+            {ipo.endBlock !== null ? ` · closes in ${blocksToCountdown(Math.max(0, ipo.endBlock - currentBlock))}` : ""}
           </>
         }
         right={<span className="t-change-sm text-gain-text">Apply</span>}
@@ -519,11 +527,11 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
         title={ipo.name}
         sub={
           <>
-            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · IPO opens in{" "}
-            {blocksToCountdown((ipo.startBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> ·{" "}
+            {ipo.startBlock !== null ? `IPO opens in ${blocksToCountdown(Math.max(0, ipo.startBlock - currentBlock))}` : COPY.noSchedule}
           </>
         }
-        right={<span className="t-body text-text-2">{`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`}</span>}
+        right={<span className="t-body text-text-2">Upcoming</span>}
       />
     );
 
@@ -534,7 +542,7 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
       title={ipo.name}
       sub={
         <>
-          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · Not listed · refunds open
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.phase === "cleared" ? "IPO closed · about to list" : "Not listed · refunds open"}
         </>
       }
       right={
@@ -549,28 +557,52 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
 }
 
 export function SearchSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
-  const [q, setQ] = useState("");
-  const { connected } = useApp();
-  const hits = useMemo(() => {
-    const s = q.trim().toLowerCase().replace(/\.listingday\.eth$/, "");
-    if (!s) return IPOS;
-    return IPOS.filter((i) => i.ticker.includes(s) || i.symbol.toLowerCase().includes(s) || i.name.toLowerCase().includes(s));
-  }, [q]);
-  const moneyIn = (ticker: string) => connected && BIDS.some((b) => b.ticker === ticker && b.refund > 0 && b.state !== "exited" && b.state !== "claimed");
   if (!open) return null;
   return (
     <SheetPortal>
       <Sheet open={open} onClose={onClose} title="Search">
-        <SearchField value={q} onChange={setQ} autoFocus />
-        <div className="mt-2 divide-y divide-line" onClick={onClose} role="presentation">
-          {hits.map((i) => (
-            <CompanyResultRow key={i.ticker} ipo={i} hasMoneyIn={moneyIn(i.ticker)} />
-          ))}
-          {hits.length === 0 && <p className="t-body py-6 text-text-2">No company matches &ldquo;{q}&rdquo;.</p>}
-        </div>
-        <p className="t-caption mt-4">Prices in USDC per 1,000 shares.</p>
+        <SearchBody onClose={onClose} />
       </Sheet>
     </SheetPortal>
+  );
+}
+
+/** Mounted only while the sheet is open, so its reads poll only then. */
+function SearchBody({ onClose }: { onClose: () => void }) {
+  const [q, setQ] = useState("");
+  const { connected, address } = useApp();
+  const listings = useListings();
+  const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
+  const quotes = useQuotes(all.filter((l) => l.phase === "listed").map((l) => l.ticker));
+  const bids = useBids(connected ? address : null);
+  const hits = useMemo(() => {
+    const s = q.trim().toLowerCase().replace(/\.listingday\.eth$/, "");
+    if (!s) return all;
+    return all.filter((i) => i.ticker.includes(s) || i.symbol.toLowerCase().includes(s) || i.name.toLowerCase().includes(s));
+  }, [q, all]);
+  const moneyIn = (ticker: string) =>
+    (bids.data?.bids ?? []).some((b) => b.ticker === ticker && b.status === "awaitingExit" && (b.refundableUsdc ?? 0) > 0);
+  const nowSec = nowSeconds(listings.data?.now);
+  return (
+    <>
+      <SearchField value={q} onChange={setQ} autoFocus />
+      {listings.error && !listings.data && <p className="t-body py-6 text-text-2">{listings.error.sentence}</p>}
+      <div className="mt-2 divide-y divide-line" onClick={onClose} role="presentation">
+        {hits.map((i) => (
+          <CompanyResultRow
+            key={i.ticker}
+            ipo={i}
+            market={quotes.data?.find((x) => x.ticker === i.ticker)?.market ?? null}
+            currentBlock={listings.data?.currentBlock ?? 0}
+            nowSec={nowSec}
+            hasMoneyIn={moneyIn(i.ticker)}
+          />
+        ))}
+        {listings.data && hits.length === 0 && <p className="t-body py-6 text-text-2">No company matches &ldquo;{q}&rdquo;.</p>}
+        {listings.loading && <p className="t-body py-6 text-text-2">Loading companies…</p>}
+      </div>
+      <p className="t-caption mt-4">Prices in USDC per 1,000 shares.</p>
+    </>
   );
 }
 
@@ -717,7 +749,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   // in. It is never opened in that state, and never renders one.
   if (!open || !app.connected) return null;
 
-  const low = app.usdcBalance < OFFER.perApplicantCap;
+  const low = app.usdcBalance !== null && app.usdcBalance < 20;
   return (
     <SheetPortal>
       <Sheet open={open} onClose={onClose} title="Account">
@@ -726,7 +758,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             <Avatar size={40} />
             <div className="min-w-0 flex-1">
               <p className="t-body text-text">Signed in as {app.ensName ?? shortAddr(app.address)}</p>
-              <p className="num t-label">Available to spend {usdc(app.usdcBalance)} USDC</p>
+              <p className="num t-label">Available to spend {orCopy(app.usdcBalance, (n) => `${usdc(n)} USDC`, "Loading your balance")}</p>
             </div>
             <button
               type="button"
@@ -767,6 +799,13 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
                 Switch to {app.network.name}
               </Button>
             </div>
+          )}
+
+          {!app.canSign && (
+            <AccountRow
+              title="This sign-in can't send"
+              sub="It can look around but not trade or apply. Sign out and sign in with a wallet to do that."
+            />
           )}
 
           <AccountRow title="Private browsing" sub="How your lookups are kept private" onClick={() => setPrivacyOpen(true)} />

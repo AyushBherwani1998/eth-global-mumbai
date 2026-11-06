@@ -1,0 +1,120 @@
+{
+  "_provenance": "Rebuilt from live Sepolia reads at block 12078292 (the file written by make demo-sepolia was never committed). Every address and number below was read back from the deployed contracts: ListingHook views + Listed/PolicySourceSet logs, ListingPolicyReceiver views + PolicyApplied logs, CCA views, AuctionValidationHook.module(), AllowAllModule.cap(), MockSME Transfer logs, ENSv2 UserRegistry findOwner/getResolver, PositionManager.ownerOf(41464). Fields the scripts write but that could not be verified onchain (txs, bids.list, trade.outOfBand*) are omitted. Replace with the original file if it turns up.",
+  "chainId": 11155111,
+  "label": "acme-v1",
+  "deployBlock": 12077327,
+  "deployer": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+  "issuer": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+  "treasury": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+  "creBroadcaster": "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA",
+  "contracts": {
+    "allowAllModule": "0x35Fa94d5Be2700D42Bbbc82665eE7B79699Ea453",
+    "auctionValidationHook": "0xB1FCD717C120A7BB8e0732d5C703DEa1682Be002",
+    "listingHook": "0xf8bbC5E4F9257b1e9EFCb6e7761eA8A05dd0f0c0",
+    "listingPolicyReceiver": "0xE57781EaC05C0e3A9aE7ed9D115e59d50DB7EeA0",
+    "mockSME": "0x8F902CABeD3D72bd21EFaaC878a490E81aF78152"
+  },
+  "external": {
+    "creMockForwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "lbpStrategy": "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+    "liquidityLauncher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "poolManager": "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543",
+    "positionManager": "0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4",
+    "quoter": "0x68aFa8b853cAa7a2D40B0F6AEE5C4DbC147C8244",
+    "stateView": "0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C",
+    "universalRouter": "0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b",
+    "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+  },
+  "params": {
+    "applicantCap": 20000000,
+    "auctionSupply": "90000000000000000000000",
+    "capPoints": 190,
+    "capPriceQ96": 150533508776980,
+    "floorPoints": 80,
+    "floorPriceQ96": 63382530011360,
+    "issuePoints": 100,
+    "lpRateMps": 2000000,
+    "lpReserve": "20000000000000000000000",
+    "onePointQ96": 792281625142,
+    "requiredCurrencyRaised": 45000000,
+    "tickSpacingQ96": 792281625142,
+    "totalSupply": "110000000000000000000000"
+  },
+  "pool": {
+    "listingDayBandBps": 500,
+    "listingDaySeconds": 3600,
+    "poolId": "0x61653a49f83d9702ec18151366558a4d08f35daea687bc2af3b5d5a156e450a4",
+    "poolKey": {
+      "currency0": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      "currency1": "0x8F902CABeD3D72bd21EFaaC878a490E81aF78152",
+      "fee": 3000,
+      "hooks": "0xf8bbC5E4F9257b1e9EFCb6e7761eA8A05dd0f0c0",
+      "tickSpacing": 60
+    },
+    "usdcIsCurrency0": true
+  },
+  "receiverConfig": {
+    "broadcaster": "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA",
+    "chainSelector": "16015286601757825753",
+    "forwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "maxAge": 86400
+  },
+  "auction": {
+    "address": "0xF36d09f6C780bde8f09000d87e47B9D3E2EE5aE3",
+    "claimBlock": 12077413,
+    "endBlock": 12077413,
+    "floorPriceQ96": 63382530011360,
+    "fundsRecipient": "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+    "requiredCurrencyRaised": 45000000,
+    "startBlock": 12077363,
+    "tickSpacingQ96": 792281625142,
+    "tokensRecipient": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+    "totalSupply": "90000000000000000000000",
+    "validationHook": "0xB1FCD717C120A7BB8e0732d5C703DEa1682Be002"
+  },
+  "results": {
+    "clearingPoints": 80,
+    "clearingPriceQ96": 63382530011360,
+    "currencyRaised": 60000000,
+    "graduated": true,
+    "listedAt": 1793978640,
+    "listedBlock": 12077424,
+    "listingDayEndsAt": 1793982240,
+    "listingSqrtPriceX96": "2801138548740444334653601382131617302",
+    "lpTokenId": 41464,
+    "migrated": true,
+    "totalCleared": "75000000000060904094739"
+  },
+  "ens": {
+    "external": {
+      "ethRegistry": "0xD4eBcbBdF463C9c45784603Db0dDD499BC44A8B4",
+      "universalResolver": "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe"
+    },
+    "parent": {
+      "name": "listingday.eth",
+      "owner": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+      "subregistry": "0x6e79404aA7cAB39d8ACd921eD5277Ab5A101deE8"
+    },
+    "resolver": {
+      "address": "0x07de0A7f6206Ee4b49295EDbd316f24B7912C844"
+    },
+    "statusRole": {
+      "key": "listingday.status",
+      "mirrorName": "0x0461636d650a6c697374696e676461790365746800",
+      "mirrorResolver": "0x07de0A7f6206Ee4b49295EDbd316f24B7912C844",
+      "receiver": "0xE57781EaC05C0e3A9aE7ed9D115e59d50DB7EeA0"
+    },
+    "ticker": {
+      "expiry": 1825515384,
+      "label": "acme",
+      "name": "acme.listingday.eth",
+      "owner": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+      "resolver": "0x07de0A7f6206Ee4b49295EDbd316f24B7912C844",
+      "tokenId": "102501299859813433921418753382743742093251203822808558538243178204741087789056"
+    },
+    "userRegistry": {
+      "address": "0x6e79404aA7cAB39d8ACd921eD5277Ab5A101deE8"
+    }
+  }
+}

@@ -52,8 +52,8 @@ export function StocksBody() {
   const rows: Row[] = listed
     .map((listing) => {
       const quote = quotes.data?.find((q) => q.ticker === listing.ticker);
-      const points = pricePoints(quote?.swaps ?? null);
-      const last = lastPriceOf(quote?.market ?? null, quote?.swaps ?? null) ?? listing.clearingPrice;
+      const points = pricePoints(quote?.market ?? null);
+      const last = lastPriceOf(quote?.market ?? null) ?? listing.clearingPrice;
       const today = points.filter((p) => p.time >= nowSec - 24 * 3600);
       const window = today.length > 1 ? today : points;
       return {
@@ -80,7 +80,7 @@ export function StocksBody() {
   const indexPoints = indexSeries(priced);
 
   // "Most traded": the listed companies with the most trades today.
-  const traded = [...rows].sort((a, b) => (b.quote?.swaps.trades.length ?? 0) - (a.quote?.swaps.trades.length ?? 0)).slice(0, 4);
+  const traded = [...rows].sort((a, b) => (b.quote?.market.trades.length ?? 0) - (a.quote?.market.trades.length ?? 0)).slice(0, 4);
 
   if (error && rows.length === 0) return <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />;
 

@@ -4,7 +4,7 @@ import { allowAllModuleAbi, ccaAbi, validationHookAbi } from "../abis.ts";
 import { blockTimes, getLogsChunked } from "../chain.ts";
 import type { Listing } from "../config.ts";
 import type { Ctx, Head } from "../context.ts";
-import type { Auction, AuctionPhase, Bid, BidState, ClearingPoint, Offer } from "../types.ts";
+import type { Auction, AuctionPhase, Bid, BidState, BidStatus, ClearingPoint, Offer } from "../types.ts";
 import { ONE_POINT_Q96, iso, q96ToPoints, q96ToPrice, round, shares, usdc } from "../units.ts";
 
 const MAX_BLOCK = (1n << 64n) - 1n;
@@ -269,18 +269,35 @@ async function listingBids(ctx: Ctx, l: Listing, h: Head, owner?: Address): Prom
       const state = bidState({ maxPrice: s.args.priceQ96, exitedBlock, claimed: isClaimed, clearing: a.clearingPriceQ96, ended, graduated: a.graduated });
       const plan = await planExit(ctx, l, a, { maxPrice: s.args.priceQ96, startBlock: BigInt(stored.startBlock), exitedBlock }, h);
       const canClaim = exitedBlock !== 0n && !isClaimed && a.graduated && h.number >= a.claimBlock && stored.tokensFilled > 0n;
+      const settlement = bidSettlement({
+        exited: exitedBlock !== 0n || exit !== undefined,
+        claimed: isClaimed,
+        // claimTokens zeroes storage, so the exit log is the fill of record.
+        filled: exit ? exit.args.tokensFilled : stored.tokensFilled,
+        unclaimed: stored.tokensFilled,
+        amount: s.args.amount,
+        maxPrice: s.args.priceQ96,
+        clearing: a.clearingPriceQ96,
+        ended,
+        graduated: a.graduated,
+      });
       return {
+        key: bidKey(auction, id),
         id: Number(id),
         ticker: l.ticker,
+        auction,
         owner: getAddress(s.args.owner),
         budget: usdc(s.args.amount),
         maxPrice: q96ToPrice(s.args.priceQ96),
         maxPricePoints: q96ToPoints(s.args.priceQ96),
         submittedBlock: Number(s.blockNumber),
-        submittedAt: iso(times.get(s.blockNumber)),
+        submittedAt: iso(times.get(s.blockNumber)) ?? new Date(0).toISOString(),
         state,
+        status: settlement.status,
         filledShares: exit ? shares(exit.args.tokensFilled) : null,
         refund: exit ? usdc(exit.args.currencyRefunded) : null,
+        claimableShares: settlement.claimable === null ? null : shares(settlement.claimable),
+        refundableUsdc: settlement.refundable === null ? null : usdc(settlement.refundable),
         exitedBlock: exitedBlock === 0n ? null : Number(exitedBlock),
         claimed: isClaimed,
         tx: s.transactionHash,
@@ -290,10 +307,40 @@ async function listingBids(ctx: Ctx, l: Listing, h: Head, owner?: Address): Prom
           maxPriceQ96: s.args.priceQ96.toString(),
           tokensFilled: exit ? exit.args.tokensFilled.toString() : null,
           currencyRefunded: exit ? exit.args.currencyRefunded.toString() : null,
+          claimable: settlement.claimable === null ? null : settlement.claimable.toString(),
+          refundable: settlement.refundable === null ? null : settlement.refundable.toString(),
         },
       };
     }),
   );
+}
+
+/** `Bid.key`: bid ids restart at 0 in every auction. Lowercase, as the app's `bidKey()`. */
+export function bidKey(auction: Address, id: bigint | number): string {
+  return `${auction.toLowerCase()}:${id}`;
+}
+
+/** Where a bid's money is (see `BidStatus`), plus the raw shares still claimable and USDC still to be refunded. */
+export function bidSettlement(b: {
+  exited: boolean;
+  claimed: boolean;
+  filled: bigint;
+  unclaimed: bigint;
+  amount: bigint;
+  maxPrice: bigint;
+  clearing: bigint;
+  ended: boolean;
+  graduated: boolean;
+}): { status: BidStatus; claimable: bigint | null; refundable: bigint | null } {
+  if (b.exited) {
+    if (b.claimed) return { status: "claimed", claimable: 0n, refundable: 0n };
+    if (b.filled === 0n) return { status: "refunded", claimable: 0n, refundable: 0n };
+    return { status: "exited", claimable: b.unclaimed, refundable: 0n };
+  }
+  if (!b.ended) return { status: "open", claimable: null, refundable: null };
+  // Not graduated: exitBid refunds everything. Above the final clearing price: the whole budget was spent.
+  const refundable = !b.graduated ? b.amount : b.maxPrice > b.clearing ? 0n : null;
+  return { status: "awaitingExit", claimable: null, refundable };
 }
 
 export function bidState(b: { maxPrice: bigint; exitedBlock: bigint; claimed: boolean; clearing: bigint; ended: boolean; graduated: boolean }): BidState {
