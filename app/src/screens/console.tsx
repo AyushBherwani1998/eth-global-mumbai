@@ -1,459 +1,620 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
-import { Check, ChevronDown, ExternalLink, Lock, Terminal } from "lucide-react";
-import { TabHeader } from "@/components/shell";
-import { CircuitBanner } from "@/components/circuit-banner";
-import { TimeChart } from "@/components/time-chart";
-import { Button, Card, CopyAddress, FilterChip, KV, Pill, TickerAvatar, cx } from "@/components/ui";
-import { useApp } from "@/components/providers";
-import { blockNo, lotFixed, shortAddr, shortHash, shares, timeIST, txUrl, usdc } from "@/lib/format";
-import { CONSOLE, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo, type Mode, type Policy } from "@/lib/mock";
-import { modeInfo } from "@/lib/policy";
-import { BottomSpacer } from "./common";
+// Issuer console, one listing (UX.md 3.9). Three sections, in this order:
+//   Listing      the lifecycle stepper, plain-English step names (issuer)
+//   Trading rule read-only policy state, plus the commands that change it
+//   Developer    collapsed: addresses, Q96 maths, receipts
+//
+// Nothing in this screen writes to a chain and nothing in it drives Chainlink
+// CRE. CRE runs from the command line for the demo (cre/README.md), so every
+// step that needs a transaction shows the command instead of a button that
+// would only pretend. The trading rule comes from `GET /v1/policy/:ticker`
+// (services/api/README.md) or says plainly that it could not be read.
 
-type StepId = "create" | "ticker" | "policy" | "launch" | "monitor" | "graduate" | "demo";
-const STEPS: { id: StepId; title: string }[] = [
-  { id: "create", title: "Create listing" },
-  { id: "ticker", title: "Register ENS ticker" },
-  { id: "policy", title: "Publish policy (CRE)" },
-  { id: "launch", title: "Launch auction" },
-  { id: "monitor", title: "Monitor" },
-  { id: "graduate", title: "Graduate" },
-  { id: "demo", title: "Demo controls" },
+import { useState } from "react";
+import { Check, ChevronDown } from "lucide-react";
+
+import { CommandBlock, ConsoleShell, ConsoleSignIn, GateLine, NotTheOwner } from "@/components/console/shell";
+import { useIssuerSession } from "@/components/console/session";
+import { modeWords, usePolicy, type PolicyView } from "@/components/console/policy";
+import { apiConfigured, errorTitle } from "@/lib/api";
+import { ErrorCard, SkeletonList } from "@/components/states";
+import { PriceChart } from "@/components/time-chart";
+import { TickerMark } from "@/components/company/logos";
+import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
+import { blockNo, dateTimeIST, lotFixed, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
+import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo } from "@/lib/mock";
+
+// ---------------------------------------------------------------------------
+// Lifecycle steps. Ids match mock/console.json; the titles are plain English.
+// ---------------------------------------------------------------------------
+
+type StepId = "create" | "ticker" | "policy" | "launch" | "monitor" | "graduate";
+const STEPS: { id: StepId; title: string; sub: string }[] = [
+  {
+    id: "create",
+    title: "Create the listing",
+    sub: "Shares, issue price and the rules of the sale.",
+  },
+  {
+    id: "ticker",
+    title: "Register the name",
+    sub: "Your company name on Thamba, and what it points to.",
+  },
+  {
+    id: "policy",
+    title: "Publish the trading rule",
+    sub: "The price limits the exchange will enforce.",
+  },
+  {
+    id: "launch",
+    title: "Open the IPO",
+    sub: "People can apply from this moment.",
+  },
+  {
+    id: "monitor",
+    title: "Watch applications",
+    sub: "Price, money raised and who applied.",
+  },
+  {
+    id: "graduate",
+    title: "List on the market",
+    sub: "Opens trading at the final price.",
+  },
 ];
 
 type ConsoleData = {
-  step: StepId;
+  step: StepId | "demo";
   steps: Record<string, { done: boolean; tx?: string; [k: string]: unknown }>;
-  bids?: { owner: string; budget: number; maxPrice: number; state: string; reason?: string }[];
-  runnerLog: { time: string; line: string }[];
+  bids?: {
+    owner: string;
+    budget: number;
+    maxPrice: number;
+    state: string;
+    reason?: string;
+  }[];
 };
 
-const q96 = (lotPrice: number) => (lotPrice / 1000) * 1e6 / 1e18 * 2 ** 96;
+const q96 = (lotPrice: number) => (((lotPrice / 1000) * 1e6) / 1e18) * 2 ** 96;
 const sci = (n: number) => n.toExponential(3).replace("e+", " × 10^");
 
 export function ConsoleScreen({ ticker }: { ticker: string }) {
-  const { isIssuerFor, connected } = useApp();
+  const { ready, connected, listings } = useIssuerSession();
   const ipo = getIpo(ticker)!;
 
-  if (!connected || !isIssuerFor.includes(ticker))
-    return (
-      <>
-        <TabHeader title="Console" />
-        <div className="flex flex-col items-center px-6 py-14 text-center">
-          <span className="mb-3 flex size-14 items-center justify-center rounded-full bg-subtle text-muted">
-            <Lock className="size-6" />
-          </span>
-          <p className="font-semibold text-strong">Issuer only</p>
-          <p className="mt-1 text-sm text-muted">
-            The console for {ensName(ticker)} opens for its ENS owner, {shortAddr(ipo.records.addr)}.
-          </p>
-        </div>
-      </>
-    );
+  if (!ready) return <SkeletonList rows={4} className="pt-6" />;
+  if (!connected) return <ConsoleSignIn />;
+  if (!listings.includes(ticker)) return <NotTheOwner ticker={ticker} />;
 
   return <IssuerConsole ipo={ipo} data={(CONSOLE as unknown as Record<string, ConsoleData>)[ticker]} />;
 }
 
+// ---------------------------------------------------------------------------
+// Shell: header, live card, three sections, desktop three columns.
+// ---------------------------------------------------------------------------
+
 function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
-  const { isIssuerFor } = useApp();
-  const [open, setOpen] = useState<StepId>(data.step);
-  const currentIdx = STEPS.findIndex((s) => s.id === data.step);
+  const firstOpen = (STEPS.find((s) => s.id === data.step)?.id ?? STEPS.find((s) => !data.steps[s.id]?.done)?.id ?? "graduate") as StepId;
+  const [open, setOpen] = useState<StepId | null>(firstOpen);
+  const market = getMarket(ipo.ticker);
+
+  const stepContent = (id: StepId) => {
+    switch (id) {
+      case "create":
+        return <CreateStep ipo={ipo} />;
+      case "ticker":
+        return <TickerStep ipo={ipo} />;
+      case "policy":
+        return <PolicyStep ipo={ipo} data={data} />;
+      case "launch":
+        return <LaunchStep data={data} />;
+      case "monitor":
+        return <MonitorStep ipo={ipo} data={data} />;
+      case "graduate":
+        return <GraduateStep ipo={ipo} data={data} />;
+    }
+  };
+
+  const live = <LiveCard ipo={ipo} />;
+  const liveInset = <LiveCard ipo={ipo} inset />;
 
   return (
-    <>
-      <TabHeader title="Console" />
-      <main className="px-4">
-        <div className="no-scrollbar -mx-4 flex gap-2 overflow-x-auto px-4">
-          {isIssuerFor.map((t) => (
-            <Link key={t} href={`/console/${t}`}>
-              <FilterChip active={t === ipo.ticker}>{getIpo(t)!.symbol}</FilterChip>
-            </Link>
-          ))}
-        </div>
-        <Card className="mt-3 flex items-center gap-3 p-3">
-          <TickerAvatar ipo={ipo} size={40} />
+    <ConsoleShell>
+      <div>
+        <header className="flex items-start gap-3 border-b border-line py-5">
+          <TickerLogo ipo={ipo} size={40} />
           <div className="min-w-0 flex-1">
-            <p className="truncate font-semibold text-strong">{ipo.name}</p>
-            <p className="text-xs text-muted">{ensName(ipo.ticker)}</p>
+            <h1 className="t-page-title text-text">{ipo.name}</h1>
+            <p className="t-label truncate">
+              <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ensName(ipo.ticker)} · {statusLabel(ipo)}
+            </p>
           </div>
-          <Pill tone={CONSOLE.runnerOnline ? "gain" : "loss"} dot={CONSOLE.runnerOnline}>
-            {CONSOLE.runnerOnline ? "Runner online" : "Runner offline"}
-          </Pill>
-        </Card>
+        </header>
+        <GateLine className="mt-3" />
 
-        <ol className="mt-4">
-          {STEPS.map((s, i) => {
-            const done = s.id === "demo" ? false : data.steps[s.id]?.done;
-            const reachable = i <= currentIdx || done;
-            const isOpen = open === s.id;
-            return (
-              <li key={s.id} className="relative pl-10">
-                {i < STEPS.length - 1 && <span className={cx("absolute top-8 bottom-0 left-[13px] w-0.5", done ? "bg-gain" : "bg-line")} />}
-                <span
-                  className={cx(
-                    "absolute top-3 left-0 flex size-7 items-center justify-center rounded-full text-xs font-bold",
-                    done ? "bg-gain text-white" : i === currentIdx ? "bg-strong text-bg" : "bg-subtle text-muted",
-                  )}
-                >
-                  {done ? <Check className="size-4" /> : i + 1}
-                </span>
-                <button
-                  disabled={!reachable}
-                  onClick={() => setOpen(isOpen ? ("" as StepId) : s.id)}
-                  className="flex w-full items-center justify-between py-3.5 text-left disabled:opacity-50"
-                >
-                  <span className={cx("text-[15px] font-semibold", i === currentIdx ? "text-strong" : "text-fg")}>{s.title}</span>
-                  <ChevronDown className={cx("size-4 text-muted transition-transform", isOpen && "rotate-180")} />
-                </button>
-                {isOpen && (
-                  <div className="pb-4">
-                    {s.id === "create" && <CreateStep ipo={ipo} />}
-                    {s.id === "ticker" && <TickerStep ipo={ipo} data={data} />}
-                    {s.id === "policy" && <PolicyStep ipo={ipo} data={data} />}
-                    {s.id === "launch" && <LaunchStep data={data} />}
-                    {s.id === "monitor" && <MonitorStep ipo={ipo} data={data} />}
-                    {s.id === "graduate" && <GraduateStep ipo={ipo} data={data} />}
-                    {s.id === "demo" && <DemoStep ipo={ipo} data={data} />}
-                  </div>
-                )}
-              </li>
-            );
-          })}
-        </ol>
-        <BottomSpacer />
-      </main>
-    </>
+        <div className="mt-6 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_300px] lg:items-start lg:gap-6 xl:grid-cols-[240px_minmax(0,1fr)_360px] xl:gap-8">
+          {/* Desktop step rail */}
+          <nav className="hidden lg:block" aria-label="Listing steps">
+            <p className="t-section-title mb-2 text-text">Listing</p>
+            <ol className="divide-y divide-line">
+              {STEPS.map((s, i) => (
+                <li key={s.id}>
+                  <button
+                    type="button"
+                    onClick={() => setOpen(s.id)}
+                    aria-current={open === s.id ? "step" : undefined}
+                    className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
+                  >
+                    <StepCircle done={!!data.steps[s.id]?.done} n={i + 1} current={open === s.id} />
+                    <span className={cx("t-body flex-1", open === s.id ? "text-text" : "text-text-2")}>{s.title}</span>
+                  </button>
+                </li>
+              ))}
+            </ol>
+          </nav>
+
+          {/* Centre column */}
+          <div className="min-w-0">
+            <div className="lg:hidden">{live}</div>
+
+            <div className="lg:hidden">
+              <SectionTitle>Listing</SectionTitle>
+              <p className="t-label -mt-2">What you, the company, do to bring the shares to market.</p>
+            </div>
+
+            {/* Phone: accordion */}
+            <ol className="mt-2 divide-y divide-line lg:hidden">
+              {STEPS.map((s, i) => {
+                const isOpen = open === s.id;
+                return (
+                  <li key={s.id}>
+                    <button
+                      type="button"
+                      onClick={() => setOpen(isOpen ? null : s.id)}
+                      aria-expanded={isOpen}
+                      className="flex min-h-14 w-full items-center gap-3 py-2 text-left"
+                    >
+                      <StepCircle done={!!data.steps[s.id]?.done} n={i + 1} current={isOpen} />
+                      <span className="min-w-0 flex-1">
+                        <span className="t-list-title block text-text">{s.title}</span>
+                        <span className="t-label block">{s.sub}</span>
+                      </span>
+                      <ChevronDown className={cx("size-5 shrink-0 text-text-2 transition-transform duration-200", isOpen && "rotate-180")} />
+                    </button>
+                    {isOpen && <div className="pb-4">{stepContent(s.id)}</div>}
+                  </li>
+                );
+              })}
+            </ol>
+
+            {/* Desktop: the step the rail selected */}
+            {open && (
+              <div className="hidden lg:block">
+                <p className="t-section-title text-text">{STEPS.find((s) => s.id === open)!.title}</p>
+                <p className="t-label mb-3">{STEPS.find((s) => s.id === open)!.sub}</p>
+                {stepContent(open)}
+              </div>
+            )}
+
+            <TradingRulePanel ipo={ipo} />
+
+            <SectionTitle>Developer</SectionTitle>
+            <Details title="Addresses, maths and receipts">
+              <DeveloperPanel ipo={ipo} data={data} />
+            </Details>
+          </div>
+
+          {/* Desktop right rail */}
+          <aside className="hidden lg:sticky lg:top-20 lg:block">
+            <p className="t-section-title mb-2 text-text">Live</p>
+            {liveInset}
+            {market ? (
+              <Card className="mt-3 p-4">
+                <p className="t-label">Price today</p>
+                <PriceChart data={market.prices.slice(-120)} kind="market" height={140} digits={2} readout={false} labels={false} />
+              </Card>
+            ) : getClearing(ipo.ticker).length > 0 ? (
+              <Card className="mt-3 p-4">
+                <p className="t-label">Price so far</p>
+                <PriceChart
+                  data={getClearing(ipo.ticker).map((p) => ({
+                    time: p.time,
+                    value: p.price,
+                  }))}
+                  kind="clearing"
+                  baseline={OFFER.issuePrice}
+                  height={140}
+                  digits={2}
+                  readout={false}
+                  labels={false}
+                />
+              </Card>
+            ) : null}
+          </aside>
+        </div>
+
+        <p className="t-caption mt-8 border-t border-line pt-4">
+          Prices and amounts in USDC per 1,000 shares. The listing figures on this page are sample data, not live chain
+          reads. The trading rule is read from the chain when the backend is connected.
+        </p>
+      </div>
+    </ConsoleShell>
   );
 }
 
-function TxLink({ tx, label = "Sepolia tx" }: { tx?: string; label?: string }) {
-  if (!tx) return null;
+function StepCircle({ done, n, current }: { done: boolean; n: number; current: boolean }) {
   return (
-    <a href={txUrl(tx)} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-[13px] font-medium text-brand">
-      {label} {shortHash(tx)} <ExternalLink className="size-3" />
-    </a>
+    <span
+      className={cx(
+        "flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] leading-none font-medium",
+        done ? "bg-text text-bg" : current ? "border-[1.5px] border-text text-text" : "border border-line text-text-2",
+      )}
+    >
+      {done ? <Check className="size-3.5" /> : n}
+    </span>
   );
 }
+
+function LiveCard({ ipo, inset }: { ipo: Ipo; inset?: boolean }) {
+  const market = getMarket(ipo.ticker);
+  const last = market ? market.prices[market.prices.length - 1].value : ipo.clearingPrice;
+  const raised = ipo.raised ?? 0;
+  return (
+    <Card className={cx("p-4", !inset && "mt-4")}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="t-label">{ipo.phase === "live" ? "Current price" : "Last price"}</p>
+        <p className="num t-list-title text-text">{last !== null ? `${lotFixed(last)} USDC` : "Not priced yet"}</p>
+      </div>
+      <div className="mt-3 flex items-baseline justify-between gap-3">
+        <p className="t-label">Phase</p>
+        <p className="t-list-title text-text">{statusLabel(ipo)}</p>
+      </div>
+      <div className="mt-4">
+        <ProgressBar value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
+        <p className="num t-label mt-2">
+          {usdc(raised)} of {OFFER.targetRaise} USDC raised · lists at {OFFER.requiredRaise}
+        </p>
+      </div>
+      <p className="t-caption mt-3">Sample data.</p>
+    </Card>
+  );
+}
+
+/** Every listing step runs from the demo laptop, so each one says so once. */
+function RunsFromTheCommandLine({ command, note }: { command: string; note?: string }) {
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <p className="t-body text-text">This step runs from the command line, not from this browser.</p>
+      <CommandBlock command={command} note={note} />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Listing steps
+// ---------------------------------------------------------------------------
 
 function CreateStep({ ipo }: { ipo: Ipo }) {
-  const { sendTx } = useApp();
   return (
-    <Card className="p-3">
+    <Card className="p-4">
       <div className="divide-y divide-line">
-        <KV k="Token" v={`${ipo.name} (${ipo.symbol})`} />
-        <KV k="Total supply" v={shares(OFFER.totalSupply)} sub={`${shares(OFFER.auctioned)} auction · ${shares(OFFER.lpReserve)} LP`} />
-        <KV k="Issue price" v={`${lotFixed(OFFER.issuePrice)} USDC / lot`} />
-        <KV k="Range" v={`80% → ${lotFixed(OFFER.floorPrice)} · 190% → ${lotFixed(OFFER.capPrice)}`} />
-        <KV k="Per-applicant cap" v={`${OFFER.perApplicantCap} USDC`} />
-        <KV k="Raise to LP" v={`${OFFER.lpPercent}%`} />
-        <KV k="Graduation" v={`50% of target · ${OFFER.requiredRaise} of ${OFFER.targetRaise} USDC`} />
-        <KV k="Eligibility" v={ipo.eligibility === "human" ? "One human, one application" : "Open"} sub={ipo.eligibility === "human" ? "WorldPassModule" : "AllowAllModule"} />
-        <KV k="Quote currency" v="Sepolia USDC" sub={<CopyAddress value={USDC_ADDRESS} />} />
-        <KV k="Unsold → " v="Issuer treasury" />
-      </div>
-      <div className="mt-2 rounded-[8px] bg-subtle p-3 font-mono text-[12px] leading-relaxed text-muted">
-        <p>floorPriceQ96 ≈ {sci(q96(OFFER.floorPrice))}</p>
-        <p>capPriceQ96 &nbsp;≈ {sci(q96(OFFER.capPrice))}</p>
-        <p>requiredCurrencyRaised = {OFFER.requiredRaise}e6</p>
-        <p>token order: USDC is currency0 (predicted)</p>
-      </div>
-      <Button tone="neutral" variant="outline" className="mt-3 w-full" onClick={() => sendTx({ title: "Save draft", success: "Draft saved locally", delayMs: 400 })}>
-        Save draft
-      </Button>
-    </Card>
-  );
-}
-
-function TickerStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
-  const { sendTx } = useApp();
-  const st = data.steps.ticker;
-  return (
-    <Card className="p-3">
-      <p className="text-sm">
-        <b>{ensName(ipo.ticker)}</b> <span className="text-gain">· registered</span>
-      </p>
-      <div className="mt-2 divide-y divide-line">
-        {(["addr", "auction", "pool", "hook", "policy"] as const).map((k) => (
-          <div key={k} className="flex items-center justify-between py-2">
-            <code className="text-[13px] text-muted">{k === "addr" ? "addr" : `listingday.${k}`}</code>
-            <CopyAddress value={ipo.records[k]} label={ipo.records[k] && ipo.records[k]!.length > 42 ? `${ipo.records[k]!.slice(0, 8)}…` : undefined} />
-          </div>
-        ))}
-        <div className="flex items-center justify-between py-2">
-          <code className="text-[13px] text-muted">listingday.status</code>
-          <span className="text-[13px] text-muted">{ipo.status} · receiver-owned</span>
-        </div>
-      </div>
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <Button tone="neutral" variant="outline" className="py-2 text-sm" onClick={() => sendTx({ title: "Save ENS records", success: "Records saved" })}>
-          Save records
-        </Button>
-        <Button tone="neutral" variant="outline" className="py-2 text-sm" disabled={!!st.roleGranted}>
-          {st.roleGranted ? "Status role granted ✓" : "Grant status role"}
-        </Button>
-        <Button
-          tone="loss"
-          variant="outline"
-          className="col-span-2 py-2 text-sm"
-          onClick={() =>
-            sendTx({
-              title: "Receiver tries to set url",
-              revert: "EACUnauthorizedAccountRoles",
-              revertDetail: "The receiver only holds ROLE_SET_TEXT for listingday.status. This is the expected denial.",
-            })
+        <KV
+          k="Company"
+          v={
+            <>
+              {ipo.name} (<TickerMark ticker={ipo.ticker} symbol={ipo.symbol} />)
+            </>
           }
-        >
-          Test role denial (receiver → url)
-        </Button>
+        />
+        <KV k="Shares in total" v={shares(OFFER.totalSupply)} />
+        <KV k="Shares offered in the IPO" v={shares(OFFER.auctioned)} sub={`${shares(OFFER.lpReserve)} kept for the market`} />
+        <KV k="Issue price" v={`${lotFixed(OFFER.issuePrice)} per 1,000 shares`} />
+        <KV k="Price range" v={`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`} />
+        <KV k="Most one wallet can apply with" v={`${OFFER.perApplicantCap} USDC`} sub="Counted per wallet, across all of its applications" />
+        <KV k="Share of the raise kept as liquidity" v={`${OFFER.lpPercent}%`} />
+        <KV k="Minimum raise to list" v={`${OFFER.requiredRaise} of ${OFFER.targetRaise} USDC`} />
+        <KV k="Who can apply" v="Anyone with a wallet" sub="No identity check, no KYC" />
+        <KV k="Money is taken in" v="Sepolia test USDC" />
       </div>
-      <TxLink tx={st.tx as string | undefined} label="Register tx" />
+      <RunsFromTheCommandLine command="cd contracts && make deploy" note="Writes the listing into contracts/deployments/<network>.json." />
     </Card>
   );
 }
 
-function RunnerLog({ lines }: { lines: { time: string; line: string }[] }) {
-  if (!lines.length) return null;
+const RECORD_LABEL: Record<string, string> = {
+  addr: "Share token",
+  auction: "IPO contract",
+  pool: "Market",
+  hook: "Rule enforcer",
+  policy: "Rule publisher",
+};
+
+function TickerStep({ ipo }: { ipo: Ipo }) {
   return (
-    <div className="mt-3 rounded-[8px] bg-[#0f1216] p-3 font-mono text-[11.5px] leading-relaxed text-[#c9d1d9]">
-      <p className="mb-1 flex items-center gap-1.5 text-[#7d8590]">
-        <Terminal className="size-3.5" /> CRE runner
+    <Card className="p-4">
+      <p className="t-body text-text">{ensName(ipo.ticker)}</p>
+      <p className="t-label mt-1">People find this company by that name, and the app reads every address below from it.</p>
+      <div className="mt-3 divide-y divide-line">
+        {(["addr", "auction", "pool", "hook", "policy"] as const).map((k) => (
+          <KV key={k} k={RECORD_LABEL[k]} v={<CopyAddress value={ipo.records[k]} />} />
+        ))}
+        <KV k="Trading status" v={ipo.status} sub="Set by the exchange, not by you" />
+      </div>
+      <RunsFromTheCommandLine
+        command="cd contracts && make ens-sepolia"
+        note="Registers the name, writes the records, and lets the exchange write the trading status."
+      />
+      <p className="mt-2">
+        <TextLink href={`https://sepolia.app.ens.domains/${ensName(ipo.ticker)}`}>View in the ENS app</TextLink>
       </p>
-      {lines.map((l, i) => (
-        <p key={i}>
-          <span className="text-[#7d8590]">{timeIST(l.time).replace(" IST", "")}</span> {l.line}
-        </p>
-      ))}
-    </div>
+    </Card>
   );
 }
 
 function PolicyStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   const m = getMarket(ipo.ticker);
+  const ref = m?.policy.referencePrice ?? ipo.clearingPrice ?? OFFER.issuePrice;
   return (
-    <Card className="p-3">
+    <Card className="p-4">
       <div className="divide-y divide-line">
-        <KV k="Version" v={`v${data.steps.policy.version}`} />
-        <KV k="Reference price" v={`${lotFixed(m?.policy.referencePrice ?? ipo.clearingPrice ?? 1)} USDC / lot`} />
-        <KV k="Normal band" v="±20%" />
-        <KV k="Surveillance band" v="±5%" />
-        <KV k="Listing-day band" v="±5% around clearing" />
+        <KV k="Reference price" v={`${lotFixed(ref)} per 1,000 shares`} />
+        <KV k="Normal day" v="Trades within 20% of the reference price" />
+        <KV k="Under watch" v="Trades within 5% of the reference price" />
+        <KV k="Listing day" v="Trades within 5% of the price the IPO closed at" />
       </div>
-      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain">
-        <Check className="size-4" /> Published. ENS status is now <b>{ipo.status}</b>
+      <p className="t-body mt-3 text-text-2">
+        The rule in force right now, and the commands that change it, are under &ldquo;Trading rule&rdquo; further down this page.
       </p>
-      <TxLink tx={data.steps.policy.tx as string | undefined} label="CRE report" />
-      <RunnerLog lines={data.runnerLog} />
+      {typeof data.steps.policy?.tx === "string" && (
+        <p className="mt-1">
+          <TextLink href={txUrl(data.steps.policy.tx as string)}>View receipt</TextLink>
+        </p>
+      )}
     </Card>
   );
 }
 
 function LaunchStep({ data }: { data: ConsoleData }) {
+  const done = !!data.steps.launch?.done;
   return (
-    <Card className="p-3">
-      <p className="text-sm">
-        LiquidityLauncher multicall: <code className="text-[13px]">createToken</code> + <code className="text-[13px]">distribute</code> →
-        LBPStrategy → CCA. Then writes <code className="text-[13px]">listingday.auction</code> and status <code>auction</code>.
-      </p>
-      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain">
-        <Check className="size-4" /> Launched
-      </p>
-      <TxLink tx={data.steps.launch.tx as string | undefined} label="Launch tx" />
+    <Card className="p-4">
+      <div className="divide-y divide-line">
+        <KV k="Shares on offer" v={shares(OFFER.auctioned)} />
+        <KV k="Issue price" v={lotFixed(OFFER.issuePrice)} />
+        <KV k="Price range" v={`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`} />
+        <KV k="Minimum raise to list" v={`${OFFER.requiredRaise} USDC`} />
+      </div>
+      {done && (
+        <>
+          <p className="t-body mt-3 text-text">The IPO is open. The contract address is written to your name.</p>
+          {typeof data.steps.launch?.tx === "string" && (
+            <p className="mt-1">
+              <TextLink href={txUrl(data.steps.launch.tx as string)}>View receipt</TextLink>
+            </p>
+          )}
+        </>
+      )}
+      <RunsFromTheCommandLine command="cd contracts && make launch" note="Opens the sale and writes the IPO contract address to the name." />
     </Card>
   );
 }
 
 function MonitorStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
-  const s = data.steps.monitor as Record<string, number | boolean>;
+  const s = (data.steps.monitor ?? {}) as Record<string, number | boolean>;
   const series = getClearing(ipo.ticker);
   const last = series[series.length - 1];
   return (
-    <Card className="p-3">
-      <div className="flex items-baseline justify-between">
-        <p className="text-sm text-muted">Clearing</p>
-        <p className="num text-lg font-bold text-strong">{lotFixed(last.price)} USDC / lot</p>
-      </div>
-      <TimeChart data={series.map((p) => ({ time: p.time, value: p.price }))} kind="step" color="brand" height={140} digits={2} />
-      <div className="mt-2 grid grid-cols-3 gap-2 text-center">
-        <Mini k="Raised" v={`${usdc(last.raised, 1)}`} sub={`/ ${OFFER.requiredRaise} needed`} />
-        <Mini k="Bids" v={String(s.bidCount)} />
-        <Mini k="Humans" v={String(s.uniqueHumans)} />
-        <Mini k="Passes issued" v={String(s.passesIssued)} />
-        <Mini k="2nd-wallet denials" v={String(s.secondWalletDenials)} tone="loss" />
-        <Mini k="Rejected bids" v={String(s.rejectedBids)} tone="loss" />
+    <Card className="p-4">
+      {last && (
+        <>
+          <div className="flex items-baseline justify-between">
+            <p className="t-label">Price now</p>
+            <p className="num t-list-title text-text">{lotFixed(last.price)} per 1,000 shares</p>
+          </div>
+          <PriceChart
+            data={series.map((p) => ({ time: p.time, value: p.price }))}
+            kind="clearing"
+            baseline={OFFER.issuePrice}
+            height={140}
+            digits={2}
+            readout={false}
+            labels={false}
+          />
+        </>
+      )}
+      <div className="mt-3 divide-y divide-line">
+        <KV k="Raised" v={`${usdc(last ? last.raised : (ipo.raised ?? 0))} USDC`} sub={`${OFFER.requiredRaise} needed to list`} />
+        <KV k="Applications" v={String(s.bidCount ?? ipo.bidCount ?? 0)} />
+        <KV k="Wallets that applied" v={String(ipo.applicants ?? 0)} />
+        <KV k="Applications rejected" v={String(s.rejectedBids ?? 0)} sub="Over the per-wallet limit, or priced above the cap" />
       </div>
       {data.bids && (
-        <div className="mt-3">
-          <p className="mb-1 text-xs font-semibold tracking-wide text-muted uppercase">Recent bids</p>
-          <ul className="divide-y divide-line">
+        <div className="mt-4">
+          <p className="t-list-title text-text">Applications</p>
+          <ul className="mt-1 divide-y divide-line">
             {data.bids.map((b, i) => (
-              <li key={i} className="num flex items-center justify-between py-2 text-[13px]">
-                <span className="font-mono text-muted">{b.owner}</span>
-                <span className="text-strong">
-                  {usdc(b.budget)} @ ≤{lotFixed(b.maxPrice)}
+              <li key={i} className="flex min-h-12 items-center justify-between gap-3 py-2">
+                <span className="num t-mono truncate text-text-2">{b.owner}</span>
+                <span className="num t-body text-text">
+                  {usdc(b.budget)} up to {lotFixed(b.maxPrice)}
                 </span>
-                <Pill tone={b.state === "active" ? "brand" : b.state === "outbid" ? "warn" : "loss"}>{b.reason ?? b.state}</Pill>
+                <span
+                  className={cx(
+                    "t-change-sm shrink-0",
+                    b.state === "rejected" ? "text-loss-text" : b.state === "outbid" ? "text-text-2" : "text-gain-text",
+                  )}
+                >
+                  {b.state === "rejected" ? "Rejected" : b.state === "outbid" ? "Below the price" : "Likely allotted"}
+                </span>
               </li>
             ))}
           </ul>
+          <p className="t-caption mt-2">Sample data.</p>
         </div>
       )}
     </Card>
   );
 }
 
-function Mini({ k, v, sub, tone }: { k: string; v: string; sub?: string; tone?: "loss" }) {
-  return (
-    <div className="rounded-[8px] bg-subtle px-2 py-2">
-      <p className="text-[11px] text-muted">{k}</p>
-      <p className={cx("num font-semibold", tone === "loss" ? "text-loss" : "text-strong")}>{v}</p>
-      {sub && <p className="text-[10px] text-muted">{sub}</p>}
-    </div>
-  );
-}
-
 function GraduateStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
-  const { sendTx } = useApp();
-  const g = data.steps.graduate as Record<string, unknown>;
+  const g = (data.steps.graduate ?? {}) as Record<string, unknown>;
   if (!g.done)
     return (
-      <Card className="p-3">
-        <p className="text-sm text-muted">
-          Opens after block {blockNo(ipo.endBlock!)}. Graduates if raised ≥ {OFFER.requiredRaise} USDC; otherwise refunds open
-          and there&apos;s nothing to migrate.
+      <Card className="p-4">
+        <p className="t-body text-text">
+          Opens when the IPO closes at block {blockNo(ipo.endBlock ?? CURRENT_BLOCK)}. The shares list if the IPO raised at least{" "}
+          {OFFER.requiredRaise} USDC; otherwise every application is refunded and there is nothing to list.
         </p>
-        <Button className="mt-3 w-full" disabled>
-          Migrate to v4 pool
-        </Button>
+        <RunsFromTheCommandLine command="cd contracts && make settle" note="Only works once the IPO has closed." />
       </Card>
     );
   return (
-    <Card className="p-3">
+    <Card className="p-4">
       <div className="divide-y divide-line">
-        <KV k="Graduated" v={g.graduated ? "Yes" : "No"} />
-        <KV k="Clearing price" v={`${lotFixed(g.clearingPrice as number)} USDC / lot`} />
-        <KV k="Unsold shares" v={`${g.unsold} → treasury`} />
+        <KV k="Reached the minimum" v={g.graduated ? "Yes" : "No"} />
+        <KV k="Final price" v={`${lotFixed(g.clearingPrice as number)} per 1,000 shares`} />
+        <KV k="Unsold shares" v={`${shares(Number(g.unsold ?? 0))} returned to your treasury`} />
       </div>
-      <p className="mt-2 flex items-center gap-1.5 text-[13px] text-gain">
-        <Check className="size-4" /> Pool opened at clearing · ENS pool + status written
-      </p>
-      <div className="flex flex-col">
-        <TxLink tx={g.migrateTx as string} label="migrate()" />
-        <TxLink tx={g.ensTx as string} label="ENS write" />
-      </div>
-      <Button tone="neutral" variant="outline" className="mt-3 w-full" onClick={() => sendTx({ title: "Sweep unsold tokens", success: "Nothing left to sweep" })}>
-        Sweep unsold → treasury
-      </Button>
+      <p className="t-body mt-3 text-text">The market is open at the final price, and the market address is written to your name.</p>
+      {typeof g.migrateTx === "string" && (
+        <p className="mt-1">
+          <TextLink href={txUrl(g.migrateTx)}>View receipt</TextLink>
+        </p>
+      )}
     </Card>
   );
 }
 
-function DemoStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
-  const { sendTx } = useApp();
-  const m = getMarket(ipo.ticker);
-  const [policy, setPolicy] = useState<Policy | undefined>(m?.policy);
-  const [ref, setRef] = useState(String(m?.policy.referencePrice ?? ""));
-  const [log, setLog] = useState(data.runnerLog);
-  const [running, setRunning] = useState(false);
+// ---------------------------------------------------------------------------
+// Trading rule: read-only policy state, and the commands that change it.
+// ---------------------------------------------------------------------------
 
-  if (!policy) return <p className="text-sm text-muted">Demo controls open after graduation.</p>;
-
-  const ensStatus = (p: Policy) => (p.halted ? "halted" : p.mode === "surveillance" || p.mode === "directional" ? "surveillance" : "listed");
-
-  const run = (next: Policy, what: string) => {
-    if (!CONSOLE.runnerOnline) return;
-    setRunning(true);
-    const now = () => new Date().toISOString();
-    const tx = `0x${Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`;
-    const steps = [
-      `Editing exchange JSON: ${ipo.ticker} → ${what}`,
-      "cre workflow simulate --broadcast --non-interactive --trigger-index 0",
-      `Report signed · v${next.version}`,
-      `Broadcast tx ${shortHash(tx)} · ReportProcessed result=true`,
-      `ENS ${ensName(ipo.ticker)} listingday.status = ${ensStatus(next)}`,
-    ];
-    steps.forEach((line, i) => {
-      setTimeout(() => {
-        setLog((l) => [...l, { time: now(), line }]);
-        if (i === 3) setPolicy({ ...next, since: now(), asOf: now(), creTx: tx });
-        if (i === steps.length - 1) setRunning(false);
-      }, 500 + i * 650);
-    });
-  };
-
-  const setMode = (mode: Mode, halted = false) => {
-    const bandBps = mode === "listing" || mode === "surveillance" ? 500 : 2000;
-    run({ ...policy, version: policy.version + 1, mode, halted, bandBps }, halted ? "halt" : `mode=${mode}`);
-  };
+function TradingRulePanel({ ipo }: { ipo: Ipo }) {
+  const { data, error, loading, refreshing, retry, updatedAt } = usePolicy(ipo.ticker);
 
   return (
-    <div>
-      <CircuitBanner ticker={ipo.ticker} policy={policy} />
-      <Card className="mt-3 p-3">
-        <p className="text-xs font-semibold tracking-wide text-muted uppercase">Reference price</p>
-        <div className="mt-2 flex gap-2">
-          <input
-            inputMode="decimal"
-            value={ref}
-            onChange={(e) => setRef(e.target.value.replace(/[^0-9.]/g, ""))}
-            className="num w-full rounded-[8px] border border-line-strong bg-transparent px-3 text-[15px] font-semibold text-strong outline-none focus:border-brand"
-            aria-label="Reference price, USDC per lot"
-          />
-          <Button
-            tone="neutral"
-            className="shrink-0 py-2 text-sm"
-            disabled={running}
-            onClick={() => run({ ...policy, version: policy.version + 1, referencePrice: Number(ref) }, `ref=${ref}`)}
-          >
-            Update reference
-          </Button>
-        </div>
+    <>
+      <SectionTitle>Trading rule</SectionTitle>
+      <p className="t-label -mt-2">
+        The limits the exchange is enforcing on your share right now. This panel only reads. Nothing here changes the rule.
+      </p>
 
-        <p className="mt-4 text-xs font-semibold tracking-wide text-muted uppercase">Circuit mode</p>
-        <div className="mt-2 grid grid-cols-2 gap-2">
-          {(
-            [
-              ["Normal", () => setMode("normal"), "gain"],
-              ["Surveillance", () => setMode("surveillance"), "neutral"],
-              ["Directional", () => setMode("directional"), "neutral"],
-              ["Halt", () => setMode(policy.mode, true), "loss"],
-            ] as const
-          ).map(([label, fn, tone]) => (
-            <Button key={label} tone={tone} variant="outline" className="py-2 text-sm" disabled={running} onClick={fn}>
-              {label}
-            </Button>
-          ))}
-          <Button
-            tone="brand"
-            variant="outline"
-            className="col-span-2 py-2 text-sm"
-            disabled={running || !policy.halted}
-            onClick={() => run({ ...policy, version: policy.version + 1, halted: false, mode: policy.mode === "halted" ? "normal" : policy.mode }, "resume")}
-          >
-            Resume trading
-          </Button>
-        </div>
-        <p className="mt-2 text-xs text-muted">
-          Current: {modeInfo(policy).copy} · policy v{policy.version}
+      {data && <PolicyRows p={data} updatedAt={updatedAt} refreshing={refreshing} onRetry={retry} />}
+
+      {!data && loading && (
+        <Card className="mt-3 p-4">
+          <p className="t-body text-text-2">Reading the published rule…</p>
+        </Card>
+      )}
+
+      {!data && error && (
+        <ErrorCard
+          className="mt-3"
+          title={errorTitle(error)}
+          body={error.sentence}
+          onRetry={error.retryable ? retry : undefined}
+          retrying={refreshing}
+        />
+      )}
+
+      <Card className="mt-3 p-4">
+        <p className="t-list-title text-text">Changing the rule runs from the command line</p>
+        <p className="t-body mt-1 text-text-2">
+          Chainlink CRE publishes the rule. It runs on the demo laptop, not in this browser: it reads the exchange&apos;s
+          policy, signs a report and writes it on chain. Two steps, then the panel above shows what landed.
         </p>
-
-        <Button
-          tone="neutral"
-          variant="outline"
-          className="mt-4 w-full"
-          onClick={() =>
-            sendTx({ title: `Remove ${ipo.symbol}/USDC LP`, success: policy.halted ? "LP removed while halted: exits stay open" : "LP removed" })
-          }
-        >
-          Remove LP
-        </Button>
-        {!CONSOLE.runnerOnline && (
-          <p className="mt-2 text-xs text-loss">Runner offline: the CRE CLI only runs on the demo laptop.</p>
-        )}
-        <RunnerLog lines={log} />
+        <CommandBlock
+          label="1. Set the rule on the exchange"
+          command={`curl -X POST $EXCHANGE/policy -H "x-api-key: $SECRET" -d '{"mode":"surveillance"}'`}
+          note="$EXCHANGE is the mock exchange, http://127.0.0.1:8787 by default. It takes halted, mode, refPricePoints and bands."
+        />
+        <CommandBlock
+          label="2. Publish it with Chainlink CRE"
+          command="cd cre && cre workflow simulate ./listing-policy --target staging-settings --trigger-index 0 --broadcast"
+          note="The report is signed and written to the policy contract. The hook enforces it on the next trade."
+        />
       </Card>
+    </>
+  );
+}
+
+function PolicyRows({
+  p,
+  updatedAt,
+  refreshing,
+  onRetry,
+}: {
+  p: PolicyView;
+  updatedAt: number | null;
+  refreshing: boolean;
+  onRetry: () => void;
+}) {
+  const limits = p.band ? `${lotFixed(p.band.low)} to ${lotFixed(p.band.high)} per 1,000 shares` : "Not set until the shares list";
+  return (
+    <Card className="mt-3 p-4">
+      <div className="divide-y divide-line">
+        <KV k="Rule in force" v={modeWords(p)} />
+        <KV k="Trading limits" v={limits} />
+        <KV k="Trading halted" v={p.halted ? "Yes" : "No"} />
+        <KV k="Reference price" v={p.referencePrice !== null ? `${lotFixed(p.referencePrice)} per 1,000 shares` : "Not set"} />
+        <KV k="In force since" v={p.since ? dateTimeIST(p.since) : "Not published yet"} />
+        <KV
+          k="Published rule is out of date"
+          v={p.stale ? "Yes, trading is halted until the next report" : "No"}
+          sub={p.staleAt ? `Goes out of date ${dateTimeIST(p.staleAt)}` : undefined}
+        />
+      </div>
+      <Details title="Details" className="mt-3">
+        <div className="divide-y divide-line">
+          <KV k="Policy version" v={`v${p.version}`} mono />
+          <KV k="Mode" v={p.mode} mono />
+          <KV k="Band" v={`${p.bandBps} bps`} mono />
+          <KV k="Hook phase" v={p.hookPhase} mono />
+          <KV k="Receiver status" v={p.receiverStatus ?? "unset"} mono />
+          <KV k="Report as of" v={p.asOf ? dateTimeIST(p.asOf) : "unset"} />
+          <KV k="CRE report" v={p.creTx ? <TextLink href={txUrl(p.creTx)}>{shortHash(p.creTx)}</TextLink> : "No report yet"} />
+        </div>
+        <p className="t-caption mt-2">Read from GET /v1/policy/{p.ticker}.</p>
+      </Details>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button variant="secondary" className="w-full sm:w-auto sm:min-w-[160px]" onClick={onRetry} busy={refreshing}>
+          Check again
+        </Button>
+        {updatedAt && <span className="t-label">Read {timeIST(new Date(updatedAt).toISOString())}</span>}
+      </div>
+    </Card>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Developer (collapsed): protocol words live here and nowhere else.
+// ---------------------------------------------------------------------------
+
+function DeveloperPanel({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
+  return (
+    <div>
+      <div className="divide-y divide-line">
+        <KV k="floorPriceQ96" v={sci(q96(OFFER.floorPrice))} mono />
+        <KV k="capPriceQ96" v={sci(q96(OFFER.capPrice))} mono />
+        <KV k="requiredCurrencyRaised" v={`${OFFER.requiredRaise}e6`} mono />
+        <KV k="Token order" v="USDC is currency0 · buys are zeroForOne" mono />
+        <KV k="Quote currency" v={<CopyAddress value={USDC_ADDRESS} />} />
+        <KV k="Auction" v={<CopyAddress value={ipo.records.auction} />} />
+        <KV k="Pool" v={<CopyAddress value={ipo.records.pool} />} />
+        <KV k="Hook" v={<CopyAddress value={ipo.records.hook} />} />
+        <KV k="Policy" v={<CopyAddress value={ipo.records.policy} />} />
+        <KV k="Backend" v={apiConfigured() ? "Configured" : "Not configured"} sub="services/api, read only" />
+        {Object.entries(data.steps).map(([k, v]) =>
+          typeof v?.tx === "string" ? <KV key={k} k={`${k} tx`} v={<TextLink href={txUrl(v.tx)}>{shortHash(v.tx)}</TextLink>} /> : null,
+        )}
+      </div>
+
+      <p className="t-list-title mt-4 text-text">Role denial, and sweeping unsold tokens</p>
+      <p className="t-body mt-1 text-text-2">
+        Both run against the contracts from the command line. The role denial is the expected failure: the policy
+        receiver holds the status role only, so writing any other record reverts.
+      </p>
+      <CommandBlock command="cd contracts && forge script script/ens/EnsStatusRole.s.sol --rpc-url $SEPOLIA_RPC_URL" />
     </div>
   );
 }

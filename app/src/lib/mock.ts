@@ -1,6 +1,19 @@
-// Typed access to the JSON files in /mock. Every screen reads through here,
-// so swapping mock data for chain reads later is a change in one place.
+// Static copy, NOT the app's data.
+//
+// Every business read now goes through `src/lib/api.ts` to the backend
+// (services/api). What is left here is the handful of constants and shapes the
+// parts that have not been migrated yet still import: the search sheet, the
+// account sheet, the issuer console, and the sign-in demo session.
+//
+// The one listing below is the one listing that exists on chain (Acme), at the
+// numbers it actually shows: cleared at 0.80, 60 USDC raised, 3 applicants,
+// policy version 5. The seven invented companies that used to live here are
+// gone, so nothing in the app can show a company the exchange does not have.
+//
+// The `Ipo` type is the API's own `Listing` type, so the app's types are honest
+// about what can be null (`sector` and `city` always are).
 
+import type { Listing, Offer as ApiOffer } from "../../../services/api/src/types";
 import iposJson from "../../mock/ipos.json";
 import walletJson from "../../mock/wallet.json";
 import bidsJson from "../../mock/bids.json";
@@ -11,49 +24,28 @@ import portfolioJson from "../../mock/portfolio.json";
 import consoleJson from "../../mock/console.json";
 
 export type EnsStatus = "draft" | "auction" | "listed" | "surveillance" | "halted";
-export type Phase = "draft" | "live" | "refunding" | "listed";
+/** Lifecycle, as the API reports it (`cleared` = graduated, pool not opened yet). */
+export type Phase = "draft" | "live" | "cleared" | "refunding" | "listed";
 export type Mode = "listing" | "normal" | "surveillance" | "directional" | "halted";
 
-export type Records = {
-  addr: string;
-  token: string | null;
-  auction: string | null;
-  hook: string | null;
-  policy: string | null;
-  pool: string | null;
-};
+/** ENS records on <ticker>.<parent>. Any of them can be unset. */
+export type Records = Listing["records"];
 
-export type Ipo = {
-  ticker: string;
-  symbol: string;
-  name: string;
-  sector: string;
-  city: string;
-  description: string;
-  url: string;
-  avatar: { initials: string; bg: string; fg: string };
-  status: EnsStatus;
-  phase: Phase;
-  eligibility: "human" | "open";
-  clearingPrice: number | null;
-  graduated?: boolean;
-  listedAt?: string;
-  raised?: number;
-  bidCount?: number;
-  applicants?: number;
-  startBlock?: number;
-  endBlock?: number;
-  claimBlock?: number;
-  records: Records;
-};
+/** One company, exactly as `GET /v1/listings` returns it. */
+export type Ipo = Listing;
 
-export type Offer = typeof iposJson.offer;
+export type Offer = ApiOffer;
 
 export type PricePoint = { time: number; value: number; halted?: boolean };
 export type RefPoint = { time: number; value: number; mode: Mode; bandBps: number };
 export type Trade = { time: number; side: "buy" | "sell"; usdc: number; shares: number; price: number; tx: string };
 export type ClearingPoint = { block: number; time: number; price: number; raised: number };
 
+/**
+ * The circuit policy as the banner and the trade sheet want it: every field
+ * present. `src/lib/adapt.ts` builds one of these from the API's `PolicyView`,
+ * and returns null when the chain has no band yet, so nothing is invented.
+ */
 export type Policy = {
   version: number;
   mode: Mode;
@@ -63,9 +55,15 @@ export type Policy = {
   since: string;
   asOf: string;
   coolOffMin: number;
+  /** "" when no CRE report has landed yet; the receipt row is hidden then. */
   creTx: string;
 };
 
+/**
+ * A swap the trading rule turned away. Reverted swaps emit no logs, so the
+ * backend can never see one (`rejected` is always `[]`): the only ones the app
+ * shows are the ones it watched happen in this session.
+ */
 export type Rejected = {
   time: string;
   side: "buy" | "sell";
@@ -91,8 +89,11 @@ export type Market = {
 
 export type BidState = "active" | "outbid" | "partial" | "filled" | "exited" | "claimed" | "refundable";
 export type Bid = {
+  /** The CCA's own bid id. Every auction counts from zero, so it is unique only together with `auction`. */
   id: number;
   ticker: string;
+  /** The auction this bid was placed in (the ticker's `listingday.auction` record). */
+  auction: string;
   budget: number;
   maxPrice: number;
   submittedBlock: number;
@@ -110,15 +111,28 @@ export const OFFER: Offer = iposJson.offer;
 export const USDC_ADDRESS = "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238";
 export const FAUCET_URL = "https://faucet.circle.com/";
 
-export const IPOS = iposJson.ipos as Ipo[];
+// The JSON is written to the Listing shape; TypeScript widens its string
+// literals (`0x…` addresses, the status union), so this is a shape assertion.
+export const IPOS = iposJson.ipos as unknown as Ipo[];
 export const WALLET = walletJson;
-export const BIDS = bidsJson.bids as Bid[];
+export const BIDS: Bid[] = (bidsJson.bids as Omit<Bid, "auction">[]).map((b) => ({
+  ...b,
+  auction: IPOS.find((i) => i.ticker === b.ticker)?.records.auction ?? "",
+}));
 export const COMMITTED = bidsJson.committed as Record<string, number>;
-export const PORTFOLIO = portfolioJson;
+export const PORTFOLIO = portfolioJson as {
+  holdings: { ticker: string; shares: number; unclaimedShares: number; avgCost: number }[];
+  lpPositions: { id: number; ticker: string; rangeLo: number; rangeHi: number; liquidityUsdc: number; liquidityShares: number; feesUsdc: number; owner: string }[];
+};
 export const CONSOLE = consoleJson;
 
 export const TICKERS = IPOS.map((i) => i.ticker);
 export const LISTED_TICKERS = Object.keys(marketSeriesJson);
+
+/** Stable identity for a bid across auctions: auction address plus bid id. */
+export function bidKey(b: Pick<Bid, "auction" | "id">) {
+  return `${b.auction.toLowerCase()}:${b.id}`;
+}
 
 export function getIpo(ticker: string): Ipo | undefined {
   return IPOS.find((i) => i.ticker === ticker);
@@ -161,9 +175,7 @@ export function isMarketTicker(ticker: string) {
   return LISTED_TICKERS.includes(ticker);
 }
 
-/** Where tapping a ticker should go, by ENS status (screens.md §1). */
-export function hrefFor(ipo: Ipo) {
-  return ipo.status === "listed" || ipo.status === "surveillance" || ipo.status === "halted"
-    ? `/market/${ipo.ticker}`
-    : `/ipo/${ipo.ticker}`;
+/** One company page for every phase (UX.md section 2). */
+export function hrefFor(ipo: Pick<Ipo, "ticker">) {
+  return `/stock/${ipo.ticker}`;
 }

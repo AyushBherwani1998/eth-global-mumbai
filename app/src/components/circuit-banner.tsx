@@ -1,92 +1,89 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { ChevronRight, CircleAlert, ExternalLink, OctagonX, Radio, ShieldCheck } from "lucide-react";
+// Trading-rule strip + sheet (UX.md 3.3 item 4). A thin wrapper over
+// RuleStrip: plain sentence in the strip, "Why" and the receipt in the sheet,
+// protocol words only inside the collapsed Details row.
+
+import { useState } from "react";
 import type { Policy } from "@/lib/mock";
 import { ensName } from "@/lib/mock";
 import { dateTimeIST, lotFixed, shortHash, timeIST, txUrl } from "@/lib/format";
-import { bandText, modeInfo, type Tone } from "@/lib/policy";
-import { KV, Sheet, cx } from "./ui";
+import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
+import { Details, KV, RuleStrip, Sheet, TextLink, type RuleKind } from "./ui";
 
-const toneStyles: Record<Tone, string> = {
-  brand: "bg-brand-soft text-brand border-brand/25",
-  gain: "bg-gain-soft text-gain border-gain/25",
-  warn: "bg-warn-soft text-warn border-warn/30",
-  loss: "bg-loss-soft text-loss border-loss/30",
-};
+export type RuleCopy = { kind: RuleKind; text: string; why: string; label: string } | null;
 
-const ensStatusFor = (p: Policy) =>
-  p.halted || p.mode === "halted" ? "halted" : p.mode === "surveillance" || p.mode === "directional" ? "surveillance" : "listed";
+/** Plain-English copy for a policy. Returns null for Normal (no strip). */
+export function ruleCopy(p: Pick<Policy, "mode" | "referencePrice" | "bandBps" | "halted" | "since">): RuleCopy {
+  const ref = lotFixed(p.referencePrice);
+  const d = bandDigits(p.referencePrice, p.bandBps);
+  const { lo, hi } = band(p.referencePrice, p.bandBps);
+  if (p.halted || p.mode === "halted")
+    return {
+      kind: "halted",
+      label: "Trading halted",
+      text: `Trading paused since ${timeIST(p.since)}. Buying and selling are off until the exchange lifts it.`,
+      why: "The exchange pauses trading when it sees unusual activity. Your shares are safe, and you can still withdraw liquidity.",
+    };
+  switch (p.mode) {
+    case "listing":
+      return {
+        kind: "listing",
+        label: "Listing day",
+        text: `Listing day. Trades allowed between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}.`,
+        why: "On the first day a new share can move only a little from its listing price. This keeps the opening orderly.",
+      };
+    case "surveillance":
+      return {
+        kind: "surveillance",
+        label: "Under watch",
+        text: `Extra checks today. Prices can move at most ${p.bandBps / 100}% from ${ref}.`,
+        why: "The exchange has put this share under watch. Trades that would push the price outside the range are turned away.",
+      };
+    case "directional":
+      return {
+        kind: "one-way",
+        label: "One-way day",
+        text: `One-way day. Trades that move the price further from ${ref} can go at most ${SURVEILLANCE_BAND_BPS / 100}% from it. Trades toward ${ref} go through within ${p.bandBps / 100}%.`,
+        why: "The price has drifted far from the reference. Until it comes back, trades that bring it closer are accepted, and trades that push it further away are capped tightly.",
+      };
+    default:
+      return null;
+  }
+}
 
-/** Global circuit status (screens.md §5). Animates when the mode changes. */
-export function CircuitBanner({ ticker, policy, compact }: { ticker: string; policy: Policy; compact?: boolean }) {
+const tickerStatus = (p: Policy) => (p.halted || p.mode === "halted" ? "halted" : p.mode === "surveillance" || p.mode === "directional" ? "surveillance" : "listed");
+
+/** Rule strip for a policy, with the Trading rule sheet. Renders nothing on Normal. */
+export function CircuitBanner({ ticker, policy, className }: { ticker: string; policy: Policy; className?: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
-  const info = modeInfo(policy);
-  const Icon = info.tone === "loss" ? OctagonX : info.tone === "warn" ? CircleAlert : info.tone === "gain" ? ShieldCheck : Radio;
-  const prev = useRef(policy.mode + policy.halted);
-  const [flash, setFlash] = useState(false);
-  useEffect(() => {
-    const key = policy.mode + policy.halted;
-    if (prev.current !== key) {
-      prev.current = key;
-      setFlash(true);
-      const t = setTimeout(() => setFlash(false), 2500);
-      return () => clearTimeout(t);
-    }
-  }, [policy.mode, policy.halted]);
-
+  const copy = ruleCopy(policy);
+  if (!copy) return null;
+  const d = bandDigits(policy.referencePrice, policy.bandBps);
+  const { lo, hi } = band(policy.referencePrice, policy.bandBps);
   return (
     <>
-      <button
-        onClick={() => setOpen(true)}
-        className={cx(
-          "flex w-full items-center gap-2.5 rounded-[12px] border px-3 text-left transition-colors",
-          compact ? "py-2" : "py-2.5",
-          toneStyles[info.tone],
-          flash && "animate-banner-flash",
-        )}
-      >
-        <Icon className="size-4 shrink-0" />
-        <span className="min-w-0 flex-1">
-          <span className="block truncate text-[13px] font-semibold">{info.copy}</span>
-          <span className="block text-xs opacity-80">since {timeIST(policy.since)}</span>
-        </span>
-        <ChevronRight className="size-4 shrink-0 opacity-70" />
-      </button>
-      <Sheet open={open} onClose={() => setOpen(false)} title="Circuit status">
-        <div className={cx("rounded-[12px] border p-3", toneStyles[info.tone])}>
-          <p className="font-semibold">{info.label}</p>
-          <p className="text-[13px]">{info.copy}</p>
-        </div>
-        <div className="mt-3 divide-y divide-line">
-          <KV k="Policy version" v={`v${policy.version}`} />
-          <KV k="Mode" v={info.label} />
-          <KV k="Reference price" v={`${lotFixed(policy.referencePrice)} USDC / lot`} />
-          <KV
-            k="Band"
-            v={policy.halted ? "—" : policy.mode === "directional" ? "Toward reference only" : `±${policy.bandBps / 100}% · ${bandText(policy.referencePrice, policy.bandBps)}`}
-          />
-          <KV k="Halted" v={policy.halted ? "Yes (LP exits stay open)" : "No"} />
-          {policy.coolOffMin > 0 && <KV k="Cool-off" v={`${policy.coolOffMin} min`} />}
-          <KV k="Report asOf" v={dateTimeIST(policy.asOf)} />
+      <RuleStrip kind={copy.kind} label={copy.label} text={copy.text} onDetails={() => setOpen(true)} className={className} />
+      <Sheet open={open} onClose={() => setOpen(false)} title="Trading rule">
+        <p className="t-list-title text-text">{copy.label}</p>
+        <p className="t-body mt-1 text-text">{copy.text}</p>
+        <p className="t-body mt-3 text-text-2">{copy.why}</p>
+        <div className="mt-4 divide-y divide-line">
           <KV k="Changed" v={dateTimeIST(policy.since)} />
-          <KV k={`ENS ${ensName(ticker)}`} v={<code className="text-[13px]">listingday.status = {ensStatusFor(policy)}</code>} sub="Mirrored by the CRE receiver" />
+          <KV k="Reference price" v={`${lotFixed(policy.referencePrice)} USDC per lot`} />
+          <KV
+            k="Allowed range today"
+            v={policy.halted || policy.mode === "halted" ? "No trading" : policy.mode === "directional" ? `${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)} away from ${lotFixed(policy.referencePrice)}, up to ${lotFixed(lo, d)} to ${lotFixed(hi, d)} toward it` : `${lotFixed(lo, d)} to ${lotFixed(hi, d)}`}
+          />
         </div>
-        <a
-          href={txUrl(policy.creTx)}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 flex items-center justify-between rounded-[12px] border border-line p-3 text-sm"
-        >
-          <span>
-            <span className="font-semibold text-strong">CRE report tx</span>
-            <span className="block font-mono text-[13px] text-muted">{shortHash(policy.creTx)}</span>
-          </span>
-          <ExternalLink className="size-4 text-brand" />
-        </a>
-        <p className="mt-2 text-xs text-muted">
-          &quot;Applied&quot; is read from the receiver&apos;s own ReportProcessed event, not the tx status.
-        </p>
+        <Details className="mt-2">
+          <div className="divide-y divide-line">
+            <KV k="Policy version" v={`v${policy.version}`} />
+            <KV k="Report time" v={dateTimeIST(policy.asOf)} />
+            <KV k="Ticker status" v={`${ensName(ticker)} · ${tickerStatus(policy)}`} mono />
+            <KV k="Report receipt" v={<TextLink href={txUrl(policy.creTx)}>{shortHash(policy.creTx)} on Etherscan</TextLink>} />
+          </div>
+        </Details>
       </Sheet>
     </>
   );

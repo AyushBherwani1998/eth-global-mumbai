@@ -1,124 +1,288 @@
 @import "tailwindcss";
 
 /*
- * Tokens follow ../design.md (Groww-inspired). Two deliberate deviations,
- * both taken from the reference screenshot:
- *   - gain/loss use the screenshot's teal (#00b386) and coral (#eb5b3c)
- *     instead of design.md's #63ad0e / #ff003c, so Buy/Sell and price
- *     changes read like the reference.
- *   - card borders are a touch darker than design.md's #f0f0f0 so outlined
- *     cards stay visible on white.
+ * Tokens follow design/UI.md section 1 (Groww parity) and section 7 (legibility).
+ * Light lives on bare :root. Dark is the same set twice: once under the system
+ * media query (guarded so an explicit data-theme="light" wins) and once under
+ * data-theme="dark" so the in-app toggle wins in both directions.
  */
 :root {
+  /* ground */
   --bg: #ffffff;
-  --bg-subtle: #f6f7f8;
-  --card: #ffffff;
-  --fg: #2d343c;
-  --fg-strong: #1b2026;
-  --muted: #7c7c7c;
-  --line: #e9eaec;
-  --line-strong: #d5d7db;
-  --brand: #5076ee;
-  --brand-soft: #eef2fd;
+  --surface: #ffffff;
+  --surface-2: #f5f5f5;
+  --line: #e8e8e8;
+  --line-strong: #d0d0d0;
+  /* text */
+  --text: #000000;
+  --text-2: #767676;
+  --text-3: #919191;
+  /* money: Groww hue for lines and fills, darker step for text */
   --gain: #00b386;
-  --gain-soft: #e5f7f2;
-  --loss: #eb5b3c;
-  --loss-soft: #fdeeea;
-  --warn: #c77700;
-  --warn-soft: #fff4e0;
-  --overlay: rgb(15 18 22 / 0.45);
-  --shadow: 0 8px 28px rgb(15 18 22 / 0.12);
+  --loss: #f35d5d;
+  --gain-text: #00805f;
+  --loss-text: #d23232;
+  --buy: #00805f;
+  --sell: #d23232;
+  /* brand: nav and logo only */
+  --brand: #5367ff;
+  --brand-text: #4556e6;
+  --warn: #a66200;
+  /* company marks as text: the tile colour where it clears 4.5:1, otherwise darkened */
+  --mark-acme: #1c4e89;
+  --mark-kesar: #b06028;
+  --mark-tara: #7a3e5c;
+  --mark-masala: #a15c1a;
+  --mark-nirmaan: #3e4c6b;
+  --mark-vayu: #1f6a6a;
+  --mark-lotus: #8e3d55;
+  --mark-prakriti: #3e6b4f;
+  /* chips */
+  --chip-on-bg: #ebebeb;
+  --chip-on-line: #222222;
+  /* chart-only soft fills */
+  --gain-fill: rgb(0 179 134 / 0.1);
+  --loss-fill: rgb(243 93 93 / 0.08);
+  --band-fill: rgb(0 0 0 / 0.06);
+  --overlay: rgb(0 0 0 / 0.5);
+  --inverse-bg: #000000;
+  --inverse-text: #ffffff;
+  /* second line on the toast: a real token, so nothing needs an opacity trick. 9.1:1 on #000 */
+  --inverse-text-2: #b5b5b5;
   color-scheme: light;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0a0a0a;
-    --bg-subtle: #161718;
-    --card: #121212;
-    --fg: #f5f5f5;
-    --fg-strong: #ffffff;
-    --muted: #a1a1a1;
-    --line: #24282e;
-    --line-strong: #353a42;
-    --brand: #6f8ff3;
-    --brand-soft: #1a2240;
-    --gain: #1fc79a;
-    --gain-soft: #0f2a23;
-    --loss: #f2735a;
-    --loss-soft: #2f1712;
-    --warn: #f0a530;
-    --warn-soft: #2c210c;
-    --overlay: rgb(0 0 0 / 0.6);
-    --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+    --bg: #121212;
+    --surface: #1a1a1a;
+    --surface-2: #242424;
+    --line: #2c2c2c;
+    --line-strong: #3a3a3a;
+    --text: #ffffff;
+    --text-2: #8f8f8f;
+    --text-3: #6b6b6b;
+    --gain: #0fcb9a;
+    --loss: #ff6b6b;
+    --gain-text: #0fcb9a;
+    --loss-text: #ff6b6b;
+    --buy: #00805f;
+    --sell: #d23232;
+    --brand: #7b8bff;
+    --brand-text: #7b8bff;
+    --warn: #f5a623;
+    /* same marks, lightened so they clear 4.5:1 on both dark grounds */
+    --mark-acme: #6b8cb2;
+    --mark-kesar: #c46b2c;
+    --mark-tara: #a2788d;
+    --mark-masala: #b47d48;
+    --mark-nirmaan: #788297;
+    --mark-vayu: #578f8f;
+    --mark-lotus: #b07788;
+    --mark-prakriti: #6e907b;
+    --chip-on-bg: #2a2a2a;
+    --chip-on-line: #e6e6e6;
+    --gain-fill: rgb(15 203 154 / 0.12);
+    --loss-fill: rgb(255 107 107 / 0.1);
+    --band-fill: rgb(255 255 255 / 0.07);
+    --overlay: rgb(0 0 0 / 0.65);
+    --inverse-bg: #2c2c2c;
+    --inverse-text: #ffffff;
+    --inverse-text-2: #a8a8a8; /* 5.2:1 on #2c2c2c */
     color-scheme: dark;
   }
 }
 
 :root[data-theme="dark"] {
-  --bg: #0a0a0a;
-  --bg-subtle: #161718;
-  --card: #121212;
-  --fg: #f5f5f5;
-  --fg-strong: #ffffff;
-  --muted: #a1a1a1;
-  --line: #24282e;
-  --line-strong: #353a42;
-  --brand: #6f8ff3;
-  --brand-soft: #1a2240;
-  --gain: #1fc79a;
-  --gain-soft: #0f2a23;
-  --loss: #f2735a;
-  --loss-soft: #2f1712;
-  --warn: #f0a530;
-  --warn-soft: #2c210c;
-  --overlay: rgb(0 0 0 / 0.6);
-  --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+  --bg: #121212;
+  --surface: #1a1a1a;
+  --surface-2: #242424;
+  --line: #2c2c2c;
+  --line-strong: #3a3a3a;
+  --text: #ffffff;
+  --text-2: #8f8f8f;
+  --text-3: #6b6b6b;
+  --gain: #0fcb9a;
+  --loss: #ff6b6b;
+  --gain-text: #0fcb9a;
+  --loss-text: #ff6b6b;
+  --buy: #00805f;
+  --sell: #d23232;
+  --brand: #7b8bff;
+  --brand-text: #7b8bff;
+  --warn: #f5a623;
+  --mark-acme: #6b8cb2;
+  --mark-kesar: #c46b2c;
+  --mark-tara: #a2788d;
+  --mark-masala: #b47d48;
+  --mark-nirmaan: #788297;
+  --mark-vayu: #578f8f;
+  --mark-lotus: #b07788;
+  --mark-prakriti: #6e907b;
+  --chip-on-bg: #2a2a2a;
+  --chip-on-line: #e6e6e6;
+  --gain-fill: rgb(15 203 154 / 0.12);
+  --loss-fill: rgb(255 107 107 / 0.1);
+  --band-fill: rgb(255 255 255 / 0.07);
+  --overlay: rgb(0 0 0 / 0.65);
+  --inverse-bg: #2c2c2c;
+  --inverse-text: #ffffff;
+  --inverse-text-2: #a8a8a8;
   color-scheme: dark;
 }
 
 @theme inline {
   --color-bg: var(--bg);
-  --color-subtle: var(--bg-subtle);
-  --color-card: var(--card);
-  --color-fg: var(--fg);
-  --color-strong: var(--fg-strong);
-  --color-muted: var(--muted);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
   --color-line: var(--line);
   --color-line-strong: var(--line-strong);
-  --color-brand: var(--brand);
-  --color-brand-soft: var(--brand-soft);
+  --color-text: var(--text);
+  --color-text-2: var(--text-2);
+  --color-text-3: var(--text-3);
   --color-gain: var(--gain);
-  --color-gain-soft: var(--gain-soft);
   --color-loss: var(--loss);
-  --color-loss-soft: var(--loss-soft);
+  --color-gain-text: var(--gain-text);
+  --color-loss-text: var(--loss-text);
+  --color-buy: var(--buy);
+  --color-sell: var(--sell);
+  --color-brand: var(--brand);
+  --color-brand-text: var(--brand-text);
   --color-warn: var(--warn);
-  --color-warn-soft: var(--warn-soft);
-  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --color-chip-on-bg: var(--chip-on-bg);
+  --color-chip-on-line: var(--chip-on-line);
+  --color-inverse-bg: var(--inverse-bg);
+  --color-inverse-text: var(--inverse-text);
+  --color-inverse-text-2: var(--inverse-text-2);
+  --font-sans: var(--font-roboto), Roboto, system-ui, -apple-system, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* radius: 10 for cards/buttons/inputs/sheets, 8 for tiles/toast, 999 for chips/avatars */
+  --radius-card: 10px;
+  --radius-sm: 8px;
+  --radius-chip: 999px;
+  --breakpoint-lg: 1024px;
 }
 
 html {
-  background: var(--bg-subtle);
+  background: var(--bg);
   -webkit-tap-highlight-color: transparent;
 }
 
 body {
   background: var(--bg);
-  color: var(--fg);
+  color: var(--text);
   font-family: var(--font-sans);
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: 16px;
+  line-height: 24px;
+  letter-spacing: 0;
 }
 
 h1,
 h2,
 h3 {
-  color: var(--fg-strong);
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  color: var(--text);
+  font-weight: 500;
+  letter-spacing: 0;
+}
+
+/* Type roles (UI.md 1.3 and 7.1). Use these instead of ad-hoc text-[..] sizes. */
+.t-page-title {
+  font-size: 22px;
+  line-height: 28px;
+  font-weight: 500;
+}
+.t-section-title {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.t-card-title {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 500;
+}
+.t-list-title {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+}
+.t-body {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+.t-price-large {
+  font-size: 32px;
+  line-height: 38px;
+  font-weight: 500;
+}
+.t-price-row {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 400;
+}
+.t-change-lg {
+  font-size: 16px;
+  line-height: 22px;
+  font-weight: 500;
+}
+.t-change-sm {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.t-label {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+.t-label-sm {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 500;
+}
+.t-caption {
+  font-size: 13px;
+  line-height: 18px;
+  font-weight: 400;
+  color: var(--text-2);
+}
+.t-nav-label {
+  font-size: 13px;
+  line-height: 16px;
+  font-weight: 500;
+}
+.t-chip {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.t-tab {
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+}
+.t-button {
+  font-size: 17px;
+  line-height: 22px;
+  font-weight: 500;
+}
+.t-input-value {
+  font-size: 24px;
+  line-height: 30px;
+  font-weight: 500;
+}
+.t-readout {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 500;
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
 }
 
 .num {
@@ -132,20 +296,161 @@ h3 {
   display: none;
 }
 
+/* Dotted separator (chart foot, section breaks) */
+.dotted-line {
+  border-top: 1px dotted var(--line-strong);
+}
+
 :focus-visible {
-  outline: 2px solid var(--brand);
+  outline: 2px solid var(--text);
   outline-offset: 2px;
 }
 
-input[type="range"] {
-  accent-color: var(--gain);
+/*
+ * Tailwind v4's preflight leaves buttons on the default arrow cursor. Every
+ * control in this app is a button or a link, so on desktop nothing read as
+ * clickable. Put the hand back, and say "unavailable" on a disabled control.
+ */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="radio"],
+[role="tab"],
+label.field,
+summary {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+/* Inside a field the pointer is a caret, not a hand: the text is editable. */
+label.field input,
+label.field textarea {
+  cursor: text;
 }
 
+/*
+ * Text controls show focus on their wrapper (.field below), never on
+ * themselves. The ring above is offset outward, so an input that fills its
+ * field would paint its ring outside the field's rounded border.
+ * This rule is unlayered on purpose: so is the ring it cancels, and a
+ * Tailwind `outline-none` utility sits in a layer and loses to both.
+ */
+input:not([type="checkbox"]):not([type="radio"]):focus-visible,
+textarea:focus-visible,
+select:focus-visible {
+  outline: none;
+}
+
+/*
+ * Field wrapper. The focused state is drawn with an inset shadow rather than
+ * a thicker border, so nothing overflows and the content never shifts by the
+ * half pixel a 1px to 1.5px border change would cost.
+ */
+.field {
+  border: 1px solid var(--line-strong);
+  transition: box-shadow 120ms ease, border-color 120ms ease;
+}
+.field:focus-within {
+  border-color: var(--text);
+  box-shadow: inset 0 0 0 1px var(--text);
+}
+.field-error {
+  border-color: var(--loss);
+}
+.field-error:focus-within {
+  border-color: var(--loss);
+  box-shadow: inset 0 0 0 1px var(--loss);
+}
+
+/* Links inside running text get a comfortable hit area (UI.md 7.2). */
+.prose-link {
+  display: inline-block;
+  padding: 8px 0;
+}
+
+/* Slider (UI.md 2.16): 2px track, filled part gain, 24px flat thumb with hairline ring. */
+input[type="range"].slider {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 48px;
+  background: transparent;
+  margin: 0;
+  --fill: 0%;
+}
+input[type="range"].slider::-webkit-slider-runnable-track {
+  height: 2px;
+  background: linear-gradient(to right, var(--gain) 0 var(--fill), var(--line) var(--fill) 100%);
+}
+input[type="range"].slider::-moz-range-track {
+  height: 2px;
+  background: var(--line);
+}
+input[type="range"].slider::-moz-range-progress {
+  height: 2px;
+  background: var(--gain);
+}
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 24px;
+  height: 24px;
+  margin-top: -11px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+input[type="range"].slider::-moz-range-thumb {
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+/* The thumb is the only moving part, so it is the only thing that reacts. */
+input[type="range"].slider:hover::-webkit-slider-thumb,
+input[type="range"].slider:active::-webkit-slider-thumb {
+  border-color: var(--text);
+}
+input[type="range"].slider:hover::-moz-range-thumb,
+input[type="range"].slider:active::-moz-range-thumb {
+  border-color: var(--text);
+}
+input[type="range"].slider:focus-visible {
+  outline: none;
+}
+input[type="range"].slider:focus-visible::-webkit-slider-thumb {
+  border-color: var(--text);
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+input[type="range"].slider:focus-visible::-moz-range-thumb {
+  border-color: var(--text);
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
+}
+
+/* Motion (UI.md section 5). Everything collapses to 1ms under reduced motion. */
 @keyframes sheet-in {
   from {
     transform: translateY(100%);
   }
   to {
+    transform: translateY(0);
+  }
+}
+@keyframes modal-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
     transform: translateY(0);
   }
 }
@@ -157,9 +462,9 @@ input[type="range"] {
     opacity: 1;
   }
 }
-@keyframes toast-in {
+@keyframes toast-up {
   from {
-    transform: translateY(-12px);
+    transform: translateY(100%);
     opacity: 0;
   }
   to {
@@ -167,37 +472,40 @@ input[type="range"] {
     opacity: 1;
   }
 }
-@keyframes pulse-dot {
+@keyframes skeleton-pulse {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.35;
+    opacity: 0.6;
   }
 }
-@keyframes banner-flash {
-  0% {
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--loss) 45%, transparent);
+@keyframes number-tick {
+  from {
+    opacity: 0.4;
   }
-  100% {
-    box-shadow: 0 0 0 10px transparent;
+  to {
+    opacity: 1;
   }
 }
 .animate-sheet-in {
-  animation: sheet-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  animation: sheet-in 240ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-modal-in {
+  animation: modal-in 160ms ease-out;
 }
 .animate-fade-in {
-  animation: fade-in 200ms ease-out;
+  animation: fade-in 160ms ease-out;
 }
-.animate-toast-in {
-  animation: toast-in 220ms ease-out;
+.animate-toast-up {
+  animation: toast-up 160ms ease-out;
 }
-.animate-pulse-dot {
-  animation: pulse-dot 1.6s ease-in-out infinite;
+.animate-skeleton {
+  animation: skeleton-pulse 1.2s ease-in-out infinite;
 }
-.animate-banner-flash {
-  animation: banner-flash 1.2s ease-out 2;
+.animate-number-tick {
+  animation: number-tick 160ms ease-out;
 }
 
 @media (prefers-reduced-motion: reduce) {

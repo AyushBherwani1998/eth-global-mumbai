@@ -1,14 +1,228 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { Button, KV, Segmented, Sheet, cx } from "@/components/ui";
-import { useApp } from "@/components/providers";
-import { lotFixed, shares, usdc } from "@/lib/format";
-import { PORTFOLIO, type Ipo, type Market, type Rejected } from "@/lib/mock";
-import { band, bandDigits, quote } from "@/lib/policy";
+// Buy / Sell (UX.md 3.6): one amount field, plain result lines, a rule-check
+// row that says what is allowed and how to fix it, and a single primary action.
+// The same form is the bottom sheet on phone and the sticky panel on desktop,
+// so `useTradeForm` returns the body and the footer separately.
 
-/** Trade sheet (screens.md §4): Quoter quote + band pre-check before swapping. */
+import { useMemo, useState, type ReactNode } from "react";
+import { AlertTriangle, Check } from "lucide-react";
+import { useApp } from "@/components/providers";
+import { TickerMark } from "@/components/company/logos";
+import { AmountField, Button, Details, KV, Segmented, Sheet, Stepper, TextLink, TickerLogo, cx } from "@/components/ui";
+import { lotFixed, shares, timeIST, usdc } from "@/lib/format";
+import { PORTFOLIO, type Ipo, type Market, type Rejected } from "@/lib/mock";
+import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText, quote } from "@/lib/policy";
+
+export type TradeSide = "buy" | "sell";
+
+type Opts = {
+  ipo: Ipo;
+  market: Market;
+  side: TradeSide;
+  setSide: (s: TradeSide) => void;
+  /** Called after a successful trade (the sheet closes, the panel resets). */
+  onDone?: () => void;
+  onRejected?: (r: Rejected) => void;
+};
+
+/** Plain-English verdict: what happened and what to do about it. */
+function ruleCheck(market: Market, priceAfter: number, ok: boolean, reason?: string) {
+  const p = market.policy;
+  const d = bandDigits(p.referencePrice, p.bandBps);
+  const { lo, hi } = band(p.referencePrice, p.bandBps);
+  if (ok) return { ok: true as const, text: `Allowed · within today's limits ${lotFixed(lo, d)} to ${lotFixed(hi, d)}`, fix: "" };
+  if (reason === "Halted")
+    return { ok: false as const, text: `Not allowed: trading is halted since ${timeIST(p.since)}.`, fix: "Try again after the exchange lifts the pause." };
+  if (reason === "DirectionalWidening")
+    return {
+      ok: false as const,
+      text: `Not allowed: this trade would push the price to ${priceAfter.toFixed(3)}, further from ${lotFixed(p.referencePrice)} than the ${bandText(p.referencePrice, SURVEILLANCE_BAND_BPS)} allowed today.`,
+      fix: "Try a smaller amount or the other side.",
+    };
+  const above = priceAfter > hi;
+  return {
+    ok: false as const,
+    text: `Not allowed: this trade would push the price to ${priceAfter.toFixed(3)}, ${above ? "above" : "below"} today's limit of ${lotFixed(above ? hi : lo, d)}.`,
+    fix: "Try a smaller amount.",
+  };
+}
+
+export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }: Opts): { body: ReactNode; footer: ReactNode } {
+  const { usdcBalance, sendTx } = useApp();
+  const held = PORTFOLIO.holdings.find((h) => h.ticker === ipo.ticker)?.shares ?? 0;
+  const [amount, setAmount] = useState(side === "buy" ? "1" : "1000");
+  const [slippage, setSlippage] = useState<"0.5" | "1" | "2">("0.5");
+  const [sellAllowed, setSellAllowed] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const lastPrice = market.prices[market.prices.length - 1].value;
+  const a = Number(amount) || 0;
+  const q = useMemo(() => quote({ side, amount: a, liquidity: market.liquidity, policy: market.policy }), [side, a, market]);
+  const check = ruleCheck(market, q.priceAfter, q.verdict.ok, q.verdict.ok ? undefined : q.verdict.reason);
+  const minOut = q.out * (1 - Number(slippage) / 100);
+  const needsPermission = side === "sell" && !sellAllowed;
+  const shortOfMoney = side === "buy" ? a > usdcBalance : a > held;
+
+  const switchSide = (s: TradeSide) => {
+    setSide(s);
+    setAmount(s === "buy" ? "1" : "1000");
+  };
+
+  const permission = async () => {
+    setBusy(true);
+    const r = await sendTx({ title: "Allow this app to sell your shares", success: "You can now sell these shares" });
+    if (r.ok) setSellAllowed(true);
+    setBusy(false);
+  };
+
+  const send = async () => {
+    setBusy(true);
+    const blocked = !q.verdict.ok;
+    const r = await sendTx({
+      title: side === "buy" ? `Buying ${ipo.name} shares` : `Selling ${ipo.name} shares`,
+      success: side === "buy" ? `Bought ${shares(q.out)} shares` : `Sold ${shares(a)} shares for ${usdc(q.out)} USDC`,
+      revert: blocked ? (q.verdict.ok ? undefined : q.verdict.reason) : undefined,
+      revertTitle: blocked ? `Rejected: ${check.text.replace("Not allowed: ", "")} ${check.fix}` : undefined,
+    });
+    if (!r.ok && !q.verdict.ok)
+      onRejected?.({
+        time: new Date().toISOString(),
+        side,
+        usdc: side === "buy" ? a : q.out,
+        priceAfter: q.priceAfter,
+        reason: q.verdict.reason,
+        detail: check.text.replace("Not allowed: ", ""),
+        tx: r.tx,
+      });
+    if (r.ok) onDone?.();
+    setBusy(false);
+  };
+
+  const body = (
+    <>
+      <Segmented
+        className="mt-1"
+        label="Buy or sell"
+        value={side}
+        onChange={switchSide}
+        options={[
+          { id: "buy", label: "Buy" },
+          { id: "sell", label: "Sell" },
+        ]}
+      />
+
+      <AmountField
+        className="mt-4"
+        label={side === "buy" ? "Amount in USDC" : "Number of shares"}
+        value={amount}
+        onChange={setAmount}
+        unit={side === "buy" ? "USDC" : "shares"}
+        onMax={() => setAmount(side === "buy" ? String(usdcBalance) : String(held))}
+        error={
+          shortOfMoney
+            ? side === "buy"
+              ? `You have ${usdc(usdcBalance)} USDC. Enter that or less.`
+              : `You own ${shares(held)} shares. Enter that or less.`
+            : undefined
+        }
+        helper={side === "buy" ? `You have ${usdc(usdcBalance)} USDC` : `You own ${shares(held)} shares`}
+      />
+
+      <div className="mt-4 divide-y divide-line">
+        <KV
+          k="You'll get about"
+          v={side === "buy" ? `${shares(q.out)} shares` : `${usdc(q.out)} USDC`}
+          sub={`At least ${side === "buy" ? shares(minOut) : usdc(minOut)} after ${slippage}% price movement`}
+        />
+        <KV k="Price after your trade" v={q.priceAfter.toFixed(3)} sub={`Price now ${lotFixed(lastPrice)}`} />
+      </div>
+
+      <div className={cx("mt-4 flex min-h-12 items-start gap-2 border-y border-line py-3", check.ok ? "text-gain-text" : "text-loss-text")}>
+        {check.ok ? <Check className="mt-0.5 size-4 shrink-0" aria-hidden /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />}
+        <span className="t-body">
+          {check.text}
+          {!check.ok && <span className="block text-text">{check.fix}</span>}
+        </span>
+      </div>
+
+      <Details title="More options" className="mt-2">
+        <div className="flex min-h-12 items-center justify-between gap-4 py-2">
+          <span className="t-label">Price movement I accept</span>
+          <Segmented
+            value={slippage}
+            onChange={setSlippage}
+            label="Price movement I accept"
+            options={[
+              { id: "0.5", label: "0.5%" },
+              { id: "1", label: "1%" },
+              { id: "2", label: "2%" },
+            ]}
+          />
+        </div>
+        <div className="divide-y divide-line">
+          <KV k="Effect on the price" v={`${q.impactPct >= 0 ? "+" : "-"}${Math.abs(q.impactPct).toFixed(2)}%`} />
+        </div>
+      </Details>
+
+      <Details className="mt-2">
+        <div className="divide-y divide-line">
+          <KV k="Route" v="Universal Router · Uniswap v4 pool" />
+          <KV k="Quote source" v="Quoter (exact in)" />
+          <KV k="Pool id" v={ipo.records.pool ? `${ipo.records.pool.slice(0, 10)}…${ipo.records.pool.slice(-6)}` : "Not set yet"} mono />
+          <KV k="Raw price after" v={q.priceAfter.toFixed(6)} mono />
+          <KV k="Rule mirrored" v={`ListingHook.afterSwap · ${market.policy.mode}`} mono />
+        </div>
+      </Details>
+    </>
+  );
+
+  const footer = (
+    <>
+      {side === "sell" && (
+        <Stepper
+          className="mb-3"
+          current={needsPermission ? 1 : 2}
+          steps={[
+            { title: "Allow selling", sub: "Allow this app to sell your shares. One-time, you can turn it off later." },
+            { title: "Confirm", sub: "Confirm the sale. The price you see is the price you get, within the movement you accept." },
+          ]}
+        />
+      )}
+      {needsPermission ? (
+        <Button variant="sell" size="bar" className="w-full" busy={busy} disabled={busy || a <= 0} onClick={permission}>
+          {busy ? "Check your wallet app" : "Allow this app to sell your shares"}
+        </Button>
+      ) : (
+        <Button
+          variant={side === "buy" ? "buy" : "sell"}
+          size="bar"
+          className="w-full"
+          busy={busy}
+          disabled={busy || a <= 0 || shortOfMoney || !check.ok}
+          onClick={send}
+        >
+          {busy
+            ? "Check your wallet app"
+            : !check.ok
+              ? "Not allowed today"
+              : side === "buy"
+                ? `Buy for ${usdc(a)} USDC`
+                : `Sell ${shares(a)} shares`}
+        </Button>
+      )}
+      {!check.ok && !needsPermission && (
+        <p className="mt-2 text-center">
+          <TextLink onClick={send}>Send anyway to see it rejected</TextLink>
+        </p>
+      )}
+    </>
+  );
+
+  return { body, footer };
+}
+
+/** Bottom sheet on phone (UX.md 3.6). On desktop the same form is the sticky panel. */
 export function TradeSheet({
   ipo,
   market,
@@ -21,173 +235,21 @@ export function TradeSheet({
   ipo: Ipo;
   market: Market;
   open: boolean;
-  side: "buy" | "sell";
-  setSide: (s: "buy" | "sell") => void;
+  side: TradeSide;
+  setSide: (s: TradeSide) => void;
   onClose: () => void;
-  onRejected: (r: Rejected) => void;
+  onRejected?: (r: Rejected) => void;
 }) {
-  const { usdcBalance, sendTx } = useApp();
-  const held = PORTFOLIO.holdings.find((h) => h.ticker === ipo.ticker)?.shares ?? 0;
-  const [amount, setAmount] = useState(side === "buy" ? "1" : "1000");
-  const [slippage, setSlippage] = useState<"0.5" | "1" | "2">("0.5");
-  const [shareApproved, setShareApproved] = useState(false);
-  const [busy, setBusy] = useState(false);
-
-  const a = Number(amount) || 0;
-  const q = useMemo(() => quote({ side, amount: a, liquidity: market.liquidity, policy: market.policy }), [side, a, market]);
-  const minOut = q.out * (1 - Number(slippage) / 100);
-  const balance = side === "buy" ? usdcBalance : held;
-  const { lo, hi } = band(market.policy.referencePrice, market.policy.bandBps);
-  const d = bandDigits(market.policy.referencePrice, market.policy.bandBps);
-  const needsApprove = side === "sell" && !shareApproved;
-
-  const submit = async () => {
-    setBusy(true);
-    if (needsApprove) {
-      const r = await sendTx({ title: `Enable ${ipo.symbol} for Permit2`, success: `${ipo.symbol} enabled` });
-      if (r.ok) setShareApproved(true);
-      setBusy(false);
-      return;
-    }
-    const v = q.verdict;
-    const r = await sendTx({
-      title: side === "buy" ? `Buy ${ipo.symbol} with ${usdc(a)} USDC` : `Sell ${shares(a)} ${ipo.symbol}`,
-      success: side === "buy" ? `Bought ${shares(q.out)} ${ipo.symbol}` : `Sold for ${usdc(q.out)} USDC`,
-      revert: v.ok ? undefined : v.reason,
-      revertDetail: v.ok ? undefined : v.text.replace("Would revert: ", ""),
-    });
-    if (!r.ok && !v.ok)
-      onRejected({
-        time: new Date().toISOString(),
-        side,
-        usdc: side === "buy" ? a : q.out,
-        priceAfter: q.priceAfter,
-        reason: v.reason,
-        detail: v.text.replace("Would revert: ", ""),
-        tx: r.tx,
-      });
-    if (r.ok) onClose();
-    setBusy(false);
-  };
-
-  const v = q.verdict;
+  const { body, footer } = useTradeForm({ ipo, market, side, setSide, onDone: onClose, onRejected });
   return (
-    <Sheet
-      open={open}
-      onClose={onClose}
-      title={`${side === "buy" ? "Buy" : "Sell"} ${ipo.symbol}`}
-      footer={
-        <Button
-          tone={!v.ok && !needsApprove ? "loss" : side === "buy" ? "gain" : "loss"}
-          variant={!v.ok && !needsApprove ? "outline" : "solid"}
-          className="w-full"
-          disabled={a <= 0 || busy}
-          onClick={submit}
-        >
-          {busy
-            ? "Waiting for wallet…"
-            : needsApprove
-              ? `Enable ${ipo.symbol}`
-              : !v.ok
-                ? "Submit anyway (will revert)"
-                : side === "buy"
-                  ? "Swap · Buy"
-                  : "Swap · Sell"}
-        </Button>
-      }
-    >
-      <div className="grid grid-cols-2 gap-1 rounded-full bg-subtle p-1">
-        {(["buy", "sell"] as const).map((s) => (
-          <button
-            key={s}
-            onClick={() => {
-              setSide(s);
-              setAmount(s === "buy" ? "1" : "1000");
-            }}
-            className={cx(
-              "rounded-full py-2 text-sm font-semibold capitalize transition-colors",
-              side === s ? (s === "buy" ? "bg-gain text-white" : "bg-loss text-white") : "text-muted",
-            )}
-          >
-            {s}
-          </button>
-        ))}
-      </div>
-
-      <label className="mt-3 block rounded-[12px] border border-line-strong p-3 focus-within:border-gain">
-        <span className="flex justify-between text-xs text-muted">
-          <span>You pay</span>
-          <span className="num">
-            Balance {side === "buy" ? `${usdc(usdcBalance)} USDC` : `${shares(held)} ${ipo.symbol}`}
-          </span>
-        </span>
-        <span className="flex items-center gap-2">
-          <input
-            inputMode="decimal"
-            value={amount}
-            onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
-            className="num w-full bg-transparent text-[24px] font-semibold text-strong outline-none"
-          />
-          <span className="text-sm font-semibold text-strong">{side === "buy" ? "USDC" : ipo.symbol}</span>
-          <button onClick={() => setAmount(String(balance))} className="rounded-full bg-gain-soft px-2 py-0.5 text-xs font-semibold text-gain">
-            Max
-          </button>
-        </span>
-      </label>
-
-      <div className="mt-3 divide-y divide-line">
-        <KV
-          k="You receive (Quoter)"
-          v={side === "buy" ? `≈ ${shares(q.out)} ${ipo.symbol}` : `≈ ${usdc(q.out, 4)} USDC`}
-          sub={`min ${side === "buy" ? shares(minOut) : usdc(minOut, 4)} at ${slippage}% slippage`}
-        />
-        <KV k="Price after swap" v={`${q.priceAfter.toFixed(3)} USDC / lot`} />
-        <KV
-          k="Price impact"
-          v={<span className={Math.abs(q.impactPct) > 3 ? "text-warn" : undefined}>{q.impactPct.toFixed(2)}%</span>}
-        />
-        <div className="flex items-center justify-between py-2">
-          <span className="text-sm text-muted">Slippage</span>
-          <Segmented
-            size="sm"
-            value={slippage}
-            onChange={setSlippage}
-            options={[
-              { id: "0.5", label: "0.5%" },
-              { id: "1", label: "1%" },
-              { id: "2", label: "2%" },
-            ]}
-          />
-        </div>
-      </div>
-
-      <div
-        className={cx(
-          "mt-3 flex items-start gap-2 rounded-[12px] px-3 py-2.5 text-[13px]",
-          v.ok ? "bg-gain-soft text-gain" : "bg-loss-soft text-loss",
-        )}
-      >
-        {v.ok ? <CheckCircle2 className="mt-0.5 size-4 shrink-0" /> : <AlertTriangle className="mt-0.5 size-4 shrink-0" />}
-        <span>
-          {v.ok ? (
-            <>
-              Within band ✓{" "}
-              {market.policy.mode !== "directional" && (
-                <span className="opacity-80">
-                  ({lotFixed(lo, d)}–{lotFixed(hi, d)})
-                </span>
-              )}
-            </>
-          ) : (
-            v.text
-          )}
+    <Sheet open={open} onClose={onClose} title={`${side === "buy" ? "Buy" : "Sell"} ${ipo.name}`} footer={footer}>
+      <div className="flex items-center gap-3 pb-1">
+        <TickerLogo ipo={ipo} size={36} />
+        <span className="t-label">
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
         </span>
       </div>
-      {!v.ok && (
-        <p className="mt-2 text-xs text-muted">
-          You can still submit. The ListingHook will revert it onchain and it shows up as a red marker on the chart.
-        </p>
-      )}
+      {body}
     </Sheet>
   );
 }

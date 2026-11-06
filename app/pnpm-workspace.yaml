@@ -1,3 +1,11 @@
 ignoredBuiltDependencies:
   - sharp
   - unrs-resolver
+
+# Privy pulls Solana packages in as optional peers. x402 (a Privy dependency)
+# pins @solana/kit 5, but the peers pnpm picks by default need kit 8, which
+# fails to resolve at build time. These two pin the kit-5 line instead.
+# Nothing in Thamba uses Solana; this only has to resolve.
+overrides:
+  "@solana-program/system": "0.10.0"
+  "@solana-program/token": "0.9.0"

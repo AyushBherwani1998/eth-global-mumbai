@@ -1,4 +1,4 @@
-# Listing Day: PWA (frontend)
+# Thamba: PWA (frontend)
 
 Mobile-first Next.js 16 PWA for the screens in [`../screens.md`](../screens.md), styled from [`../design.md`](../design.md).
 Everything runs on **mock data** for now; no wallet or chain calls yet.

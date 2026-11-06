@@ -25,8 +25,10 @@ export function shares(n: number): string {
 }
 
 export function signed(n: number, digits = 2): string {
-  const s = Math.abs(n).toFixed(digits);
-  return n > 0 ? `+${s}` : n < 0 ? `-${s}` : s;
+  // Round before the sign, so a sub-cent fall prints "0.00" and not "-0.00".
+  const rounded = Number(n.toFixed(digits));
+  const s = Math.abs(rounded).toFixed(digits);
+  return rounded > 0 ? `+${s}` : rounded < 0 ? `-${s}` : s;
 }
 
 export function pct(n: number, digits = 2): string {
@@ -75,6 +77,20 @@ export function dateIST(t: string | number): string {
 export function blocksToDuration(blocks: number): string {
   const s = Math.max(0, blocks) * BLOCK_SECONDS;
   return secondsToDuration(s);
+}
+
+/** Plain-English countdown for copy: "6h 4m", "17 min", "under a minute". */
+export function countdown(totalSeconds: number): string {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  if (m > 0) return `${m} min`;
+  return "under a minute";
+}
+
+export function blocksToCountdown(blocks: number): string {
+  return countdown(Math.max(0, blocks) * BLOCK_SECONDS);
 }
 
 export function secondsToDuration(total: number): string {

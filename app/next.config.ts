@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
   cacheComponents: true,
   partialPrefetching: true,
   turbopack: {
@@ -11,6 +10,15 @@ const nextConfig: NextConfig = {
         as: "*.css",
       },
     },
+  },
+  // Old routes (UX.md section 2): one company page for every phase, Orders replaces My bids.
+  async redirects() {
+    return [
+      { source: "/market", destination: "/", permanent: true },
+      { source: "/market/:ticker", destination: "/stock/:ticker", permanent: true },
+      { source: "/ipo/:ticker", destination: "/stock/:ticker", permanent: true },
+      { source: "/bids", destination: "/orders", permanent: true },
+    ];
   },
 };
 

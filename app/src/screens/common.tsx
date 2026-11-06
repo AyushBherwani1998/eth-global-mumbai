@@ -13,9 +13,9 @@ export function TickerTitle({ ipo }: { ipo: Ipo }) {
   return (
     <div>
       <TickerAvatar ipo={ipo} size={36} />
-      <h1 className="mt-3 text-[19px] font-medium tracking-tight">{ipo.name}</h1>
-      <p className="mt-0.5 flex items-center gap-1 text-[13px] text-muted">
-        <BadgeCheck className="size-3.5 text-gain" />
+      <h1 className="mt-3 text-[19px] font-medium ">{ipo.name}</h1>
+      <p className="mt-0.5 flex items-center gap-1 text-[13px] text-text-2">
+        <BadgeCheck className="size-3.5 text-gain-text" />
         {ensName(ipo.ticker)}
       </p>
     </div>

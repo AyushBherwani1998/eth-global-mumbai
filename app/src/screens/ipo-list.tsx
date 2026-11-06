@@ -1,318 +1,263 @@
 "use client";
 
+// Markets, IPO chip (UX.md 3.2): Open · Upcoming · Closed, one card per IPO,
+// and a summary row when this wallet has applications. Plain English only;
+// auction mechanics stay on the company page.
+//
+// Data: GET /v1/listings for what exists, GET /v1/auction/:ticker for each
+// card's price range, raise targets and countdown, GET /v1/bids?owner= for
+// what this wallet applied with.
+
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
-import { BadgeCheck, Briefcase, CircleDollarSign, Gavel, Info, Loader2, Search, SearchX, X } from "lucide-react";
-import { BottomSpacer } from "@/screens/common";
-import { PrivacyBadge, TabHeader, IconButton } from "@/components/shell";
-import { CircuitBanner } from "@/components/circuit-banner";
-import { Card, Change, FilterChip, Pill, Progress, SectionTitle, StatusChip, TickerAvatar, cx } from "@/components/ui";
+import { useState } from "react";
+import { ListOrdered } from "lucide-react";
 import { useApp } from "@/components/providers";
-import { useBlockCountdown } from "@/lib/hooks";
-import { blocksToDuration, changeVs, lotFixed, secondsToDuration } from "@/lib/format";
-import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, ensName, getMarket, hrefFor, lastPrice, type Ipo } from "@/lib/mock";
+import { useMemo } from "react";
+import { TickerMark, markVar } from "@/components/company/logos";
+import { changeDigits, countdown } from "@/components/company/num";
+import { Button, Card, Change, EmptyState, ProgressBar, PromoCard, Segmented, Skeleton, TickerLogo } from "@/components/ui";
+import { useCountdown, blocksAsSeconds } from "@/lib/hooks";
+import { changeVs, lotFixed, usdc } from "@/lib/format";
+import { COPY, hrefFor, isClosed, isOpen, isUpcoming, orCopy } from "@/lib/adapt";
+import { ApiErrorCard } from "@/lib/api-state";
+import { api, POLL, type Auction, type Listing } from "@/lib/api";
+import { merge2, useBids, useLive, useListings } from "@/lib/live";
 
-type Filter = "all" | "auction" | "listed" | "upcoming";
+type Seg = "open" | "upcoming" | "closed";
 
-const isListed = (i: Ipo) => i.phase === "listed";
+export function IpoBody() {
+  const { connected, address } = useApp();
+  const listings = useListings();
+  const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
 
-export function IpoListScreen() {
-  const [filter, setFilter] = useState<Filter>("all");
-  const [searchOpen, setSearchOpen] = useState(false);
-  const { usdcBalance, connected } = useApp();
+  const live = all.filter(isOpen);
+  const upcoming = all.filter(isUpcoming);
+  const closed = all.filter(isClosed);
+  const [seg, setSeg] = useState<Seg | null>(null);
+  const shown = seg ?? (live.length ? "open" : upcoming.length ? "upcoming" : "closed");
+  const list = shown === "open" ? live : shown === "upcoming" ? upcoming : closed;
 
-  const live = IPOS.filter((i) => i.phase === "live");
-  const listed = IPOS.filter(isListed);
-  const other = IPOS.filter((i) => i.phase === "draft" || i.phase === "refunding");
-  const alerts = listed.filter((i) => i.status === "halted" || i.status === "surveillance");
-  const activeBids = BIDS.filter((b) => b.state === "active").length;
+  // One auction read per card on screen, folded into one loading state.
+  const tickers = list.map((l) => l.ticker).join(",");
+  const auctions = useLive(
+    tickers ? `auctions:${tickers}` : null,
+    async () => {
+      // One company without an auction yet must not blank the whole segment.
+      const settled = await Promise.allSettled(tickers.split(",").map(async (t) => [t, await api.auction(t)] as const));
+      const out: Record<string, Auction> = {};
+      for (const r of settled) if (r.status === "fulfilled") out[r.value[0]] = r.value[1];
+      return out;
+    },
+    POLL.auction,
+  );
 
-  const show = (f: Filter) => filter === "all" || filter === f;
+  const bids = useBids(connected ? address : null);
+  const committed = bids.data?.committed ?? {};
+  const applications = bids.data?.bids.length ?? 0;
+  const { error, loading, retry, refreshing } = merge2(listings, auctions);
 
   return (
     <>
-      <TabHeader
-        title="IPOs"
-        actions={
-          <IconButton label="Search tickers" active={searchOpen} onClick={() => setSearchOpen((s) => !s)}>
-            <Search className="size-[22px]" />
-          </IconButton>
-        }
+      <Segmented
+        className="mt-4"
+        label="IPO status"
+        value={shown}
+        onChange={setSeg}
+        options={[
+          { id: "open", label: "Open" },
+          { id: "upcoming", label: "Upcoming" },
+          { id: "closed", label: "Closed" },
+        ]}
       />
-      <main className="px-4">
-        <div className="flex flex-wrap items-center gap-2">
-          <PrivacyBadge />
-          <Pill tone="muted">Sepolia</Pill>
-          {connected && usdcBalance < OFFER.perApplicantCap && (
-            <a href={FAUCET_URL} target="_blank" rel="noreferrer">
-              <Pill tone="brand">Get test USDC</Pill>
-            </a>
-          )}
-        </div>
 
-        {searchOpen && <EnsSearch onClose={() => setSearchOpen(false)} />}
-
-        {/* Index-style strip (reference: NIFTY 50 / BANK NIFTY cards) */}
-        <div className="no-scrollbar -mx-4 mt-4 flex gap-3 overflow-x-auto px-4">
-          {listed.map((i) => {
-            const p = lastPrice(i.ticker)!;
-            const ch = changeVs(p, OFFER.issuePrice);
-            return (
-              <Link key={i.ticker} href={hrefFor(i)} className="shrink-0">
-                <Card className="min-w-[156px] px-3 py-2.5">
-                  <p className="text-xs font-semibold text-strong">{i.symbol}</p>
-                  <p className="num mt-0.5 text-[13px]">
-                    <span className="text-strong">{lotFixed(p, 3)}</span>{" "}
-                    <Change abs={ch.abs} rel={ch.rel} digits={3} className="text-xs" />
-                  </p>
-                </Card>
-              </Link>
-            );
-          })}
-        </div>
-
-        <div className="no-scrollbar -mx-4 mt-4 flex gap-2 overflow-x-auto px-4">
-          {(
-            [
-              ["all", "Explore"],
-              ["auction", `Live auction · ${live.length}`],
-              ["listed", "Listed"],
-              ["upcoming", "Upcoming & closed"],
-            ] as [Filter, string][]
-          ).map(([id, label]) => (
-            <FilterChip key={id} active={filter === id} onClick={() => setFilter(id)}>
-              {label}
-            </FilterChip>
+      {loading && list.length === 0 && (
+        <div className="mt-5 grid gap-5 lg:grid-cols-2">
+          {[0, 1].map((i) => (
+            <Card key={i} className="p-4">
+              <div className="flex items-center gap-3">
+                <Skeleton w={40} h={40} />
+                <span className="flex-1">
+                  <Skeleton w="60%" h={22} />
+                  <Skeleton w="40%" h={20} className="mt-1" />
+                </span>
+              </div>
+              <Skeleton h={48} className="mt-4" />
+              <Skeleton h={48} className="mt-4 rounded-[10px]" />
+            </Card>
           ))}
         </div>
+      )}
 
-        {filter === "all" && alerts.length > 0 && (
-          <div className="mt-4 space-y-2">
-            {alerts.map((i) => (
-              <div key={i.ticker} className="flex items-center gap-2">
-                <TickerAvatar ipo={i} size={28} />
-                <div className="min-w-0 flex-1">
-                  <CircuitBanner ticker={i.ticker} policy={getMarket(i.ticker)!.policy} compact />
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
+      {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
 
-        {show("auction") && (
-          <>
-            <SectionTitle>Live auctions</SectionTitle>
-            {live.length === 0 ? (
-              <p className="text-sm text-muted">No live auctions right now.</p>
-            ) : (
-              <div className="grid grid-cols-2 gap-3">
-                {live.map((i) => (
-                  <AuctionCard key={i.ticker} ipo={i} />
-                ))}
-              </div>
-            )}
-          </>
-        )}
+      {!loading && !error && (
+        <>
+          {list.length === 0 && shown === "open" && (
+            <EmptyState title="No IPOs open right now" body="See what is coming up next." action={{ label: "See upcoming IPOs", onClick: () => setSeg("upcoming") }} />
+          )}
+          {list.length === 0 && shown === "upcoming" && <EmptyState title="Nothing scheduled" body="New IPOs show up here when a company announces one." />}
+          {list.length === 0 && shown === "closed" && <EmptyState title="No closed IPOs yet" body="Finished IPOs and their results show up here." />}
+        </>
+      )}
 
-        {show("listed") && (
-          <>
-            <SectionTitle>Listed on Listing Day</SectionTitle>
-            <div className="grid grid-cols-2 gap-3">
-              {listed.map((i) => (
-                <ListedCard key={i.ticker} ipo={i} />
-              ))}
-            </div>
-          </>
-        )}
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        {list.map((listing) => (
+          <IpoCard key={listing.ticker} listing={listing} auction={auctions.data?.[listing.ticker]} applied={committed[listing.ticker] ?? 0} />
+        ))}
+      </div>
 
-        {show("upcoming") && (
-          <>
-            <SectionTitle>Upcoming &amp; closed</SectionTitle>
-            <Card className="divide-y divide-line">
-              {other.map((i) => (
-                <OtherRow key={i.ticker} ipo={i} />
-              ))}
-            </Card>
-          </>
-        )}
+      {applications > 0 && (
+        <PromoCard
+          className="mt-5"
+          href="/orders"
+          icon={<ListOrdered />}
+          title={`Your applications · ${applications}`}
+          sub="Track, collect shares or take a refund in Orders"
+        />
+      )}
 
-        {filter === "all" && (
-          <>
-            <SectionTitle>Tools</SectionTitle>
-            <div className="grid grid-cols-4 gap-3">
-              <Tool href="/bids" label="My bids" badge={activeBids} icon={<Gavel className="size-7" />} />
-              <Tool href="/portfolio" label="Portfolio" icon={<Briefcase className="size-7" />} />
-              <Tool href={FAUCET_URL} external label="Get USDC" icon={<CircleDollarSign className="size-7" />} />
-              <Tool href="/about" label="About" icon={<Info className="size-7" />} />
-            </div>
-          </>
-        )}
-        <p className="mt-6 text-center text-xs text-muted">
-          Every ticker resolved from ENS under <b>listingday.eth</b>. NSE-inspired mock; not a regulated product.
+      {list.length > 0 && (
+        <p className="t-caption mt-6">
+          An IPO lists only if it raises the minimum shown on its card. Otherwise every application is refunded.
         </p>
-        <BottomSpacer />
-      </main>
+      )}
     </>
   );
 }
 
-function AuctionCard({ ipo }: { ipo: Ipo }) {
-  const { seconds } = useBlockCountdown(ipo.endBlock);
-  const ch = changeVs(ipo.clearingPrice!, OFFER.issuePrice);
+function Head({ listing }: { listing: Listing }) {
   return (
-    <Link href={hrefFor(ipo)}>
-      <Card className="h-full p-3">
-        <div className="flex items-start justify-between">
-          <TickerAvatar ipo={ipo} />
-          <Pill tone="brand" dot>
-            {secondsToDuration(seconds)}
-          </Pill>
-        </div>
-        <p className="mt-2.5 truncate text-[15px] font-medium text-strong">{ipo.name}</p>
-        <p className="num mt-1 text-[15px] text-strong">
-          {lotFixed(ipo.clearingPrice!)} <span className="text-xs text-muted">USDC/lot</span>
-        </p>
-        <Change abs={ch.abs} rel={ch.rel} className="text-[13px]" />
-        <div className="mt-2.5">
-          <Progress value={ipo.raised!} max={OFFER.targetRaise} marker={OFFER.requiredRaise} tone="brand" />
-          <p className="num mt-1 text-[11px] text-muted">
-            {ipo.raised} / {OFFER.requiredRaise} USDC to graduate
-          </p>
-        </div>
-      </Card>
-    </Link>
-  );
-}
-
-function ListedCard({ ipo }: { ipo: Ipo }) {
-  const p = lastPrice(ipo.ticker)!;
-  const ch = changeVs(p, OFFER.issuePrice);
-  return (
-    <Link href={hrefFor(ipo)}>
-      <Card className="h-full p-3">
-        <div className="flex items-start justify-between">
-          <TickerAvatar ipo={ipo} />
-          {ipo.status !== "listed" && <StatusChip ipo={ipo} />}
-        </div>
-        <p className="mt-2.5 truncate text-[15px] font-medium text-strong">{ipo.name}</p>
-        <p className="num mt-1 text-[15px] text-strong">
-          {lotFixed(p, 3)} <span className="text-xs text-muted">USDC/lot</span>
-        </p>
-        <Change abs={ch.abs} rel={ch.rel} digits={3} className="text-[13px]" />
-      </Card>
-    </Link>
-  );
-}
-
-function OtherRow({ ipo }: { ipo: Ipo }) {
-  const refunding = ipo.phase === "refunding";
-  return (
-    <Link href={hrefFor(ipo)} className="flex items-center gap-3 p-3">
-      <TickerAvatar ipo={ipo} size={36} />
-      <div className="min-w-0 flex-1">
-        <p className="truncate font-medium text-strong">{ipo.name}</p>
-        <p className="text-[13px] text-muted">
-          {refunding
-            ? `Raised ${ipo.raised} of ${OFFER.requiredRaise} USDC · every bid refundable`
-            : `Starts in ~${blocksToDuration(ipo.startBlock! - CURRENT_BLOCK)} · range ${lotFixed(OFFER.floorPrice)}–${lotFixed(OFFER.capPrice)}`}
-        </p>
-      </div>
-      <StatusChip ipo={ipo} />
-    </Link>
-  );
-}
-
-function Tool({ href, label, icon, badge, external }: { href: string; label: string; icon: React.ReactNode; badge?: number; external?: boolean }) {
-  const body = (
-    <span className="flex flex-col items-center gap-1.5">
-      <span className="relative flex aspect-square w-full items-center justify-center rounded-[12px] bg-subtle text-gain">
-        {icon}
-        {!!badge && (
-          <span className="absolute top-1.5 right-1.5 flex size-5 items-center justify-center rounded-full bg-gain text-[11px] font-bold text-white">
-            {badge}
-          </span>
-        )}
+    <Link href={hrefFor(listing)} className="flex items-center gap-3">
+      <TickerLogo ipo={listing} size={40} />
+      <span className="min-w-0 flex-1">
+        <span className="t-card-title block truncate text-text">{listing.name}</span>
+        <span className="t-label block truncate">
+          <TickerMark ticker={listing.ticker} symbol={listing.symbol} /> · {listing.ensName}
+        </span>
       </span>
-      <span className="text-xs font-medium text-strong">{label}</span>
-    </span>
-  );
-  return external ? (
-    <a href={href} target="_blank" rel="noreferrer">
-      {body}
-    </a>
-  ) : (
-    <Link href={href}>{body}</Link>
+    </Link>
   );
 }
 
-/** Live ENS resolution of `<label>.listingday.eth` (mocked with a short delay). */
-function EnsSearch({ onClose }: { onClose: () => void }) {
-  const [q, setQ] = useState("");
-  const [state, setState] = useState<"idle" | "resolving" | "done">("idle");
-  const { countRead } = useApp();
-  const label = q.trim().toLowerCase().replace(/\.listingday\.eth$/, "");
-  const hit = useMemo(() => IPOS.find((i) => i.ticker === label), [label]);
+function IpoCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+  if (listing.phase === "live") return <OpenCard listing={listing} auction={auction} applied={applied} />;
+  if (listing.phase === "draft") return <UpcomingCard listing={listing} auction={auction} />;
+  if (listing.phase === "listed" || listing.phase === "cleared") return <ListedCard listing={listing} auction={auction} />;
+  return <RefundCard listing={listing} auction={auction} applied={applied} />;
+}
 
-  useEffect(() => {
-    if (!label) return;
-    const t1 = setTimeout(() => setState("resolving"), 250);
-    const t2 = setTimeout(() => {
-      setState("done");
-      countRead(2);
-    }, 800);
-    return () => {
-      clearTimeout(t1);
-      clearTimeout(t2);
-    };
-  }, [label, countRead]);
-  const shown = label ? state : "idle";
+function OpenCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+  const seconds = useCountdown(blocksAsSeconds(auction?.blocksRemaining));
+  const raised = listing.raised ?? auction?.raised ?? null;
+  const target = auction?.targetRaise ?? null;
+  const required = auction?.requiredRaise ?? null;
+  const price = listing.clearingPrice ?? auction?.floorPrice ?? null;
 
   return (
-    <div className="mt-3">
-      <div className="flex items-center gap-2 rounded-[12px] border border-line-strong bg-card px-3 focus-within:border-brand">
-        <Search className="size-4 text-muted" />
-        <input
-          autoFocus
-          value={q}
-          onChange={(e) => {
-            setQ(e.target.value);
-            setState("idle");
-          }}
-          placeholder="Type a ticker (e.g. acme)"
-          className="h-11 flex-1 bg-transparent text-[15px] outline-none placeholder:text-muted"
-          autoCapitalize="none"
-          autoCorrect="off"
-          spellCheck={false}
-        />
-        <span className="text-sm text-muted">.listingday.eth</span>
-        <button aria-label="Close search" onClick={onClose} className="text-muted">
-          <X className="size-4" />
-        </button>
+    <Card className="p-4">
+      <Head listing={listing} />
+      <div className="mt-4 flex items-end justify-between gap-4">
+        <span>
+          <span className="t-label block">Current price</span>
+          <span className="num t-section-title block text-text">{orCopy(price, (p) => lotFixed(p), COPY.noClearing)}</span>
+        </span>
+        <span className="text-right">
+          <span className="t-label block">Closes in</span>
+          <span className={`num t-section-title block ${seconds !== null && seconds < 3600 ? "text-warn" : "text-text"}`}>
+            {seconds === null ? COPY.noSchedule : countdown(seconds)}
+          </span>
+        </span>
       </div>
-      {shown === "resolving" && (
-        <p className="mt-2 flex items-center gap-2 text-sm text-muted">
-          <Loader2 className="size-4 animate-spin" /> Resolving {ensName(label)} via Anon-RPC…
-        </p>
+      {raised !== null && target !== null ? (
+        <>
+          <ProgressBar className="mt-3" value={raised} max={target} marker={required ?? undefined} />
+          <p className="t-caption mt-2">
+            <span className="font-medium" style={{ color: markVar(listing.ticker) }}>
+              {(raised / target).toFixed(1)}x
+            </span>{" "}
+            subscribed{required !== null ? ` · lists if it reaches ${usdc(required, 0)} USDC` : ""}
+          </p>
+        </>
+      ) : (
+        <p className="t-caption mt-3">How much has been applied for isn&apos;t available from this server yet.</p>
       )}
-      {shown === "done" && hit && (
-        <Link href={hrefFor(hit)} className="mt-2 block">
-          <Card className="flex items-center gap-3 p-3">
-            <TickerAvatar ipo={hit} size={36} />
-            <div className="min-w-0 flex-1">
-              <p className="font-medium text-strong">{hit.name}</p>
-              <p className="flex items-center gap-1 text-[13px] text-gain">
-                <BadgeCheck className="size-3.5" /> Resolved from ENS · {ensName(hit.ticker)}
-              </p>
-            </div>
-            <StatusChip ipo={hit} />
-          </Card>
+      {applied > 0 && <p className="t-body mt-3 text-text">You applied {usdc(applied)} USDC</p>}
+      {applied > 0 ? (
+        <Link href="/orders" className="mt-3 block">
+          <Button variant="secondary" className="w-full">
+            View application
+          </Button>
+        </Link>
+      ) : (
+        <Link href={`${hrefFor(listing)}?apply=1`} className="mt-3 block">
+          <Button variant="secondary" className="w-full">
+            Apply
+          </Button>
         </Link>
       )}
-      {shown === "done" && !hit && (
-        <p className={cx("mt-2 flex items-center gap-2 text-sm text-muted")}>
-          <SearchX className="size-4" /> No ticker at {ensName(label)}
+    </Card>
+  );
+}
+
+function UpcomingCard({ listing, auction }: { listing: Listing; auction: Auction | undefined }) {
+  const seconds = useCountdown(blocksAsSeconds(auction?.blocksRemaining));
+  return (
+    <Card className="p-4">
+      <Head listing={listing} />
+      <p className="t-body mt-4 text-text">{seconds === null ? "Opening date not set yet" : `Opens in ${countdown(seconds)}`}</p>
+      {auction && (
+        <p className="num t-body text-text">
+          Price range {lotFixed(auction.floorPrice)} to {lotFixed(auction.capPrice)}
         </p>
       )}
-    </div>
+      {auction && <p className="t-caption mt-1">Up to {usdc(auction.perApplicantCap, 0)} USDC per person</p>}
+    </Card>
+  );
+}
+
+function ListedCard({ listing, auction }: { listing: Listing; auction: Auction | undefined }) {
+  const issue = auction?.issuePrice ?? null;
+  const ch = listing.clearingPrice !== null && issue !== null ? changeVs(listing.clearingPrice, issue) : null;
+  return (
+    <Card className="p-4">
+      <Head listing={listing} />
+      <p className="num t-body mt-4 text-text">
+        {listing.clearingPrice === null ? COPY.noClearing : `Listed at ${lotFixed(listing.clearingPrice)}`}{" "}
+        {ch && <Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} />}
+      </p>
+      <p className="t-caption mt-1">
+        {listing.phase === "cleared"
+          ? "This IPO is over. The company's shares are about to start trading."
+          : "This IPO is closed. The company trades on the Stocks tab."}
+      </p>
+      <Link href={hrefFor(listing)} className="mt-3 block">
+        <Button variant="secondary" className="w-full">
+          See the company
+        </Button>
+      </Link>
+    </Card>
+  );
+}
+
+function RefundCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+  const raised = listing.raised ?? auction?.raised ?? null;
+  const required = auction?.requiredRaise ?? null;
+  return (
+    <Card className="p-4">
+      <Head listing={listing} />
+      <p className="t-body mt-4 text-text">Did not reach the minimum · refunds open</p>
+      {raised !== null && required !== null && (
+        <p className="t-caption mt-1">
+          It raised {usdc(raised)} of the {usdc(required, 0)} USDC it needed, so every application is refundable.
+        </p>
+      )}
+      {applied > 0 && (
+        <Link href="/orders" className="mt-3 block">
+          <Button variant="secondary" className="w-full">
+            Refund your {usdc(applied)} USDC
+          </Button>
+        </Link>
+      )}
+    </Card>
   );
 }

@@ -1,9 +1,10 @@
-import { BottomNav } from "@/components/shell";
+import { BottomNav, Container } from "@/components/shell";
 
-export default function TabsLayout({ children }: { children: React.ReactNode }) {
+/** Tab screens: Markets, Orders, Portfolio, Console. Bottom nav on phone, none on desktop. */
+export default function TabsLayout({ children }: LayoutProps<"/">) {
   return (
     <>
-      <div className="pb-24">{children}</div>
+      <Container className="pb-[calc(88px+env(safe-area-inset-bottom))] lg:pb-12">{children}</Container>
       <BottomNav />
     </>
   );
