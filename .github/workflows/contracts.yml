@@ -2,10 +2,10 @@ name: contracts
 
 on:
   pull_request:
-    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", "services/verify/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
   push:
     branches: [main]
-    paths: ["contracts/**", "cre/listing-policy/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
+    paths: ["contracts/**", "cre/listing-policy/fixtures/**", "services/verify/fixtures/**", ".gitmodules", ".github/workflows/contracts.yml"]
 
 jobs:
   test:
@@ -39,6 +39,9 @@ jobs:
 
       - name: Demo scripts end to end on a Sepolia fork (no broadcast)
         run: make demo-fork
+
+      - name: Demo scripts for a World ID (human) listing on a Sepolia fork (no broadcast)
+        run: make demo-fork ELIGIBILITY=human
 
       - name: ENSv2 ticker namespace scripts on a Sepolia fork (no broadcast)
         run: make ens-fork
