@@ -12,6 +12,7 @@ import {VmSafe} from "forge-std/Vm.sol";
 ///   [DEPLOYMENTS_FILE=deployments/sepolia.json] forge script script/demo/ExportDeployments.s.sol
 ///
 /// Only transactions mined at or after the file's `deployBlock` are kept, so older listings' runs drop out.
+/// Funding is listing-independent and usually runs before the deploy, so all funding transactions are kept.
 /// Every run file is read (not only run-latest), so hashes survive idempotent re-runs.
 contract ExportDeployments is DemoBase {
     struct TxEntry {
@@ -22,6 +23,10 @@ contract ExportDeployments is DemoBase {
     }
 
     function run() external {
+        if (!vm.exists(_file())) {
+            console2.log("no deployments file yet (", _file(), "): nothing to export");
+            return;
+        }
         string memory j = _json();
         uint256 chainId = vm.parseJsonUint(j, ".chainId");
         uint256 deployBlock = vm.parseJsonUint(j, ".deployBlock");
@@ -57,7 +62,8 @@ contract ExportDeployments is DemoBase {
         returns (string memory)
     {
         string memory dir = string.concat(vm.projectRoot(), "/broadcast/", script, "/", vm.toString(chainId));
-        TxEntry[] memory entries = collect(dir, deployBlock);
+        bool isFunding = keccak256(bytes(step)) == keccak256("fund");
+        TxEntry[] memory entries = collect(dir, isFunding ? 0 : deployBlock);
         _print(step, entries, chainId);
         return _toJson(step, entries);
     }
@@ -129,7 +135,7 @@ contract ExportDeployments is DemoBase {
     function _optString(string memory json, string memory key) internal view returns (string memory) {
         if (!vm.keyExistsJson(json, key)) return "";
         try vm.parseJsonString(json, key) returns (string memory s) {
-            return s;
+            return keccak256(bytes(s)) == keccak256("null") ? "" : s;
         } catch {
             return "";
         }
