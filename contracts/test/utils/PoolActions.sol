@@ -21,6 +21,10 @@ abstract contract PoolActions is Test {
     /// @dev Large exact-input amount: the swap stops at the price limit and only pays what that takes.
     int256 internal constant SWAP_TO_LIMIT = -1e30;
 
+    /// @dev The v4 test routers forward their whole ETH balance to the caller. Under `--fork-url` they deploy at
+    ///      deterministic addresses that can already hold stray Sepolia ETH.
+    receive() external payable {}
+
     function _sqrtPrice(IPoolManager manager, PoolKey memory key) internal view returns (uint160 sqrtPriceX96) {
         (sqrtPriceX96,,,) = manager.getSlot0(key.toId());
     }
