@@ -232,6 +232,8 @@ contract DemoDeploy is DemoBase {
 
     function _contractsJson(Deployed memory c) internal returns (string memory o) {
         o = "contracts";
+        // Serialized objects outlive the script within one forge process: drop the other mode's module key.
+        vm.serializeJson(o, "{}");
         vm.serializeAddress(o, "mockSME", address(c.token));
         vm.serializeAddress(o, _human() ? "worldPassModule" : "allowAllModule", address(c.module));
         vm.serializeAddress(o, "eligibilityModule", address(c.module));
@@ -244,6 +246,7 @@ contract DemoDeploy is DemoBase {
     ///      for a human listing the pass signer and World ID action.
     function _eligibilityJson(Deployed memory c) internal returns (string memory o) {
         o = "eligibility";
+        vm.serializeJson(o, "{}");
         vm.serializeString(o, "mode", _eligibility());
         vm.serializeAddress(o, "module", address(c.module));
         if (_human()) {

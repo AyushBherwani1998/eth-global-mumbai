@@ -101,12 +101,12 @@ export-json:
 
 # services/verify LISTINGS for the human listing in DEPLOYMENTS_FILE (after launch), e.g.
 #   LISTINGS=$$(make -s verify-listings ELIGIBILITY=human) npm start      (in ../services/verify)
+VERIFY_LISTINGS_JQ = if .contracts.worldPassModule == null or .auction.address == null \
+	then error("$(DEPLOYMENTS_FILE): no launched human listing (ELIGIBILITY=human make deploy launch)") \
+	else [{ticker: $$ticker, chainId: .chainId, auction: .auction.address, module: .contracts.worldPassModule, \
+	cap: (.eligibility.cap | tostring)}] end
 verify-listings:
-	@jq -ce --arg ticker "$${ENS_TICKER:-acme}" \
-		'if .contracts.worldPassModule == null or .auction.address == null \
-		then error("$(DEPLOYMENTS_FILE): no launched human listing (ELIGIBILITY=human make deploy launch)") \
-		else [{ticker: $$ticker, chainId: .chainId, auction: .auction.address, \
-			module: .contracts.worldPassModule, cap: (.eligibility.cap | tostring)}] end' $(DEPLOYMENTS_FILE)
+	@jq -ce --arg ticker "$${ENS_TICKER:-acme}" '$(VERIFY_LISTINGS_JQ)' $(DEPLOYMENTS_FILE)
 
 # ---------------------------------------------------------------- ENSv2 ticker namespace (plan.md §7)
 # Keys: ENS_OWNER_KEY (owns listingday.eth + the UserRegistry), ISSUER_KEY (owns acme + its resolver); both default

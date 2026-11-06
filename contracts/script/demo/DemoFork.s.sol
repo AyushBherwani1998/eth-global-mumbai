@@ -338,7 +338,8 @@ contract DemoFork is DemoBase, StdCheats, StdAssertions {
         vm.setEnv("DEMO_WALLET_KEYS", keys);
     }
 
-    function _key(string memory name) internal pure returns (uint256) {
-        return uint256(keccak256(abi.encode("listing-day fork key", name)));
+    /// @dev Separate keys per mode, so an open and a human run can share one fork (DemoScripts.fork.t.sol).
+    function _key(string memory name) internal view returns (uint256) {
+        return uint256(keccak256(abi.encode(_human() ? "listing-day fork key human" : "listing-day fork key", name)));
     }
 }
