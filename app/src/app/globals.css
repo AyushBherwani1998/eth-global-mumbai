@@ -1,0 +1,211 @@
+@import "tailwindcss";
+
+/*
+ * Tokens follow ../design.md (Groww-inspired). Two deliberate deviations,
+ * both taken from the reference screenshot:
+ *   - gain/loss use the screenshot's teal (#00b386) and coral (#eb5b3c)
+ *     instead of design.md's #63ad0e / #ff003c, so Buy/Sell and price
+ *     changes read like the reference.
+ *   - card borders are a touch darker than design.md's #f0f0f0 so outlined
+ *     cards stay visible on white.
+ */
+:root {
+  --bg: #ffffff;
+  --bg-subtle: #f6f7f8;
+  --card: #ffffff;
+  --fg: #2d343c;
+  --fg-strong: #1b2026;
+  --muted: #7c7c7c;
+  --line: #e9eaec;
+  --line-strong: #d5d7db;
+  --brand: #5076ee;
+  --brand-soft: #eef2fd;
+  --gain: #00b386;
+  --gain-soft: #e5f7f2;
+  --loss: #eb5b3c;
+  --loss-soft: #fdeeea;
+  --warn: #c77700;
+  --warn-soft: #fff4e0;
+  --overlay: rgb(15 18 22 / 0.45);
+  --shadow: 0 8px 28px rgb(15 18 22 / 0.12);
+  color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0a0a0a;
+    --bg-subtle: #161718;
+    --card: #121212;
+    --fg: #f5f5f5;
+    --fg-strong: #ffffff;
+    --muted: #a1a1a1;
+    --line: #24282e;
+    --line-strong: #353a42;
+    --brand: #6f8ff3;
+    --brand-soft: #1a2240;
+    --gain: #1fc79a;
+    --gain-soft: #0f2a23;
+    --loss: #f2735a;
+    --loss-soft: #2f1712;
+    --warn: #f0a530;
+    --warn-soft: #2c210c;
+    --overlay: rgb(0 0 0 / 0.6);
+    --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+    color-scheme: dark;
+  }
+}
+
+:root[data-theme="dark"] {
+  --bg: #0a0a0a;
+  --bg-subtle: #161718;
+  --card: #121212;
+  --fg: #f5f5f5;
+  --fg-strong: #ffffff;
+  --muted: #a1a1a1;
+  --line: #24282e;
+  --line-strong: #353a42;
+  --brand: #6f8ff3;
+  --brand-soft: #1a2240;
+  --gain: #1fc79a;
+  --gain-soft: #0f2a23;
+  --loss: #f2735a;
+  --loss-soft: #2f1712;
+  --warn: #f0a530;
+  --warn-soft: #2c210c;
+  --overlay: rgb(0 0 0 / 0.6);
+  --shadow: 0 8px 28px rgb(0 0 0 / 0.5);
+  color-scheme: dark;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-subtle: var(--bg-subtle);
+  --color-card: var(--card);
+  --color-fg: var(--fg);
+  --color-strong: var(--fg-strong);
+  --color-muted: var(--muted);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-brand: var(--brand);
+  --color-brand-soft: var(--brand-soft);
+  --color-gain: var(--gain);
+  --color-gain-soft: var(--gain-soft);
+  --color-loss: var(--loss);
+  --color-loss-soft: var(--loss-soft);
+  --color-warn: var(--warn);
+  --color-warn-soft: var(--warn-soft);
+  --font-sans: var(--font-inter), system-ui, -apple-system, sans-serif;
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+}
+
+html {
+  background: var(--bg-subtle);
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+h1,
+h2,
+h3 {
+  color: var(--fg-strong);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.num {
+  font-variant-numeric: tabular-nums;
+}
+
+.no-scrollbar {
+  scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+
+input[type="range"] {
+  accent-color: var(--gain);
+}
+
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+@keyframes toast-in {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+@keyframes pulse-dot {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+@keyframes banner-flash {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--loss) 45%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 10px transparent;
+  }
+}
+.animate-sheet-in {
+  animation: sheet-in 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.animate-fade-in {
+  animation: fade-in 200ms ease-out;
+}
+.animate-toast-in {
+  animation: toast-in 220ms ease-out;
+}
+.animate-pulse-dot {
+  animation: pulse-dot 1.6s ease-in-out infinite;
+}
+.animate-banner-flash {
+  animation: banner-flash 1.2s ease-out 2;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+}

@@ -1,0 +1,113 @@
+{
+  "committed": { "kesar": 13, "tara": 7, "acme": 20, "masala": 15, "vayu": 20, "lotus": 10 },
+  "bids": [
+    {
+      "id": 14,
+      "ticker": "kesar",
+      "budget": 8,
+      "maxPrice": 1.4,
+      "submittedBlock": 7412061,
+      "submittedAt": "2026-11-06T15:12:52+05:30",
+      "state": "active",
+      "filledShares": 0,
+      "refund": 0,
+      "tx": "0x8f1c2e7a90b44d03e1a7c55b6d2f9e3a4b1c8d7e6f5a4b3c2d1e0f9a8b7c6d5e"
+    },
+    {
+      "id": 21,
+      "ticker": "kesar",
+      "budget": 5,
+      "maxPrice": 1.15,
+      "submittedBlock": 7412133,
+      "submittedAt": "2026-11-06T15:27:16+05:30",
+      "state": "outbid",
+      "filledShares": 0,
+      "refund": 5,
+      "tx": "0x2a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b"
+    },
+    {
+      "id": 3,
+      "ticker": "tara",
+      "budget": 7,
+      "maxPrice": 1.0,
+      "submittedBlock": 7412170,
+      "submittedAt": "2026-11-06T15:31:40+05:30",
+      "state": "active",
+      "filledShares": 0,
+      "refund": 0,
+      "tx": "0x3b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c"
+    },
+    {
+      "id": 7,
+      "ticker": "acme",
+      "budget": 12,
+      "maxPrice": 1.3,
+      "submittedBlock": 7408244,
+      "submittedAt": "2026-11-05T09:08:48+05:30",
+      "state": "claimed",
+      "filledShares": 10909,
+      "refund": 0,
+      "tx": "0x4c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d"
+    },
+    {
+      "id": 11,
+      "ticker": "acme",
+      "budget": 6,
+      "maxPrice": 1.1,
+      "submittedBlock": 7408390,
+      "submittedAt": "2026-11-05T09:38:00+05:30",
+      "state": "partial",
+      "filledShares": 3200,
+      "refund": 2.48,
+      "tx": "0x5d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e"
+    },
+    {
+      "id": 15,
+      "ticker": "acme",
+      "budget": 2,
+      "maxPrice": 1.0,
+      "submittedBlock": 7408402,
+      "submittedAt": "2026-11-05T09:40:24+05:30",
+      "state": "exited",
+      "filledShares": 0,
+      "refund": 2,
+      "tx": "0x6e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f"
+    },
+    {
+      "id": 4,
+      "ticker": "masala",
+      "budget": 15,
+      "maxPrice": 1.6,
+      "submittedBlock": 7385990,
+      "submittedAt": "2026-11-01T11:18:00+05:30",
+      "state": "claimed",
+      "filledShares": 12000,
+      "refund": 0,
+      "tx": "0x7f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a"
+    },
+    {
+      "id": 9,
+      "ticker": "vayu",
+      "budget": 20,
+      "maxPrice": 1.8,
+      "submittedBlock": 7392710,
+      "submittedAt": "2026-11-02T11:22:00+05:30",
+      "state": "filled",
+      "filledShares": 14084,
+      "refund": 0,
+      "tx": "0x8a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b"
+    },
+    {
+      "id": 2,
+      "ticker": "lotus",
+      "budget": 10,
+      "maxPrice": 1.2,
+      "submittedBlock": 7409188,
+      "submittedAt": "2026-11-05T16:17:36+05:30",
+      "state": "refundable",
+      "filledShares": 0,
+      "refund": 10,
+      "tx": "0x9b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c"
+    }
+  ]
+}

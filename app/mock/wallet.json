@@ -1,0 +1,27 @@
+{
+  "connected": true,
+  "address": "0x7a3F9e21C04b8D5a6E1f2B3c4D5e6F7a8B9cC91E",
+  "ensName": "bidder.eth",
+  "chainId": 11155111,
+  "chainName": "Sepolia",
+  "usdcBalance": 14.62,
+  "ethBalance": 0.0841,
+  "isIssuerFor": ["acme", "kesar"],
+  "worldId": {
+    "status": "verified",
+    "humanKey": "0x2b91…f04c",
+    "voucherExpiresInSec": 412
+  },
+  "allowances": {
+    "usdcToPermit2": true,
+    "permit2ToAuction": { "kesar": 5, "tara": 0 }
+  },
+  "anonRpc": {
+    "transport": "Nox mixnet",
+    "fallback": "tor-js",
+    "anonReads": 342,
+    "directReads": 0,
+    "lastError": null,
+    "connectedSince": "2026-11-06T15:21:08+05:30"
+  }
+}
