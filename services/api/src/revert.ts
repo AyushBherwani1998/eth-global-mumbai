@@ -2,7 +2,7 @@ import { BaseError, decodeErrorResult, type Hex } from "viem";
 
 import { allErrorsAbi } from "./abis.ts";
 import type { DecodedError } from "./types.ts";
-import { q96ToPoints, sqrtPriceX96ToPrice, usdc } from "./units.ts";
+import { formatLot, q96ToPoints, sqrtPriceX96ToPrice, usdc } from "./units.ts";
 
 /** Errors whose only job is to carry another error's bytes (outermost first when nested). */
 const WRAPPER_ARG: Record<string, number> = {
@@ -70,10 +70,6 @@ function b(v: unknown): bigint {
   return typeof v === "bigint" ? v : BigInt(String(v ?? 0));
 }
 
-function lot(n: number): string {
-  return n.toFixed(n * 100 === Math.round(n * 100) ? 2 : 3);
-}
-
 /** Suggested UI copy, from contracts/errors.md. */
 function message(name: string, a: readonly unknown[], ctx: DecodeContext): string {
   const inv = ctx.usdcIsCurrency0 ?? true;
@@ -82,10 +78,10 @@ function message(name: string, a: readonly unknown[], ctx: DecodeContext): strin
       // With USDC as currency0 the lowest sqrt price is the highest share price.
       const [p, min, max] = [b(a[0]), b(a[1]), b(a[2])];
       const [lo, hi] = inv ? [sqrtPriceX96ToPrice(max, inv), sqrtPriceX96ToPrice(min, inv)] : [sqrtPriceX96ToPrice(min, inv), sqrtPriceX96ToPrice(max, inv)];
-      return `Outside today's price band (${lot(lo)} to ${lot(hi)} USDC / lot): the price after this trade would be ${lot(sqrtPriceX96ToPrice(p, inv))}`;
+      return `Outside today's price band (${formatLot(lo)} to ${formatLot(hi)} USDC / lot): the price after this trade would be ${formatLot(sqrtPriceX96ToPrice(p, inv))}`;
     }
     case "DirectionalWidening":
-      return `Only trades toward the reference price (${lot(sqrtPriceX96ToPrice(b(a[2]), inv))} USDC / lot) are allowed right now`;
+      return `Only trades toward the reference price (${formatLot(sqrtPriceX96ToPrice(b(a[2]), inv))} USDC / lot) are allowed right now`;
     case "Halted":
       return "Trading halted";
     case "CoolingOff":

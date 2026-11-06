@@ -5,7 +5,7 @@ import { blockTimes, getLogsChunked } from "../chain.ts";
 import type { Listing } from "../config.ts";
 import type { Ctx, Head } from "../context.ts";
 import type { Band, HookPhase, MarketEvent, MarketView, Mode, PolicyView, SwapsResponse, Trade } from "../types.ts";
-import { fullRangeAmounts, iso, pointsE2ToPoints, pointsE2ToPrice, shares, sqrtPriceX96ToPointsE2, sqrtPriceX96ToPrice, usdc } from "../units.ts";
+import { formatLot, fullRangeAmounts, iso, pointsE2ToPoints, pointsE2ToPrice, shares, sqrtPriceX96ToPointsE2, sqrtPriceX96ToPrice, usdc } from "../units.ts";
 
 const HOOK_PHASES: HookPhase[] = ["NotListed", "ListingDay", "Normal"];
 const POLICY_MODES: Mode[] = ["normal", "surveillance", "directional"];
@@ -13,10 +13,6 @@ const POLICY_MODES: Mode[] = ["normal", "surveillance", "directional"];
 const policyAppliedEvent = getAbiItem({ abi: receiverAbi, name: "PolicyApplied" });
 const listedEvent = getAbiItem({ abi: listingHookAbi, name: "Listed" });
 const swapEvent = getAbiItem({ abi: poolManagerAbi, name: "Swap" });
-
-function lotFixed(n: number): string {
-  return n.toFixed(n * 100 === Math.round(n * 100) ? 2 : 3);
-}
 
 async function hookState(ctx: Ctx, l: Listing, h: Head) {
   const c = { address: l.hook, abi: listingHookAbi, blockNumber: h.number } as const;
@@ -192,13 +188,13 @@ async function marketEvents(ctx: Ctx, l: Listing, h: Head): Promise<MarketEvent[
   const events: MarketEvent[] = [];
   for (const e of listedLogs) {
     const price = sqrtPriceX96ToPrice(e.args.listingSqrtPriceX96, usdc0);
-    events.push({ time: iso(times.get(e.blockNumber)) ?? "", kind: "listing", label: `Listed at ${lotFixed(price)} · ±${l.listingDayBandBps / 100}% band`, tx: e.transactionHash, block: Number(e.blockNumber) });
+    events.push({ time: iso(times.get(e.blockNumber)) ?? "", kind: "listing", label: `Listed at ${formatLot(price)} · ±${l.listingDayBandBps / 100}% band`, tx: e.transactionHash, block: Number(e.blockNumber) });
   }
   let prevRef: bigint | null = null;
   for (const e of applied) {
     const p = e.args.policy;
     const ref = p.refSqrtPriceX96;
-    const refText = ref === 0n ? "listing price" : lotFixed(sqrtPriceX96ToPrice(ref, usdc0));
+    const refText = ref === 0n ? "listing price" : formatLot(sqrtPriceX96ToPrice(ref, usdc0));
     let kind: MarketEvent["kind"];
     let label: string;
     if (p.halted) [kind, label] = ["halted", "Halted"];

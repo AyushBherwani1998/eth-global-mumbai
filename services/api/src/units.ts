@@ -119,6 +119,11 @@ export function fullRangeAmounts(liquidity: bigint, sqrtPriceX96: bigint): { amo
   return { amount0: (liquidity * Q96) / sqrtPriceX96, amount1: (liquidity * sqrtPriceX96) / Q96 };
 }
 
+/** "1.10" for whole points, "1.045" when a band edge falls between points. */
+export function formatLot(price: number): string {
+  return price.toFixed(Math.abs(price * 100 - Math.round(price * 100)) < 1e-6 ? 2 : 3);
+}
+
 export function iso(unixSeconds: bigint | number | null | undefined): string | null {
   if (unixSeconds === null || unixSeconds === undefined) return null;
   const n = Number(unixSeconds);

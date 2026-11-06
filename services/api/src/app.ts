@@ -163,7 +163,8 @@ export function createApp(ctx: Ctx): Hono {
     const l = getListing(ctx, c.req.param("ticker"));
     const limit = Number(uintQuery(c, "limit") ?? 100n);
     if (limit < 1 || limit > 1000) throw badRequest("limit must be in [1, 1000]");
-    return json(c, await swapsView(ctx, l, await head(ctx), { limit, fromBlock: uintQuery(c, "fromBlock") }));
+    const fromBlock = uintQuery(c, "fromBlock");
+    return json(c, await swapsView(ctx, l, await head(ctx), { limit, fromBlock }));
   });
 
   const prepare = { bid: prepareBid, swap: prepareSwap, exit: prepareExit, claim: prepareClaim } as const;

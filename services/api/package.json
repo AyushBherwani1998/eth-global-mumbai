@@ -16,7 +16,9 @@
     "test": "node --test test/*.test.ts",
     "test:integration": "bash scripts/integration.sh",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint ."
+    "lint": "eslint .",
+    "abis": "node scripts/gen-abis.ts",
+    "abis:check": "node scripts/gen-abis.ts --check"
   },
   "dependencies": {
     "@hono/node-server": "^2.1.6",
