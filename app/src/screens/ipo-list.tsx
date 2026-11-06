@@ -3,39 +3,65 @@
 // Markets, IPO chip (UX.md 3.2): Open · Upcoming · Closed, one card per IPO,
 // and a summary row when this wallet has applications. Plain English only;
 // auction mechanics stay on the company page.
+//
+// Data: GET /v1/listings for what exists, GET /v1/auction/:ticker for each
+// card's price range, raise targets and countdown, GET /v1/bids?owner= for
+// what this wallet applied with.
 
 import Link from "next/link";
 import { useState } from "react";
-import { ListOrdered, ShieldCheck } from "lucide-react";
+import { ListOrdered } from "lucide-react";
 import { useApp } from "@/components/providers";
-import { ErrorCard } from "@/components/states";
-import { useMockLoad } from "@/components/company/load";
+import { useMemo } from "react";
 import { TickerMark, markVar } from "@/components/company/logos";
 import { changeDigits, countdown } from "@/components/company/num";
 import { Button, Card, Change, EmptyState, ProgressBar, PromoCard, Segmented, Skeleton, TickerLogo } from "@/components/ui";
-import { useBlockCountdown } from "@/lib/hooks";
-import { BLOCK_SECONDS, changeVs, dateTimeIST, lotFixed, usdc } from "@/lib/format";
-import { BIDS, COMMITTED, CURRENT_BLOCK, IPOS, NOW, OFFER, hrefFor, lastPrice, type Ipo } from "@/lib/mock";
+import { useCountdown, blocksAsSeconds } from "@/lib/hooks";
+import { changeVs, lotFixed, usdc } from "@/lib/format";
+import { COPY, hrefFor, isClosed, isOpen, isUpcoming, orCopy } from "@/lib/adapt";
+import { ApiErrorCard } from "@/lib/api-state";
+import { api, POLL, type Auction, type Listing } from "@/lib/api";
+import { merge2, useBids, useLive, useListings } from "@/lib/live";
 
 type Seg = "open" | "upcoming" | "closed";
 
 export function IpoBody() {
-  const { loading, error, retry, retrying } = useMockLoad();
-  const { connected } = useApp();
-  const live = IPOS.filter((i) => i.phase === "live");
-  const upcoming = IPOS.filter((i) => i.phase === "draft");
-  const closed = IPOS.filter((i) => i.phase === "listed" || i.phase === "refunding");
-  const [seg, setSeg] = useState<Seg>(live.length ? "open" : "upcoming");
-  const applications = connected ? BIDS.length : 0;
+  const { connected, address } = useApp();
+  const listings = useListings();
+  const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
 
-  const list = seg === "open" ? live : seg === "upcoming" ? upcoming : closed;
+  const live = all.filter(isOpen);
+  const upcoming = all.filter(isUpcoming);
+  const closed = all.filter(isClosed);
+  const [seg, setSeg] = useState<Seg | null>(null);
+  const shown = seg ?? (live.length ? "open" : upcoming.length ? "upcoming" : "closed");
+  const list = shown === "open" ? live : shown === "upcoming" ? upcoming : closed;
+
+  // One auction read per card on screen, folded into one loading state.
+  const tickers = list.map((l) => l.ticker).join(",");
+  const auctions = useLive(
+    tickers ? `auctions:${tickers}` : null,
+    async () => {
+      // One company without an auction yet must not blank the whole segment.
+      const settled = await Promise.allSettled(tickers.split(",").map(async (t) => [t, await api.auction(t)] as const));
+      const out: Record<string, Auction> = {};
+      for (const r of settled) if (r.status === "fulfilled") out[r.value[0]] = r.value[1];
+      return out;
+    },
+    POLL.auction,
+  );
+
+  const bids = useBids(connected ? address : null);
+  const committed = bids.data?.committed ?? {};
+  const applications = bids.data?.bids.length ?? 0;
+  const { error, loading, retry, refreshing } = merge2(listings, auctions);
 
   return (
     <>
       <Segmented
         className="mt-4"
         label="IPO status"
-        value={seg}
+        value={shown}
         onChange={setSeg}
         options={[
           { id: "open", label: "Open" },
@@ -44,7 +70,7 @@ export function IpoBody() {
         ]}
       />
 
-      {loading && (
+      {loading && list.length === 0 && (
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
           {[0, 1].map((i) => (
             <Card key={i} className="p-4">
@@ -62,105 +88,99 @@ export function IpoBody() {
         </div>
       )}
 
-      {!loading && error && (
-        <ErrorCard
-          className="mt-4"
-          title="We couldn't load IPOs privately"
-          body="Your private connection didn't answer. Check your internet and try again."
-          onRetry={retry}
-          retrying={retrying}
-        />
-      )}
+      {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
 
       {!loading && !error && (
         <>
-          {list.length === 0 && seg === "open" && (
+          {list.length === 0 && shown === "open" && (
             <EmptyState title="No IPOs open right now" body="See what is coming up next." action={{ label: "See upcoming IPOs", onClick: () => setSeg("upcoming") }} />
           )}
-          {list.length === 0 && seg === "upcoming" && <EmptyState title="Nothing scheduled" body="New IPOs show up here when a company announces one." />}
-          {list.length === 0 && seg === "closed" && <EmptyState title="No closed IPOs yet" body="Finished IPOs and their results show up here." />}
-
-          <div className="mt-5 grid gap-5 lg:grid-cols-2">
-            {list.map((ipo) => (
-              <IpoCard key={ipo.ticker} ipo={ipo} />
-            ))}
-          </div>
-
-          {applications > 0 && (
-            <PromoCard
-              className="mt-5"
-              href="/orders"
-              icon={<ListOrdered />}
-              title={`Your applications · ${applications}`}
-              sub="Track, collect shares or take a refund in Orders"
-            />
-          )}
-
-          <p className="t-caption mt-6">
-            An IPO lists only if it raises at least {usdc(OFFER.requiredRaise, 0)} USDC, half its target. Otherwise every application is
-            refunded.
-          </p>
+          {list.length === 0 && shown === "upcoming" && <EmptyState title="Nothing scheduled" body="New IPOs show up here when a company announces one." />}
+          {list.length === 0 && shown === "closed" && <EmptyState title="No closed IPOs yet" body="Finished IPOs and their results show up here." />}
         </>
+      )}
+
+      <div className="mt-5 grid gap-5 lg:grid-cols-2">
+        {list.map((listing) => (
+          <IpoCard key={listing.ticker} listing={listing} auction={auctions.data?.[listing.ticker]} applied={committed[listing.ticker] ?? 0} />
+        ))}
+      </div>
+
+      {applications > 0 && (
+        <PromoCard
+          className="mt-5"
+          href="/orders"
+          icon={<ListOrdered />}
+          title={`Your applications · ${applications}`}
+          sub="Track, collect shares or take a refund in Orders"
+        />
+      )}
+
+      {list.length > 0 && (
+        <p className="t-caption mt-6">
+          An IPO lists only if it raises the minimum shown on its card. Otherwise every application is refunded.
+        </p>
       )}
     </>
   );
 }
 
-function Head({ ipo }: { ipo: Ipo }) {
+function Head({ listing }: { listing: Listing }) {
   return (
-    <Link href={hrefFor(ipo)} className="flex items-center gap-3">
-      <TickerLogo ipo={ipo} size={40} />
+    <Link href={hrefFor(listing)} className="flex items-center gap-3">
+      <TickerLogo ipo={listing} size={40} />
       <span className="min-w-0 flex-1">
-        <span className="t-card-title block truncate text-text">{ipo.name}</span>
+        <span className="t-card-title block truncate text-text">{listing.name}</span>
         <span className="t-label block truncate">
-          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.sector}
+          <TickerMark ticker={listing.ticker} symbol={listing.symbol} /> · {listing.ensName}
         </span>
       </span>
     </Link>
   );
 }
 
-function OnePerPerson({ ipo }: { ipo: Ipo }) {
-  if (ipo.eligibility !== "human") return null;
-  return (
-    <p className="t-label mt-3 flex items-center gap-2">
-      <ShieldCheck className="size-4 shrink-0 text-text-2" aria-hidden /> One application per person
-    </p>
-  );
+function IpoCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+  if (listing.phase === "live") return <OpenCard listing={listing} auction={auction} applied={applied} />;
+  if (listing.phase === "draft") return <UpcomingCard listing={listing} auction={auction} />;
+  if (listing.phase === "listed" || listing.phase === "cleared") return <ListedCard listing={listing} auction={auction} />;
+  return <RefundCard listing={listing} auction={auction} applied={applied} />;
 }
 
-function IpoCard({ ipo }: { ipo: Ipo }) {
-  const applied = COMMITTED[ipo.ticker] ?? 0;
-  if (ipo.phase === "live") return <OpenCard ipo={ipo} applied={applied} />;
-  if (ipo.phase === "draft") return <UpcomingCard ipo={ipo} />;
-  if (ipo.phase === "listed") return <ListedCard ipo={ipo} />;
-  return <RefundCard ipo={ipo} applied={applied} />;
-}
+function OpenCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+  const seconds = useCountdown(blocksAsSeconds(auction?.blocksRemaining));
+  const raised = listing.raised ?? auction?.raised ?? null;
+  const target = auction?.targetRaise ?? null;
+  const required = auction?.requiredRaise ?? null;
+  const price = listing.clearingPrice ?? auction?.floorPrice ?? null;
 
-function OpenCard({ ipo, applied }: { ipo: Ipo; applied: number }) {
-  const { seconds } = useBlockCountdown(ipo.endBlock);
-  const raised = ipo.raised ?? 0;
-  const subscribed = raised / OFFER.targetRaise;
   return (
     <Card className="p-4">
-      <Head ipo={ipo} />
+      <Head listing={listing} />
       <div className="mt-4 flex items-end justify-between gap-4">
         <span>
           <span className="t-label block">Current price</span>
-          <span className="num t-section-title block text-text">{lotFixed(ipo.clearingPrice ?? OFFER.issuePrice)}</span>
+          <span className="num t-section-title block text-text">{orCopy(price, (p) => lotFixed(p), COPY.noClearing)}</span>
         </span>
         <span className="text-right">
           <span className="t-label block">Closes in</span>
-          <span className={`num t-section-title block ${seconds < 3600 ? "text-warn" : "text-text"}`}>{countdown(seconds)}</span>
+          <span className={`num t-section-title block ${seconds !== null && seconds < 3600 ? "text-warn" : "text-text"}`}>
+            {seconds === null ? COPY.noSchedule : countdown(seconds)}
+          </span>
         </span>
       </div>
-      <ProgressBar className="mt-3" value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
-      <p className="t-caption mt-2">
-        <span className="font-medium" style={{ color: markVar(ipo.ticker) }}>
-          {subscribed.toFixed(1)}x
-        </span>{" "}
-        subscribed · lists if it reaches {usdc(OFFER.requiredRaise, 0)} USDC
-      </p>
+      {raised !== null && target !== null ? (
+        <>
+          <ProgressBar className="mt-3" value={raised} max={target} marker={required ?? undefined} />
+          <p className="t-caption mt-2">
+            <span className="font-medium" style={{ color: markVar(listing.ticker) }}>
+              {(raised / target).toFixed(1)}x
+            </span>{" "}
+            subscribed{required !== null ? ` · lists if it reaches ${usdc(required, 0)} USDC` : ""}
+          </p>
+        </>
+      ) : (
+        <p className="t-caption mt-3">How much has been applied for isn&apos;t available from this server yet.</p>
+      )}
       {applied > 0 && <p className="t-body mt-3 text-text">You applied {usdc(applied)} USDC</p>}
       {applied > 0 ? (
         <Link href="/orders" className="mt-3 block">
@@ -169,44 +189,48 @@ function OpenCard({ ipo, applied }: { ipo: Ipo; applied: number }) {
           </Button>
         </Link>
       ) : (
-        <Link href={`${hrefFor(ipo)}?apply=1`} className="mt-3 block">
+        <Link href={`${hrefFor(listing)}?apply=1`} className="mt-3 block">
           <Button variant="secondary" className="w-full">
             Apply
           </Button>
         </Link>
       )}
-      <OnePerPerson ipo={ipo} />
     </Card>
   );
 }
 
-function UpcomingCard({ ipo }: { ipo: Ipo }) {
-  const opensAt = new Date(NOW).getTime() / 1000 + (ipo.startBlock! - CURRENT_BLOCK) * BLOCK_SECONDS;
+function UpcomingCard({ listing, auction }: { listing: Listing; auction: Auction | undefined }) {
+  const seconds = useCountdown(blocksAsSeconds(auction?.blocksRemaining));
   return (
     <Card className="p-4">
-      <Head ipo={ipo} />
-      <p className="t-body mt-4 text-text">Opens {dateTimeIST(opensAt)}</p>
-      <p className="num t-body text-text">
-        Price range {lotFixed(OFFER.floorPrice)} to {lotFixed(OFFER.capPrice)}
-      </p>
-      <p className="t-caption mt-1">Up to {usdc(OFFER.perApplicantCap, 0)} USDC per person</p>
-      <OnePerPerson ipo={ipo} />
+      <Head listing={listing} />
+      <p className="t-body mt-4 text-text">{seconds === null ? "Opening date not set yet" : `Opens in ${countdown(seconds)}`}</p>
+      {auction && (
+        <p className="num t-body text-text">
+          Price range {lotFixed(auction.floorPrice)} to {lotFixed(auction.capPrice)}
+        </p>
+      )}
+      {auction && <p className="t-caption mt-1">Up to {usdc(auction.perApplicantCap, 0)} USDC per person</p>}
     </Card>
   );
 }
 
-function ListedCard({ ipo }: { ipo: Ipo }) {
-  const now = lastPrice(ipo.ticker);
-  const ch = now && ipo.clearingPrice ? changeVs(now, ipo.clearingPrice) : null;
+function ListedCard({ listing, auction }: { listing: Listing; auction: Auction | undefined }) {
+  const issue = auction?.issuePrice ?? null;
+  const ch = listing.clearingPrice !== null && issue !== null ? changeVs(listing.clearingPrice, issue) : null;
   return (
     <Card className="p-4">
-      <Head ipo={ipo} />
+      <Head listing={listing} />
       <p className="num t-body mt-4 text-text">
-        Listed at {lotFixed(ipo.clearingPrice ?? OFFER.issuePrice)}
-        {now ? ` · now ${lotFixed(now)}` : ""} {ch && <Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} />}
+        {listing.clearingPrice === null ? COPY.noClearing : `Listed at ${lotFixed(listing.clearingPrice)}`}{" "}
+        {ch && <Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} />}
       </p>
-      <p className="t-caption mt-1">This IPO is closed. The company trades on the Stocks tab.</p>
-      <Link href={hrefFor(ipo)} className="mt-3 block">
+      <p className="t-caption mt-1">
+        {listing.phase === "cleared"
+          ? "This IPO is over. The company's shares are about to start trading."
+          : "This IPO is closed. The company trades on the Stocks tab."}
+      </p>
+      <Link href={hrefFor(listing)} className="mt-3 block">
         <Button variant="secondary" className="w-full">
           See the company
         </Button>
@@ -215,18 +239,22 @@ function ListedCard({ ipo }: { ipo: Ipo }) {
   );
 }
 
-function RefundCard({ ipo, applied }: { ipo: Ipo; applied: number }) {
+function RefundCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+  const raised = listing.raised ?? auction?.raised ?? null;
+  const required = auction?.requiredRaise ?? null;
   return (
     <Card className="p-4">
-      <Head ipo={ipo} />
+      <Head listing={listing} />
       <p className="t-body mt-4 text-text">Did not reach the minimum · refunds open</p>
-      <p className="t-caption mt-1">
-        It raised {usdc(ipo.raised ?? 0)} of the {usdc(OFFER.requiredRaise, 0)} USDC it needed, so every application is refundable.
-      </p>
+      {raised !== null && required !== null && (
+        <p className="t-caption mt-1">
+          It raised {usdc(raised)} of the {usdc(required, 0)} USDC it needed, so every application is refundable.
+        </p>
+      )}
       {applied > 0 && (
         <Link href="/orders" className="mt-3 block">
           <Button variant="secondary" className="w-full">
-            Refund {usdc(applied)} USDC
+            Refund your {usdc(applied)} USDC
           </Button>
         </Link>
       )}

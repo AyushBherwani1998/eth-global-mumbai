@@ -13,9 +13,9 @@ import { useApp } from "./providers";
 import { useTheme, type ThemeSetting } from "./theme";
 import { TickerMark } from "@/components/company/logos";
 import { EditAvatarSheet, UserAvatar } from "@/components/avatar";
-import { Button, Change, KV, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
-import { blocksToCountdown, changeVs, dateTimeIST, lotFixed, shortAddr, usdc } from "@/lib/format";
-import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, WALLET, dayOpen, getMarket, type Ipo } from "@/lib/mock";
+import { Button, Change, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
+import { blocksToCountdown, changeVs, lotFixed, shortAddr, usdc } from "@/lib/format";
+import { BIDS, CURRENT_BLOCK, FAUCET_URL, IPOS, OFFER, dayOpen, getMarket, type Ipo } from "@/lib/mock";
 
 // ---------------------------------------------------------------------------
 // Logo: flat brand circle, white step-up glyph. No gradient.
@@ -427,15 +427,12 @@ export function CompanyResultRow({ ipo, hasMoneyIn }: { ipo: Ipo; hasMoneyIn?: b
 
 export function SearchSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [q, setQ] = useState("");
-  const { countRead, connected } = useApp();
+  const { connected } = useApp();
   const hits = useMemo(() => {
     const s = q.trim().toLowerCase().replace(/\.listingday\.eth$/, "");
     if (!s) return IPOS;
     return IPOS.filter((i) => i.ticker.includes(s) || i.symbol.toLowerCase().includes(s) || i.name.toLowerCase().includes(s));
   }, [q]);
-  useEffect(() => {
-    if (q.trim()) countRead(1);
-  }, [q, countRead]);
   const moneyIn = (ticker: string) => connected && BIDS.some((b) => b.ticker === ticker && b.refund > 0 && b.state !== "exited" && b.state !== "claimed");
   if (!open) return null;
   return (
@@ -657,7 +654,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             </div>
           )}
 
-          <AccountRow title="Private browsing" sub="On · your lookups are private" onClick={() => setPrivacyOpen(true)} />
+          <AccountRow title="Private browsing" sub="How your lookups are kept private" onClick={() => setPrivacyOpen(true)} />
 
           <AccountRow title="Appearance" right={<Segmented options={THEME_OPTIONS} value={theme} onChange={setTheme} label="Appearance" />} />
 
@@ -681,29 +678,42 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
   );
 }
 
-/** Private reads explainer (content from the old PrivacyBadge, UX.md 3.10). */
+/**
+ * Private reads explainer (UX.md 3.10).
+ *
+ * The counters that used to sit here ("342 private lookups", "0 direct") were
+ * fabricated: they came from a fixture and a timer, not from any traffic. They
+ * are gone. The explanation stays, because it is the point: what private
+ * browsing does, and what it does not hide. The last paragraph says plainly
+ * where this build stands, so the design is never read as a live measurement.
+ */
 export function PrivacySheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { anon } = useApp();
   if (!open) return null;
   return (
     <SheetPortal>
       <Sheet open={open} onClose={onClose} title="Private browsing">
-      <p className="t-body text-text-2">
-        Every lookup this app makes goes through a private relay, so the data provider can&apos;t link your internet address to the companies you look at.
-      </p>
-      <div className="mt-3 divide-y divide-line">
-        <KV k="Private lookups" v={anon.reads.toLocaleString("en-US")} />
-        <KV k="Direct lookups" v={<span className="text-gain-text">{anon.direct} (should be 0)</span>} />
-        <KV k="Relay" v={anon.transport} sub={`Fallback: ${WALLET.anonRpc.fallback}`} />
-        <KV k="Connected since" v={dateTimeIST(anon.since)} />
-        <KV k="Last problem" v={anon.lastError ?? "None"} />
-      </div>
-      <p className="t-list-title mt-4 text-text">What this doesn&apos;t hide</p>
-      <ul className="t-body mt-1 list-disc space-y-1 pl-5 text-text-2">
-        <li>The provider still sees which companies are looked up, just not by whom.</li>
-        <li>The first connection isn&apos;t private.</li>
-        <li>Buying, selling and applying go through your own wallet.</li>
+        <p className="t-body text-text-2">
+          Prices and company details have to be fetched from somewhere, and whoever serves them can normally see your
+          internet address next to every company you look at. Private browsing sends those lookups through a relay
+          instead, so the two cannot be tied together.
+        </p>
+
+        <p className="t-list-title mt-4 text-text">What this doesn&apos;t hide</p>
+        <ul className="t-body mt-1 list-disc space-y-1 pl-5 text-text-2">
+          <li>The provider still sees which companies are looked up, just not by whom.</li>
+          <li>The first connection isn&apos;t private.</li>
+          <li>Buying, selling and applying go through your own wallet, which has its own connection.</li>
+          <li>Your account name, once you are signed in, is yours.</li>
         </ul>
+
+        <p className="t-list-title mt-4 text-text">Where this build stands</p>
+        <p className="t-body mt-1 text-text-2">
+          {anon.live
+            ? `Lookups are going through ${anon.transport} right now.`
+            : `Not switched on yet. This build's lookups still go straight to the server, and so does the one request it makes to read your account name. The relay is ${anon.transport}, with ${anon.fallback} behind it.`}
+        </p>
+        <p className="t-caption mt-2">No lookup counts are shown here. Nothing is measuring that traffic yet, so there is nothing to report.</p>
       </Sheet>
     </SheetPortal>
   );

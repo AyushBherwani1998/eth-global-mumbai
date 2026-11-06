@@ -1,11 +1,11 @@
 {
-  "_note": "Policy, rejected attempts and circuit events per listed ticker. Price series, reference series and recent trades are generated into market-series.json by scripts/gen-mock-series.mjs.",
+  "_note": "Static fallback copy, not the app's data (src/lib/api.ts reads services/api). Acme only: policy version 5, listing-day band around the 0.80 it cleared at. Price series, reference series and trades are generated into market-series.json by scripts/gen-mock-series.mjs.",
   "acme": {
     "usdcIsCurrency0": true,
     "policy": {
-      "version": 1,
+      "version": 5,
       "mode": "listing",
-      "referencePrice": 1.1,
+      "referencePrice": 0.8,
       "bandBps": 500,
       "halted": false,
       "since": "2026-11-06T10:00:00+05:30",
@@ -13,87 +13,8 @@
       "coolOffMin": 0,
       "creTx": "0xc3e1a2b4d6f80a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a90"
     },
-    "liquidity": { "usdc": 18.4, "shares": 16380 },
-    "rejected": [
-      { "time": "2026-11-06T10:06:41+05:30", "side": "buy", "usdc": 4.2, "priceAfter": 1.171, "reason": "OutOfBand", "detail": "Price after 1.171 is above the band max 1.155", "tx": "0xe1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0" },
-      { "time": "2026-11-06T11:22:05+05:30", "side": "buy", "usdc": 6.0, "priceAfter": 1.184, "reason": "OutOfBand", "detail": "Price after 1.184 is above the band max 1.155", "tx": "0xf2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1" },
-      { "time": "2026-11-06T13:48:19+05:30", "side": "sell", "usdc": 3.1, "priceAfter": 1.038, "reason": "OutOfBand", "detail": "Price after 1.038 is below the band min 1.045", "tx": "0xa3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2" }
-    ],
-    "events": [
-      { "time": "2026-11-06T10:00:00+05:30", "kind": "listing", "label": "Listed at 1.10 · ±5% band" }
-    ]
-  },
-  "masala": {
-    "usdcIsCurrency0": true,
-    "policy": {
-      "version": 4,
-      "mode": "normal",
-      "referencePrice": 1.32,
-      "bandBps": 2000,
-      "halted": false,
-      "since": "2026-11-05T09:15:00+05:30",
-      "asOf": "2026-11-05T09:14:30+05:30",
-      "coolOffMin": 0,
-      "creTx": "0xd4f2b3c5e7a91b2d4f6c8e0a2b4d6f8a0c2e4b6d8f0a2c4e6b8d0f2a4c6e8b01"
-    },
-    "liquidity": { "usdc": 19.8, "shares": 14620 },
-    "rejected": [
-      { "time": "2026-11-02T10:12:00+05:30", "side": "buy", "usdc": 5.5, "priceAfter": 1.331, "reason": "OutOfBand", "detail": "Price after 1.331 is above the band max 1.3125", "tx": "0xb4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3" }
-    ],
-    "events": [
-      { "time": "2026-11-02T10:00:00+05:30", "kind": "listing", "label": "Listed at 1.25 · ±5% band" },
-      { "time": "2026-11-03T09:15:00+05:30", "kind": "normal", "label": "Normal ±20% · ref 1.29" },
-      { "time": "2026-11-04T09:15:00+05:30", "kind": "reference", "label": "Reference 1.31" },
-      { "time": "2026-11-05T09:15:00+05:30", "kind": "reference", "label": "Reference 1.32" }
-    ]
-  },
-  "nirmaan": {
-    "usdcIsCurrency0": true,
-    "policy": {
-      "version": 3,
-      "mode": "surveillance",
-      "referencePrice": 0.9,
-      "bandBps": 500,
-      "halted": false,
-      "since": "2026-11-05T11:15:00+05:30",
-      "asOf": "2026-11-05T11:14:41+05:30",
-      "coolOffMin": 0,
-      "creTx": "0xe5a3c4d6f8b02c3e5a7d9f1b3c5e7a9d1f3b5c7e9a1d3f5b7c9e1a3d5f7b9c12"
-    },
-    "liquidity": { "usdc": 14.2, "shares": 15640 },
-    "rejected": [
-      { "time": "2026-11-05T11:31:00+05:30", "side": "sell", "usdc": 2.4, "priceAfter": 0.849, "reason": "OutOfBand", "detail": "Price after 0.849 is below the surveillance min 0.855", "tx": "0xc5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4" },
-      { "time": "2026-11-06T12:04:00+05:30", "side": "sell", "usdc": 3.0, "priceAfter": 0.851, "reason": "OutOfBand", "detail": "Price after 0.851 is below the surveillance min 0.855", "tx": "0xd6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5" }
-    ],
-    "events": [
-      { "time": "2026-11-04T10:00:00+05:30", "kind": "listing", "label": "Listed at 0.98 · ±5% band" },
-      { "time": "2026-11-05T09:15:00+05:30", "kind": "normal", "label": "Normal ±20% · ref 0.93" },
-      { "time": "2026-11-05T11:15:00+05:30", "kind": "surveillance", "label": "Surveillance ±5% · ref 0.90" }
-    ]
-  },
-  "vayu": {
-    "usdcIsCurrency0": true,
-    "policy": {
-      "version": 4,
-      "mode": "halted",
-      "referencePrice": 1.3,
-      "bandBps": 2000,
-      "halted": true,
-      "since": "2026-11-06T14:32:00+05:30",
-      "asOf": "2026-11-06T14:31:37+05:30",
-      "coolOffMin": 60,
-      "creTx": "0xf6b4d5e7a9c13d4f6b8e0a2c4d6f8b0e2a4c6d8f0b2e4a6c8d0f2b4e6a8c0d23"
-    },
-    "liquidity": { "usdc": 21.1, "shares": 17460 },
-    "rejected": [
-      { "time": "2026-11-05T13:40:00+05:30", "side": "sell", "usdc": 2.0, "priceAfter": 1.188, "reason": "DirectionalWidening", "detail": "Widens the gap from reference 1.30 past the 5% band", "tx": "0xe7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7b6c5d4e3f2a1b0c9d8e7f6" },
-      { "time": "2026-11-06T14:41:00+05:30", "side": "buy", "usdc": 1.5, "priceAfter": 1.226, "reason": "Halted", "detail": "Trading halted. Swaps revert.", "tx": "0xf8a7b6c5d4e3f2a1b0c9d8e7f6a5b4c3d2e1f0a9b8c7d6e5f4a3b2c1d0e9f8a7" }
-    ],
-    "events": [
-      { "time": "2026-11-03T10:00:00+05:30", "kind": "listing", "label": "Listed at 1.42 · ±5% band" },
-      { "time": "2026-11-04T09:15:00+05:30", "kind": "normal", "label": "Normal ±20% · ref 1.36" },
-      { "time": "2026-11-05T13:05:00+05:30", "kind": "directional", "label": "Directional · toward ref 1.30" },
-      { "time": "2026-11-06T14:32:00+05:30", "kind": "halted", "label": "Halted · swaps revert" }
-    ]
+    "liquidity": { "usdc": 12.0, "shares": 15000 },
+    "rejected": [],
+    "events": [{ "time": "2026-11-06T10:00:00+05:30", "kind": "listing", "label": "Listed at 0.80 · ±5% band" }]
   }
 }

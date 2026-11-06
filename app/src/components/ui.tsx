@@ -35,8 +35,10 @@ export function TickerLogo({
   return (
     <span
       aria-hidden
-      className={cx("inline-flex shrink-0 items-center justify-center rounded-[8px] border border-line bg-surface-2 text-text", className)}
-      style={{ width: size, height: size, fontSize: size >= 48 ? 15 : 13, lineHeight: 1 }}
+      className={cx("inline-flex shrink-0 items-center justify-center rounded-[8px] border border-line bg-surface-2 font-medium text-text select-none", className)}
+      // The initials scale with the tile instead of stepping at one breakpoint,
+      // so a 28 and a 48 tile read as the same mark at two sizes.
+      style={{ width: size, height: size, fontSize: Math.max(11, Math.round(size * 0.36)), lineHeight: 1 }}
     >
       {text}
     </span>
@@ -103,8 +105,17 @@ export function Change({
 export function ProgressBar({ value, max, marker, className }: { value: number; max: number; marker?: number; className?: string }) {
   const pct = Math.max(0, Math.min(100, (value / max) * 100));
   return (
-    <div className={cx("relative h-1 w-full bg-line", className)} role="progressbar" aria-valuenow={value} aria-valuemin={0} aria-valuemax={max}>
-      <div className="h-full bg-gain" style={{ width: `${pct}%` }} />
+    <div
+      className={cx("relative h-1 w-full overflow-visible rounded-full bg-line", className)}
+      role="progressbar"
+      aria-label="Progress"
+      aria-valuenow={value}
+      aria-valuemin={0}
+      aria-valuemax={max}
+    >
+      {/* The fill carries the same radius as the track, so a 2% raise still
+          reads as a rounded bar sitting in a rounded trough, not a chip. */}
+      <div className="h-full rounded-full bg-gain transition-[width] duration-200 ease-out" style={{ width: `${pct}%` }} />
       {marker !== undefined && (
         <span aria-hidden className="absolute -top-[3px] h-[10px] w-px bg-text" style={{ left: `${Math.min(100, (marker / max) * 100)}%` }} />
       )}
@@ -120,6 +131,29 @@ export function Progress({ value, max, marker }: { value: number; max: number; m
 // ---------------------------------------------------------------------------
 // Chips (UI.md 2.5 filter, 2.6 range): 40px tall, 48px hit area.
 // ---------------------------------------------------------------------------
+
+/**
+ * One source for every 40px pill in the app (filter chips, range chips, the
+ * segmented row). Chips are 40 tall; the `after` box pads the hit area to 48
+ * without moving the pill or the 8px gap between pills (UI.md 7.2).
+ * Rest, hover and pressed are three distinct steps in both themes.
+ */
+function chipClass(opts: { selected?: boolean; variant?: "filter" | "range"; disabled?: boolean; className?: string }) {
+  const { selected, variant = "filter", disabled, className } = opts;
+  return cx(
+    "t-chip relative inline-flex h-10 shrink-0 items-center justify-center rounded-full border whitespace-nowrap select-none",
+    "transition-[background-color,border-color,color,filter] duration-120",
+    "after:absolute after:inset-x-0 after:-top-1 after:-bottom-1 after:content-['']",
+    variant === "filter" ? "px-[18px]" : "min-w-[52px] px-[14px]",
+    selected
+      ? cx("border-chip-on-line bg-chip-on-bg text-text", !disabled && "active:brightness-[0.96]")
+      : variant === "filter"
+        ? cx("border-line text-text", !disabled && "hover:bg-surface-2 active:bg-line")
+        : cx("border-transparent text-text-2", !disabled && "hover:bg-surface-2 hover:text-text active:bg-line"),
+    disabled && "border-line text-text-3",
+    className,
+  );
+}
 
 export function Chip({
   selected,
@@ -139,18 +173,7 @@ export function Chip({
   disabled?: boolean;
   className?: string;
 }) {
-  const cls = cx(
-    "t-chip relative inline-flex h-10 shrink-0 items-center justify-center rounded-full whitespace-nowrap transition-colors duration-120",
-    "after:absolute after:inset-x-0 after:-top-1 after:-bottom-1 after:content-['']",
-    variant === "filter" ? "px-[18px]" : "min-w-[52px] px-[14px]",
-    selected
-      ? "border border-chip-on-line bg-chip-on-bg text-text"
-      : variant === "filter"
-        ? "border border-line text-text hover:bg-surface-2"
-        : "border border-transparent text-text-2 hover:bg-surface-2",
-    disabled && "text-text-3",
-    className,
-  );
+  const cls = chipClass({ selected, variant, disabled, className });
   if (href) {
     return (
       <Link href={href} aria-current={selected ? "page" : undefined} className={cls} replace scroll={false}>
@@ -195,20 +218,37 @@ export function Segmented<T extends string>({
   /** @deprecated ignored */
   size?: "sm" | "md";
 }) {
+  const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  // A radiogroup is one tab stop: Tab reaches the checked option, the arrows
+  // move between options. Matches how the chip row reads out loud.
+  const move = (from: number, delta: number) => {
+    const next = (from + delta + options.length) % options.length;
+    onChange(options[next].id);
+    refs.current[next]?.focus();
+  };
   return (
     <div role="radiogroup" aria-label={label} className={cx("flex flex-wrap gap-2", className)}>
-      {options.map((o) => (
+      {options.map((o, i) => (
         <button
           key={o.id}
           type="button"
           role="radio"
           aria-checked={value === o.id}
+          tabIndex={value === o.id ? 0 : -1}
+          ref={(el) => {
+            refs.current[i] = el;
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+              e.preventDefault();
+              move(i, 1);
+            } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+              e.preventDefault();
+              move(i, -1);
+            }
+          }}
           onClick={() => onChange(o.id)}
-          className={cx(
-            "t-chip relative inline-flex h-10 items-center justify-center rounded-full px-[18px] whitespace-nowrap transition-colors duration-120",
-            "after:absolute after:inset-x-0 after:-top-1 after:-bottom-1 after:content-['']",
-            value === o.id ? "border border-chip-on-line bg-chip-on-bg text-text" : "border border-line text-text hover:bg-surface-2",
-          )}
+          className={chipClass({ selected: value === o.id })}
         >
           {o.label}
         </button>
@@ -238,7 +278,9 @@ export function UnderlineTabs<T extends string>({
   className?: string;
 }) {
   const refs = useRef<Map<T, HTMLButtonElement>>(new Map());
-  const [bar, setBar] = useState<{ left: number; width: number } | null>(null);
+  // `animate` is false for the first measurement only: the bar appears where it
+  // belongs instead of sliding in from the left edge on every page load.
+  const [bar, setBar] = useState<{ left: number; width: number; animate: boolean } | null>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
@@ -251,7 +293,7 @@ export function UnderlineTabs<T extends string>({
       // the two shifts the bar by the centred container's offset.
       const listRect = list.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
-      setBar({ left: elRect.left - listRect.left, width: elRect.width });
+      setBar((prev) => ({ left: elRect.left - listRect.left, width: elRect.width, animate: prev !== null }));
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -261,33 +303,61 @@ export function UnderlineTabs<T extends string>({
     return () => ro.disconnect();
   }, [value, tabs.length]);
 
+  const move = (from: number, delta: number) => {
+    const next = (from + delta + tabs.length) % tabs.length;
+    onChange(tabs[next].id);
+    refs.current.get(tabs[next].id)?.focus();
+  };
+
   return (
-    <div ref={listRef} role="tablist" className={cx("relative flex border-b border-line", equal ? "" : "gap-0", className)}>
-      {tabs.map((t) => (
+    <div ref={listRef} role="tablist" className={cx("relative flex border-b border-line", className)}>
+      {tabs.map((t, i) => (
         <button
           key={t.id}
           type="button"
           role="tab"
           aria-selected={value === t.id}
+          tabIndex={value === t.id ? 0 : -1}
           ref={(el) => {
             if (el) refs.current.set(t.id, el);
             else refs.current.delete(t.id);
           }}
+          onKeyDown={(e) => {
+            if (e.key === "ArrowRight") {
+              e.preventDefault();
+              move(i, 1);
+            } else if (e.key === "ArrowLeft") {
+              e.preventDefault();
+              move(i, -1);
+            } else if (e.key === "Home") {
+              e.preventDefault();
+              move(0, 0);
+            } else if (e.key === "End") {
+              e.preventDefault();
+              move(tabs.length - 1, 0);
+            }
+          }}
           onClick={() => onChange(t.id)}
           className={cx(
-            "t-tab h-12 whitespace-nowrap transition-colors duration-120",
+            // -outline-offset keeps the focus ring inside the 48px tab instead
+            // of painting over the neighbour and the underline.
+            "t-tab h-12 whitespace-nowrap transition-colors duration-120 select-none focus-visible:-outline-offset-2",
             equal ? "flex-1" : "px-6",
             value === t.id ? (underline === "loss" ? "text-loss-text" : "text-gain-text") : "text-text",
           )}
         >
           {t.label}
-          {t.count !== undefined && <span className="ml-1 text-text-2">{t.count}</span>}
+          {t.count !== undefined && <span className="num ml-1 text-text-2">{t.count}</span>}
         </button>
       ))}
       {bar && (
         <span
           aria-hidden
-          className={cx("absolute -bottom-px h-[3px] transition-transform duration-200 ease-out", underline === "loss" ? "bg-loss" : "bg-gain")}
+          className={cx(
+            "absolute -bottom-px h-[3px]",
+            bar.animate && "transition-transform duration-200 ease-out",
+            underline === "loss" ? "bg-loss" : "bg-gain",
+          )}
           style={{ width: bar.width, transform: `translateX(${bar.left}px)`, left: 0 }}
         />
       )}
@@ -340,7 +410,9 @@ export function ListRow({
       </span>
       {sparkline && <span className="hidden shrink-0 min-[360px]:block">{sparkline}</span>}
       {(right || rightSub || flag) && (
-        <span className="num flex shrink-0 flex-col items-end text-right">
+        // pl-1 on top of the row gap: the value column needs more air from the
+        // sparkline than the logo needs from the name.
+        <span className="num flex shrink-0 flex-col items-end pl-1 text-right">
           <span className="flex items-baseline gap-2">
             {flag && <span className={cx("t-change-sm", flag.tone === "loss" ? "text-loss-text" : "text-warn")}>{flag.text}</span>}
             {right && <span className="text-[18px] leading-6 font-medium text-text">{right}</span>}
@@ -348,7 +420,7 @@ export function ListRow({
           {rightSub && <span className="t-change-sm">{rightSub}</span>}
         </span>
       )}
-      {chevron && <ChevronRight className="size-5 shrink-0 text-text-2" />}
+      {chevron && <ChevronRight className="-mr-1 size-5 shrink-0 text-text-2" />}
     </>
   );
   const cls = cx(
@@ -434,7 +506,13 @@ export function IndexCard({
       {spark && <span className="pointer-events-none shrink-0">{spark}</span>}
     </>
   );
-  const cls = "relative flex min-h-[68px] min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-3 text-left transition-colors duration-120 active:bg-surface-2";
+  const interactive = Boolean(href || onClick);
+  const cls = cx(
+    "relative flex min-h-[68px] min-w-0 flex-1 items-center gap-3 rounded-[10px] border border-line bg-surface px-4 py-3 text-left transition-colors duration-120",
+    // Same two-step reaction as CompanyCard: the outline firms up on hover,
+    // the ground darkens on press.
+    interactive && "hover:border-line-strong active:bg-surface-2",
+  );
   if (href)
     return (
       <Link href={href} className={cls}>
@@ -505,7 +583,11 @@ export function PromoCard({
       {(href || onClick) && <ChevronRight className="size-5 shrink-0 text-text-2" />}
     </>
   );
-  const cls = cx("flex min-h-[88px] w-full items-center gap-4 rounded-[10px] border border-line bg-surface p-4 text-left transition-colors duration-120", (href || onClick) && "active:bg-surface-2", className);
+  const cls = cx(
+    "flex min-h-[88px] w-full items-center gap-4 rounded-[10px] border border-line bg-surface p-4 text-left transition-colors duration-120",
+    (href || onClick) && "hover:border-line-strong active:bg-surface-2",
+    className,
+  );
   if (href)
     return (
       <Link href={href} className={cls}>
@@ -525,46 +607,130 @@ export function PromoCard({
 // Sheet (UI.md 2.15): bottom sheet on phone, centred 480px modal at >= 768.
 // ---------------------------------------------------------------------------
 
-export function Sheet({
-  open,
-  onClose,
-  title,
-  children,
-  footer,
-}: {
+/**
+ * The close control for a sheet (UI.md 2.15, labelled per 7.3). One pill, not
+ * a loose word next to a loose icon: 36px tall, label and glyph on a shared
+ * optical centre, the whole thing lighting up as a single control. The visual
+ * stays small so it never competes with the title; the `after` box carries the
+ * 48px hit area (7.2).
+ */
+function SheetClose({ onClose }: { onClose: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClose}
+      aria-label="Close"
+      className="t-nav-label relative -mr-1 flex h-9 shrink-0 items-center gap-1.5 rounded-full pr-2.5 pl-3 text-text-2 transition-colors duration-120 hover:bg-surface-2 hover:text-text active:bg-line after:absolute after:-inset-x-1 after:-top-1.5 after:-bottom-1.5 after:content-['']"
+    >
+      Close
+      <X className="size-4" strokeWidth={2.25} />
+    </button>
+  );
+}
+
+type SheetProps = {
   open: boolean;
   onClose: () => void;
   title: string;
   children: ReactNode;
   footer?: ReactNode;
-}) {
+};
+
+export function Sheet({ open, ...rest }: SheetProps) {
+  // The panel is a separate component mounted only while the sheet is open, so
+  // its scroll state and its focus handling start clean on every open and need
+  // no teardown branch.
+  if (!open) return null;
+  return <SheetPanel {...rest} />;
+}
+
+function SheetPanel({ onClose, title, children, footer }: Omit<SheetProps, "open">) {
   const id = useId();
+  const panelRef = useRef<HTMLDivElement>(null);
+  // The header grows a hairline once the body has scrolled, the same way the
+  // app bar does, so long sheets never look like the text is cut mid-air.
+  const [scrolled, setScrolled] = useState(false);
+  // Callers pass an inline arrow, so onClose is a new function on every parent
+  // render. The mount effect must not re-run for that: it would re-focus the
+  // panel and steal the caret out of a field mid-keystroke.
+  const closeRef = useRef(onClose);
   useEffect(() => {
-    if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    closeRef.current = onClose;
+  });
+
+  useEffect(() => {
+    const returnTo = document.activeElement as HTMLElement | null;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        closeRef.current();
+        return;
+      }
+      if (e.key !== "Tab") return;
+      // Keep Tab inside the sheet: behind it the page is inert to the eye, so
+      // it has to be inert to the keyboard too.
+      const panel = panelRef.current;
+      if (!panel) return;
+      // `[tabindex="-1"]` is excluded everywhere: a roving-tabindex group
+      // (Segmented, UnderlineTabs) is one stop, not one stop per option.
+      const items = panel.querySelectorAll<HTMLElement>(
+        'a[href]:not([tabindex="-1"]),button:not([disabled]):not([tabindex="-1"]),input:not([disabled]):not([tabindex="-1"]),select:not([disabled]):not([tabindex="-1"]),textarea:not([disabled]):not([tabindex="-1"]),[tabindex]:not([tabindex="-1"])',
+      );
+      const focusable = [...items].filter((el) => el.offsetParent !== null || el === document.activeElement);
+      if (focusable.length === 0) return;
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // Move focus into the sheet, unless a field inside it already claimed the
+    // caret (AmountField / SearchField autoFocus).
+    if (!panelRef.current?.contains(document.activeElement)) panelRef.current?.focus({ preventScroll: true });
     return () => {
       window.removeEventListener("keydown", onKey);
       document.body.style.overflow = prev;
+      returnTo?.focus?.();
     };
-  }, [open, onClose]);
-  if (!open) return null;
+  }, []);
+
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby={id}>
       <div className="animate-fade-in absolute inset-0 bg-[var(--overlay)]" onClick={onClose} />
       <div className="pointer-events-none absolute inset-0 flex items-end justify-center md:items-center">
-        <div className="animate-sheet-in md:animate-modal-in pointer-events-auto flex max-h-[90dvh] w-full flex-col rounded-t-[10px] border-t border-line bg-surface md:max-h-[85dvh] md:w-[480px] md:rounded-[10px] md:border">
-          <div className="flex h-14 shrink-0 items-center justify-between pr-2 pl-5">
-            <h2 id={id} className="t-section-title">
+        <div
+          ref={panelRef}
+          tabIndex={-1}
+          className="animate-sheet-in md:animate-modal-in pointer-events-auto flex max-h-[90dvh] w-full flex-col rounded-t-[10px] border-t border-line bg-surface outline-none md:max-h-[85dvh] md:w-[480px] md:rounded-[10px] md:border"
+        >
+          <div
+            className={cx(
+              "flex h-14 shrink-0 items-center justify-between gap-3 border-b pr-3 pl-5 transition-colors duration-120",
+              scrolled ? "border-line" : "border-transparent",
+            )}
+          >
+            <h2 id={id} className="t-section-title min-w-0 truncate">
               {title}
             </h2>
-            <button type="button" onClick={onClose} className="t-nav-label flex h-12 items-center gap-1 rounded-full px-3 text-text-2 hover:bg-surface-2">
-              Close <X className="size-5" />
-            </button>
+            <SheetClose onClose={onClose} />
           </div>
-          <div className="overflow-y-auto px-5 pb-5">{children}</div>
+          <div
+            className={cx(
+              "overflow-y-auto overscroll-contain px-5",
+              // With a footer the safe area is the footer's job; without one the
+              // last row of the body must clear the home indicator itself.
+              footer ? "pb-5" : "pb-[max(20px,env(safe-area-inset-bottom))]",
+            )}
+            onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 0)}
+          >
+            {children}
+          </div>
           {footer && <div className="shrink-0 border-t border-line px-5 pt-3 pb-[max(12px,env(safe-area-inset-bottom))]">{footer}</div>}
         </div>
       </div>
@@ -599,6 +765,7 @@ export function AmountField({
   className?: string;
 }) {
   const id = useId();
+  const noteId = `${id}-note`;
   return (
     <div className={className}>
       <label
@@ -609,25 +776,42 @@ export function AmountField({
         )}
       >
         <span className="t-label">{label}</span>
-        <span className="flex items-center gap-3">
+        <span className="flex items-center gap-2">
           <input
             id={id}
             inputMode="decimal"
             autoFocus={autoFocus}
             value={value}
             onChange={(e) => onChange(e.target.value.replace(/[^0-9.]/g, ""))}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error || helper ? noteId : undefined}
             className="num t-input-value min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-text-3"
             placeholder="0.00"
           />
           {onMax && (
-            <button type="button" onClick={onMax} className="t-change-sm -my-3 h-12 shrink-0 px-2 text-gain-text">
+            // A text button, per 2.16, but with a shape to press: a 28px pill
+            // that reacts, carrying its 48px hit area in the `after` box so it
+            // does not grow the 72px field.
+            <button
+              type="button"
+              onClick={onMax}
+              className="t-change-sm relative h-7 shrink-0 rounded-full px-2.5 text-gain-text transition-colors duration-120 hover:bg-surface-2 active:bg-line after:absolute after:-inset-x-1 after:-top-2.5 after:-bottom-2.5 after:content-['']"
+            >
               Max
             </button>
           )}
           {unit && <span className="t-body shrink-0 text-text-2">{unit}</span>}
         </span>
       </label>
-      {error ? <p className="t-caption mt-1 text-loss-text">{error}</p> : helper ? <p className="t-caption mt-1">{helper}</p> : null}
+      {error ? (
+        <p id={noteId} className="t-caption mt-1 text-loss-text">
+          {error}
+        </p>
+      ) : helper ? (
+        <p id={noteId} className="t-caption mt-1">
+          {helper}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -667,9 +851,11 @@ export function Slider({
         style={{ "--fill": `${pct}%` } as React.CSSProperties}
       />
       {ticks && (
-        <div className="num flex justify-between">
+        // The track sits on the centre line of a 48px input, so the labels need
+        // a little lift to read as belonging to it rather than to what follows.
+        <div className="num -mt-1.5 flex justify-between gap-3">
           {ticks.map((t, i) => (
-            <span key={i} className="t-caption">
+            <span key={i} className={cx("t-caption", i === 0 ? "text-left" : i === ticks.length - 1 ? "text-right" : "text-center")}>
               {t.label}
             </span>
           ))}
@@ -704,11 +890,19 @@ export function SearchField({
         autoCapitalize="none"
         autoCorrect="off"
         spellCheck={false}
+        enterKeyHint="search"
         className="t-body h-full min-w-0 flex-1 bg-transparent text-text outline-none placeholder:text-text-3"
       />
       {value && (
-        <button type="button" onClick={() => onChange("")} className="t-nav-label -mr-2 flex h-12 items-center gap-1 px-2 text-text-2">
-          Clear <X className="size-4" />
+        // Same pill as the sheet's Close, one size down: label and glyph read
+        // as one control, and it keeps 8px clear of the field's border.
+        <button
+          type="button"
+          onClick={() => onChange("")}
+          aria-label="Clear search"
+          className="t-nav-label relative -mr-1 flex h-8 shrink-0 items-center gap-1.5 rounded-full pr-2 pl-2.5 text-text-2 transition-colors duration-120 hover:bg-surface-2 hover:text-text active:bg-line after:absolute after:-inset-x-1 after:-top-2 after:-bottom-2 after:content-['']"
+        >
+          Clear <X className="size-4" strokeWidth={2.25} />
         </button>
       )}
     </label>
@@ -736,20 +930,24 @@ export function Stepper({ steps, current, className }: { steps: { title: string;
         const done = n < current;
         const now = n === current;
         return (
-          <li key={s.title} className="flex min-w-0 flex-1 flex-col items-start">
+          <li key={s.title} className="flex min-w-0 flex-1 flex-col items-start" aria-current={now ? "step" : undefined}>
             <span className="flex w-full items-center">
               <span
                 className={cx(
-                  "flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] leading-none font-medium",
+                  // 1.5px on the current marker against 1px on an upcoming one:
+                  // the step you are on is the only one that gains weight.
+                  "num flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] leading-none font-medium",
                   done ? "bg-text text-bg" : now ? "border-[1.5px] border-text text-text" : "border border-line text-text-2",
                 )}
               >
-                {done ? <Check className="size-3.5" /> : n}
+                {done ? <Check className="size-3.5" strokeWidth={2.5} /> : n}
               </span>
-              {i < steps.length - 1 && <span className={cx("mx-2 h-px flex-1", done ? "bg-text" : "bg-line")} />}
+              {/* The connector meets both markers on their centre line and
+                  carries the done colour only for a segment already walked. */}
+              {i < steps.length - 1 && <span aria-hidden className={cx("mx-2 h-px flex-1", done ? "bg-text" : "bg-line")} />}
             </span>
-            <span className={cx("t-nav-label mt-2 pr-2", now ? "text-text" : "text-text-2")}>{s.title}</span>
-            {s.sub && now && <span className="t-caption mt-0.5 pr-2">{s.sub}</span>}
+            <span className={cx("t-nav-label mt-2 pr-3", now ? "text-text" : "text-text-2")}>{s.title}</span>
+            {s.sub && now && <span className="t-caption mt-1 pr-3">{s.sub}</span>}
           </li>
         );
       })}
@@ -783,7 +981,9 @@ export function StatusChip({ ipo, children, halted }: { ipo?: Pick<Ipo, "status"
   return (
     <span
       className={cx(
-        "inline-flex h-7 items-center rounded-full border px-2.5 text-[13px] leading-none font-medium whitespace-nowrap",
+        // 13px label in a 26px pill with 10px of side air: the proportions of a
+        // word wearing an outline, not of a chip you can press.
+        "inline-flex h-[26px] shrink-0 items-center rounded-full border px-2.5 align-middle text-[13px] leading-[16px] font-medium whitespace-nowrap",
         isHalted ? "border-loss text-loss-text" : "border-line text-text-2",
       )}
     >
@@ -825,7 +1025,13 @@ export function RuleStrip({
     <Tag
       type={onDetails ? "button" : undefined}
       onClick={onDetails}
-      className={cx("-mx-5 flex min-h-12 w-[calc(100%+40px)] items-center gap-3 bg-surface-2 px-5 py-2 text-left", className)}
+      className={cx(
+        "group -mx-5 flex min-h-12 w-[calc(100%+40px)] items-center gap-3 bg-surface-2 px-5 py-2 text-left transition-colors duration-120",
+        // The strip is already surface-2, so its pressed state steps to --line:
+        // the next shade up in both themes.
+        onDetails && "hover:bg-line active:bg-line",
+        className,
+      )}
     >
       <span aria-hidden className={cx("size-2 shrink-0", square)} />
       <span className="t-body min-w-0 flex-1 text-text">
@@ -833,7 +1039,9 @@ export function RuleStrip({
         {label && rest ? ". " : null}
         {rest}
       </span>
-      {onDetails && <span className="t-nav-label shrink-0 text-text-2">Details</span>}
+      {onDetails && (
+        <span className="t-nav-label shrink-0 text-text-2 underline-offset-[3px] group-hover:text-text group-hover:underline">Details</span>
+      )}
     </Tag>
   );
 }
@@ -857,21 +1065,28 @@ export function Toast({
   onDismiss?: () => void;
 }) {
   return (
-    <div role="status" className="animate-toast-up flex min-h-12 w-full max-w-[440px] items-center gap-3 rounded-[8px] bg-inverse-bg px-4 py-3 text-inverse-text">
-      {status === "pending" && <Loader2 className="size-4 shrink-0 animate-spin" />}
-      {status === "success" && <Check className="size-4 shrink-0" />}
-      {status === "error" && <X className="size-4 shrink-0" />}
+    <div role="status" className="animate-toast-up flex min-h-12 w-full max-w-[440px] items-start gap-3 rounded-[8px] bg-inverse-bg px-4 py-3 text-inverse-text">
+      {/* The icon aligns to the title's line, not to the middle of a two-line
+          block, so a toast with a detail line still reads top-down. */}
+      {status === "pending" && <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin" />}
+      {status === "success" && <Check className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} />}
+      {status === "error" && <X className="mt-0.5 size-4 shrink-0" strokeWidth={2.5} />}
       <span className="min-w-0 flex-1">
         <span className="block text-[14px] leading-5 font-medium">{title}</span>
-        {detail && <span className="block text-[13px] leading-[18px] opacity-70">{detail}</span>}
+        {/* --inverse-text-2 instead of an opacity trick (UI.md 2, states legend). */}
+        {detail && <span className="mt-0.5 block text-[13px] leading-[18px] text-inverse-text-2">{detail}</span>}
         {link && (
-          <a href={link.href} target="_blank" rel="noreferrer" className="mt-0.5 inline-flex items-center gap-1 text-[13px] leading-[18px] underline underline-offset-2">
+          <a href={link.href} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[13px] leading-[18px] underline underline-offset-2">
             {link.label} <ExternalLink className="size-3" />
           </a>
         )}
       </span>
       {onDismiss && (
-        <button type="button" onClick={onDismiss} className="-mr-2 flex h-12 shrink-0 items-center px-2 text-[13px] font-medium opacity-80">
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="relative -mr-1.5 -mt-0.5 shrink-0 rounded-full px-1.5 py-1 text-[13px] leading-5 font-medium text-inverse-text-2 underline-offset-[3px] transition-colors duration-120 hover:text-inverse-text hover:underline after:absolute after:-inset-x-2 after:-top-3 after:-bottom-3 after:content-['']"
+        >
           Close
         </button>
       )}
@@ -907,13 +1122,15 @@ export function EmptyState({
       <p className="t-list-title text-text">{title}</p>
       {body && <p className="t-body mt-1 text-text-2">{body}</p>}
       {action && (
-        <div className="mt-3">
+        // prose-link already carries 8px of its own top padding; mt-1 lands the
+        // link 12px under the body (UI.md 2.22) instead of 20.
+        <div className="mt-1">
           {action.href ? (
-            <Link href={action.href} className="prose-link t-change-sm text-gain-text">
+            <Link href={action.href} className="prose-link t-change-sm text-gain-text underline-offset-[3px] hover:underline focus-visible:underline">
               {action.label}
             </Link>
           ) : (
-            <button type="button" onClick={action.onClick} className="prose-link t-change-sm text-gain-text">
+            <button type="button" onClick={action.onClick} className="prose-link t-change-sm text-gain-text underline-offset-[3px] hover:underline focus-visible:underline">
               {action.label}
             </button>
           )}
@@ -941,10 +1158,13 @@ export function Empty({ title, body, action }: { icon?: ReactNode; title: string
 export function KV({ k, v, sub, mono }: { k: ReactNode; v: ReactNode; sub?: ReactNode; mono?: boolean }) {
   return (
     <div className="flex min-h-12 items-start justify-between gap-4 py-2.5">
-      <span className="t-label shrink-0 pt-0.5">{k}</span>
+      {/* The key is 14/20 against a 16/22 value: 1px of top padding puts the
+          two on the same baseline. */}
+      <span className="t-label shrink-0 pt-px">{k}</span>
       <span className="min-w-0 text-right">
-        <span className={cx("num block break-all text-text", mono ? "t-mono" : "t-list-title")}>{v}</span>
-        {sub && <span className="t-caption block">{sub}</span>}
+        {/* Only a hash or an address may break mid-token; ordinary words wrap. */}
+        <span className={cx("num block text-text", mono ? "t-mono break-all" : "t-list-title break-words")}>{v}</span>
+        {sub && <span className="t-caption mt-0.5 block">{sub}</span>}
       </span>
     </div>
   );
@@ -956,13 +1176,29 @@ export const KVRow = KV;
 /** Collapsed disclosure for protocol words (addresses, versions, block numbers). */
 export function Details({ title = "Details", children, defaultOpen = false, className }: { title?: string; children: ReactNode; defaultOpen?: boolean; className?: string }) {
   const [open, setOpen] = useState(defaultOpen);
+  const id = useId();
   return (
     <div className={cx("border-t border-line", className)}>
-      <button type="button" onClick={() => setOpen((o) => !o)} aria-expanded={open} className="flex h-12 w-full items-center justify-between text-left">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        aria-controls={id}
+        className="group flex h-12 w-full items-center justify-between gap-3 text-left"
+      >
         <span className="t-list-title text-text">{title}</span>
-        <ChevronDown className={cx("size-5 text-text-2 transition-transform duration-200", open && "rotate-180")} />
+        {/* The chevron sits in its own 24px box so the glyph's optical centre,
+            not its bounding box, lines up with the row's right edge. */}
+        <span className="flex size-6 shrink-0 items-center justify-center">
+          <ChevronDown className={cx("size-5 text-text-2 transition-transform duration-200 group-hover:text-text", open && "rotate-180")} />
+        </span>
       </button>
-      {open && <div className="pb-3">{children}</div>}
+      {/* Still mounted only when open: the contents can be expensive. */}
+      {open && (
+        <div id={id} className="pb-3">
+          {children}
+        </div>
+      )}
     </div>
   );
 }
@@ -1008,7 +1244,9 @@ export function Table<T>({
                 scope="col"
                 style={{ width: c.width }}
                 className={cx(
-                  "h-10 px-2 text-[13px] leading-[18px] font-normal whitespace-nowrap text-text-2",
+                  // 40px header against 56px rows: the head is a label strip,
+                  // the rows are the content (UI.md 2.25, 7.9).
+                  "h-10 px-2 align-middle text-[13px] leading-[18px] font-normal whitespace-nowrap text-text-2",
                   i === 0 && "pl-0",
                   i === columns.length - 1 && "pr-0",
                   c.align === "right" ? "text-right" : "text-left",
@@ -1021,12 +1259,20 @@ export function Table<T>({
         </thead>
         <tbody>
           {rows.map((r) => {
-            const clickable = href || onRowClick;
+            const clickable = Boolean(href || onRowClick);
             return (
               <tr
                 key={rowKey(r)}
                 onClick={onRowClick ? () => onRowClick(r) : undefined}
-                className={cx("border-b border-line", clickable && "cursor-pointer hover:bg-surface-2")}
+                className={cx(
+                  // The last row closes against the section's whitespace, not
+                  // against a rule that separates it from nothing.
+                  "border-b border-line last:border-b-0 transition-colors duration-120",
+                  clickable && "hover:bg-surface-2",
+                  // Only a row that is clickable everywhere says so; with href
+                  // alone the link lives in the first cell.
+                  onRowClick && "cursor-pointer",
+                )}
               >
                 {columns.map((c, i) => (
                   <td
@@ -1094,13 +1340,16 @@ export function Button({
   children: ReactNode;
 }) {
   const v = resolveVariant(variant, tone);
+  // Filled buttons darken under the finger; outlined and text ones have no fill
+  // to darken, so they take a ground instead.
+  const filled = v === "buy" || v === "sell" || v === "primary";
   const look: Record<ButtonVariant, string> = {
     buy: "bg-buy text-white",
     sell: "bg-sell text-white",
     primary: "bg-text text-bg",
-    secondary: "border border-line-strong bg-transparent text-text",
-    text: "bg-transparent text-gain-text",
-    danger: "border border-loss bg-transparent text-loss-text",
+    secondary: "border border-line-strong bg-transparent text-text hover:bg-surface-2 active:bg-line",
+    text: "bg-transparent text-gain-text hover:bg-surface-2 active:bg-line",
+    danger: "border border-loss bg-transparent text-loss-text hover:bg-surface-2 active:bg-line",
   };
   return (
     <button
@@ -1109,13 +1358,17 @@ export function Button({
       disabled={disabled}
       aria-busy={busy || undefined}
       className={cx(
-        "inline-flex items-center justify-center gap-2 rounded-[10px] px-4 whitespace-nowrap transition-[filter,background-color] duration-120 active:brightness-[0.94]",
-        size === "bar" ? "t-button h-14" : size === "sm" ? "t-chip h-10 px-3" : "t-button h-12",
+        "inline-flex items-center justify-center gap-2 rounded-[10px] whitespace-nowrap select-none",
+        "transition-[filter,background-color,border-color,color] duration-120",
+        // Side padding tracks the height: a 56px bar needs more air around a
+        // 17px label than a 40px button does around a 15px one.
+        size === "bar" ? "t-button h-14 px-6" : size === "sm" ? "t-chip h-10 px-4" : "t-button h-12 px-5",
         disabled ? "border border-line bg-surface-2 text-text-3" : look[v],
+        !disabled && filled && "active:brightness-[0.94]",
         className,
       )}
     >
-      {busy && <Loader2 className="size-4 animate-spin" />}
+      {busy && <Loader2 className="size-4 shrink-0 animate-spin" />}
       {children}
     </button>
   );
@@ -1123,7 +1376,9 @@ export function Button({
 
 /** Plain text link in the gain colour (UI.md 6.2 Button text variant). */
 export function TextLink({ href, onClick, children, className }: { href?: string; onClick?: () => void; children: ReactNode; className?: string }) {
-  const cls = cx("prose-link t-change-sm text-gain-text", className);
+  // No underline at rest (Groww draws none), but one on hover and on focus, so
+  // the link is never carried by colour alone once you are pointing at it.
+  const cls = cx("prose-link t-change-sm text-gain-text underline-offset-[3px] hover:underline focus-visible:underline", className);
   if (href) {
     const external = href.startsWith("http");
     return external ? (
@@ -1147,26 +1402,33 @@ export function TextLink({ href, onClick, children, className }: { href?: string
 // Copy address: mono value with labelled "Copy" and "View" controls.
 // ---------------------------------------------------------------------------
 
+// Copy / View share the pill the sheet's Close uses: 32px visual, 48px hit.
+const INLINE_ACTION =
+  "t-nav-label relative inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full px-2.5 text-text-2 transition-colors duration-120 hover:bg-surface-2 hover:text-text active:bg-line after:absolute after:-inset-x-1 after:-top-2 after:-bottom-2 after:content-['']";
+
 export function CopyAddress({ value, label }: { value: string | null; label?: string }) {
   const [copied, setCopied] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   if (!value) return <span className="t-label">Not set yet</span>;
   return (
-    <span className="inline-flex flex-wrap items-center justify-end gap-x-1">
+    <span className="inline-flex flex-wrap items-center justify-end gap-x-2 gap-y-1">
       <span className="num t-mono text-text">{label ?? shortAddr(value)}</span>
       <button
         type="button"
         onClick={() => {
           navigator.clipboard?.writeText(value).catch(() => {});
           setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
+          if (timer.current) clearTimeout(timer.current);
+          timer.current = setTimeout(() => setCopied(false), 1200);
         }}
-        className="t-nav-label flex h-12 items-center gap-1 px-2 text-text-2"
+        className={INLINE_ACTION}
       >
-        {copied ? <Check className="size-4 text-gain-text" /> : <Copy className="size-4" />}
+        {copied ? <Check className="size-4 text-gain-text" strokeWidth={2.25} /> : <Copy className="size-4" />}
         {copied ? "Copied" : "Copy"}
       </button>
       {value.length === 42 && (
-        <a href={addrUrl(value)} target="_blank" rel="noreferrer" className="t-nav-label flex h-12 items-center gap-1 px-2 text-text-2">
+        <a href={addrUrl(value)} target="_blank" rel="noreferrer" className={INLINE_ACTION}>
           <ExternalLink className="size-4" /> View
         </a>
       )}

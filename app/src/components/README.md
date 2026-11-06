@@ -30,16 +30,23 @@ logo only; protocol words go inside `<Details>`.
 
 `useApp()`: `connected, sessionReady, address, ensName, usdcBalance, ethBalance, connect(), disconnect(),
 isIssuerFor, network { ok, name, chainId }, switchNetwork(), setWrongNetwork(bool), anon { transport,
-reads, direct, lastError, since }, countRead(n), sendTx({ title, success, revert, revertTitle,
-revertDetail, delayMs }), notify(title, status?, detail?)`. Toasts render one at a time at the bottom
+fallback, live }, sendTx({ title, success, revert, revertTitle, revertDetail, delayMs }),
+notify(title, status?, detail?)`. Toasts render one at a time at the bottom
 (UI.md 2.20): pending "Check your wallet app", success headline, error headline with the decoded
 error name on the grey second line.
 
 Sign-in is real (see wallet/ below): `connected`, `sessionReady`, `address` and `ensName` come from the
 signed-in account, `connect()` opens the sign-in flow and `disconnect()` ends the session. Everything
 else is still mock, so the demo works with a wallet that owns nothing on chain. `sessionReady` is false
-only while the session is being read; hold space rather than flashing "Sign in". `isIssuerFor` is non-empty
-when the signed-in address owns the demo listings; `?issuer=1` allowlists whatever address is signed in.
+only while the session is being read; hold space rather than flashing "Sign in".
+
+`isIssuerFor` is non-empty only when the signed-in address equals the listing owner address from the
+deployment config (`NEXT_PUBLIC_ISSUER_ADDRESS`, see `wallet/env.ts`). There is no URL flag and no local
+override: `?issuer=1` is gone.
+
+`anon` carries no counters. It describes the private-reads design (`transport`, `fallback`) and whether
+it is carrying traffic (`live`, false in this build). The old `reads` / `direct` numbers and `countRead()`
+were fabricated — a fixture plus a timer — and were removed rather than relabelled.
 
 ## wallet/ (sign-in)
 
@@ -50,6 +57,22 @@ MetaMask and other browser wallets, Sepolia only, themed from our tokens (`privy
 app id Privy cannot initialise, so `demo-session.tsx` takes over with the same shape: a local sign-in
 sheet offering email, a browser wallet, or the demo issuer account. `ens.ts` resolves reverse ENS on
 mainnet; it is one cached read and every failure is null. Config is in `env.ts`; see `app/.env.example`.
+`env.ts` also holds `LISTING_OWNER` / `hasListingOwner`: the listing owner address from the deployment
+config, which is the only thing the issuer console gates on.
+
+## console/ (the issuer side)
+
+The console is its own surface under `/console`, mounted by `app/(console)/layout.tsx`.
+
+| export | what |
+|---|---|
+| `IssuerSessionProvider` / `useIssuerSession()` | `{ gate, ready, connected, address, ensName, owner, isOwner, listings, signIn(), signOut() }`. The gate is the connected wallet: it reads the real `useWalletSession()` and compares the signed-in address with `LISTING_OWNER` from the deployment config. `gate` is `"checked"` when an owner address is configured and `"demo"` when none is. No localStorage flag, no `?issuer=` parameter. |
+| `ConsoleShell` | Header, listings nav, and the demo notice on every screen. |
+| `ConsoleSignIn` | Signed-out console. One real sign-in button, and the demo notice when nothing is being checked. |
+| `NotTheOwner` | Signed in with the wrong wallet: names the signed-in address and the owner address. |
+| `DemoModeNotice` / `Notice` / `GateLine` | Flat bordered notices (no tint). `GateLine` prints what the address was checked against. |
+| `CommandBlock` | `label?, command, note?` — a command to run on the demo laptop, with Copy. Used wherever a step needs a transaction, instead of a button that would only pretend. |
+| `usePolicy(ticker)` / `modeWords(policy)` | `GET /v1/policy/:ticker` through `lib/api.ts` + `lib/live.ts`: version, mode, band, halted, since, creTx, stale. Read-only. CRE is run from the command line (`cre/README.md`); nothing in the browser drives it. |
 
 ## avatar/ (profile pictures)
 
@@ -75,7 +98,7 @@ mainnet; it is one cached read and every failure is null. Config is in `env.ts`;
 | `IconButton` | `label, icon, onClick?, href?` | Icon 24 over a 13/500 label, 48x56 target. Never icon-only. |
 | `AccountControl` | `compact?` | "Sign in" outlined pill when signed out; avatar + "Account" when signed in. Opens `AccountSheet`. |
 | `AccountSheet` | `open, onClose` | Signed out: title "Sign in", one 56px filled "Sign in" button into the real sign-in flow, one explainer line, Appearance, About. Signed in: Signed in as / Available to spend / Sign out, Profile picture (opens `EditAvatarSheet`), Get free test USDC (< 20), Network row or "Switch to Sepolia" button (`network.ok=false`), Private browsing (opens `PrivacySheet`), Appearance segmented, Issuer console (if owner), Add to home screen (when installable), About. |
-| `PrivacySheet` | `open, onClose` | The private-reads explainer (KV rows + "What this doesn't hide"). |
+| `PrivacySheet` | `open, onClose` | The private-reads explainer: what it does, "What this doesn't hide", and where this build stands. No counters. |
 | `SearchButton` / `SearchSheet` | | Search sheet with `SearchField`; results are `ListRow`s to `/stock/[ticker]`. |
 | `ActionBar` | `children` | Mobile fixed bottom bar (hairline top, safe-area). Put two `Button size="bar"` (sell / buy) or one. Renders nothing at >= 1024. |
 | `TabHeader`, `DetailHeader` | | Deprecated aliases for `AppBar` / `DetailBar`. |

@@ -47,6 +47,8 @@
   --overlay: rgb(0 0 0 / 0.5);
   --inverse-bg: #000000;
   --inverse-text: #ffffff;
+  /* second line on the toast: a real token, so nothing needs an opacity trick. 9.1:1 on #000 */
+  --inverse-text-2: #b5b5b5;
   color-scheme: light;
 }
 
@@ -86,6 +88,7 @@
     --overlay: rgb(0 0 0 / 0.65);
     --inverse-bg: #2c2c2c;
     --inverse-text: #ffffff;
+    --inverse-text-2: #a8a8a8; /* 5.2:1 on #2c2c2c */
     color-scheme: dark;
   }
 }
@@ -124,6 +127,7 @@
   --overlay: rgb(0 0 0 / 0.65);
   --inverse-bg: #2c2c2c;
   --inverse-text: #ffffff;
+  --inverse-text-2: #a8a8a8;
   color-scheme: dark;
 }
 
@@ -149,6 +153,7 @@
   --color-chip-on-line: var(--chip-on-line);
   --color-inverse-bg: var(--inverse-bg);
   --color-inverse-text: var(--inverse-text);
+  --color-inverse-text-2: var(--inverse-text-2);
   --font-sans: var(--font-roboto), Roboto, system-ui, -apple-system, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   /* radius: 10 for cards/buttons/inputs/sheets, 8 for tiles/toast, 999 for chips/avatars */
@@ -302,6 +307,29 @@ h3 {
 }
 
 /*
+ * Tailwind v4's preflight leaves buttons on the default arrow cursor. Every
+ * control in this app is a button or a link, so on desktop nothing read as
+ * clickable. Put the hand back, and say "unavailable" on a disabled control.
+ */
+button:not(:disabled),
+[role="button"]:not([aria-disabled="true"]),
+[role="radio"],
+[role="tab"],
+label.field,
+summary {
+  cursor: pointer;
+}
+button:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+/* Inside a field the pointer is a caret, not a hand: the text is editable. */
+label.field input,
+label.field textarea {
+  cursor: text;
+}
+
+/*
  * Text controls show focus on their wrapper (.field below), never on
  * themselves. The ring above is offset outward, so an input that fills its
  * field would paint its ring outside the field's rounded border.
@@ -372,6 +400,8 @@ input[type="range"].slider::-webkit-slider-thumb {
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: border-color 120ms ease;
 }
 input[type="range"].slider::-moz-range-thumb {
   width: 24px;
@@ -379,13 +409,30 @@ input[type="range"].slider::-moz-range-thumb {
   border-radius: 999px;
   background: var(--surface);
   border: 1px solid var(--line-strong);
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+/* The thumb is the only moving part, so it is the only thing that reacts. */
+input[type="range"].slider:hover::-webkit-slider-thumb,
+input[type="range"].slider:active::-webkit-slider-thumb {
+  border-color: var(--text);
+}
+input[type="range"].slider:hover::-moz-range-thumb,
+input[type="range"].slider:active::-moz-range-thumb {
+  border-color: var(--text);
 }
 input[type="range"].slider:focus-visible {
   outline: none;
 }
 input[type="range"].slider:focus-visible::-webkit-slider-thumb {
+  border-color: var(--text);
   outline: 2px solid var(--text);
-  outline-offset: 0;
+  outline-offset: 2px;
+}
+input[type="range"].slider:focus-visible::-moz-range-thumb {
+  border-color: var(--text);
+  outline: 2px solid var(--text);
+  outline-offset: 2px;
 }
 
 /* Motion (UI.md section 5). Everything collapses to 1ms under reduced motion. */

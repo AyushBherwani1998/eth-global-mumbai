@@ -9,7 +9,11 @@ import { useEffect, useState } from "react";
 import { createPublicClient, http, isAddress } from "viem";
 import { mainnet } from "viem/chains";
 
-const client = createPublicClient({ chain: mainnet, transport: http() });
+const MAINNET_RPC = (process.env.NEXT_PUBLIC_MAINNET_RPC_URL ?? "").trim();
+
+// No URL falls back to viem's default public endpoint: rate limited, but this
+// is one cached call per address, so a demo never notices.
+const client = createPublicClient({ chain: mainnet, transport: http(MAINNET_RPC || undefined) });
 
 const cache = new Map<string, Promise<string | null>>();
 

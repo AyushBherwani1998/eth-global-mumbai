@@ -1,22 +1,25 @@
 "use client";
 
-// Orders (UX.md 3.7). Two tabs: IPO applications (this wallet's bids, grouped
-// by company, plain state words and the verbs Refund / Settle / Collect shares)
-// and Market trades (every trade and rejected attempt in the listed pools, not
-// filtered to this wallet: per-wallet trade history isn't indexed yet).
-// Desktop renders the same data as tables.
+// Orders (UX.md 3.7). Two tabs: IPO applications (this wallet's bids from
+// GET /v1/bids?owner=, grouped by company, plain state words and the verbs
+// Refund / Settle / Collect shares) and Market trades (every trade in the
+// listed pools from GET /v1/market/:ticker/swaps, not filtered to this wallet:
+// the pool only records the router as the sender, so per-wallet trade history
+// is not available). Desktop renders the same data as tables.
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { AppBar } from "@/components/shell";
 import { useApp } from "@/components/providers";
-import { OfflineStrip } from "@/components/states";
+import { OfflineStrip, SkeletonList } from "@/components/states";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, EmptyState, SectionTitle, Table, TextLink, TickerLogo, UnderlineTabs, cx, type Column } from "@/components/ui";
-import { blocksToCountdown, dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
-import { BIDS, CURRENT_BLOCK, IPOS, bidKey, getIpo, getMarket, type Bid, type BidState, type Ipo, type Policy } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
+import { dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
+import { COPY, hrefFor, isListed } from "@/lib/adapt";
+import { ApiErrorCard, DemoDataStrip } from "@/lib/api-state";
+import type { Bid, Listing } from "@/lib/api";
+import { merge2, useBids, useListings, useQuotes } from "@/lib/live";
 import { BottomSpacer } from "./common";
 
 // ---------------------------------------------------------------------------
@@ -24,142 +27,84 @@ import { BottomSpacer } from "./common";
 // ---------------------------------------------------------------------------
 
 type Verb = "refund" | "collect" | "settle";
-type Status = {
-  word: string;
-  tone?: "gain" | "warn" | "loss";
-  verb?: Verb;
-  note?: string;
-};
+type Status = { word: string; tone?: "gain" | "warn" | "loss"; verb?: Verb; note?: string };
 
-// A bid ends in two separate transactions on the CCA: exit (exitBid /
-// exitPartiallyFilledBid) returns the unspent USDC and fixes the shares won,
-// then claim (claimTokens, from claimBlock, graduated auctions only) delivers
-// them. So an allotted bid goes Settle → Exited → Claimable → Collect → Claimed;
-// an exit with no shares is final.
-function statusOf(bid: Bid, ipo: Ipo, state: BidState): Status {
-  const ended = ipo.phase !== "live";
-  const claimOpen = ipo.graduated === true && (ipo.claimBlock ?? Infinity) <= CURRENT_BLOCK;
-  switch (state) {
+/**
+ * A bid ends in two transactions on the CCA: exit returns the unspent USDC and
+ * fixes the shares won, then claim delivers them. The backend already works
+ * out which one is available right now (`actions`), so this only has to pick
+ * the words.
+ */
+function statusOf(bid: Bid, listing: Listing | undefined): Status {
+  const refundOnly = listing?.phase === "refunding" || listing?.graduated === false;
+  const canExit = bid.actions.exit !== null;
+  const canClaim = bid.actions.claim;
+
+  switch (bid.state) {
     case "claimed":
       return { word: "Claimed", tone: "gain" };
     case "exited":
       if (bid.filledShares === 0) return { word: "Refunded" };
-      return claimOpen
+      return canClaim
         ? { word: "Claimable", tone: "gain", verb: "collect", note: "Your unspent USDC is back. Collect your shares to finish." }
-        : {
-            word: "Exited",
-            note: `Your unspent USDC is back. Shares can be collected from block ${ipo.claimBlock ?? "—"}.`,
-          };
+        : { word: "Exited", note: "Your unspent USDC is back. Your shares can be collected once the IPO opens claims." };
     case "refundable":
-      return { word: "Refund available", tone: "warn", verb: "refund" };
+      return canExit
+        ? { word: "Refund available", tone: "warn", verb: "refund" }
+        : { word: "Refund available", tone: "warn", note: "The refund opens when the IPO closes." };
     case "partial":
-      return ended
+      return canExit
         ? {
             word: "Partly allotted",
             tone: "warn",
-            verb: "settle",
+            verb: refundOnly ? "refund" : "settle",
             note: "Settle returns the USDC that wasn't used. Then collect your shares.",
           }
-        : { word: "Partly allotted", tone: "warn" };
+        : { word: "Partly allotted", tone: "warn", note: "You can settle once the IPO closes." };
     case "filled":
-      return ended
+      return canExit
         ? { word: "Allotted", tone: "gain", verb: "settle", note: "Settle first, then collect your shares." }
         : { word: "Allotted", tone: "gain", note: "You can settle once the IPO closes." };
     case "outbid":
-      return ended
+      return canExit
         ? { word: "Refund available", tone: "warn", verb: "refund" }
-        : {
-            word: "Below the price",
-            note: "Your maximum is under the current price. You can still be allotted if the price falls.",
-          };
+        : { word: "Below the price", note: "Your maximum is under the current price. You can still be allotted if the price falls." };
     case "active":
     default:
-      return (ipo.clearingPrice ?? 0) <= bid.maxPrice
+      return listing?.clearingPrice !== null && listing !== undefined && listing.clearingPrice <= bid.maxPrice
         ? { word: "Likely allotted", tone: "gain" }
-        : {
-            word: "Below the price",
-            note: "Your maximum is under the current price. You can still be allotted if the price falls.",
-          };
+        : { word: "Below the price", note: "Your maximum is under the current price. You can still be allotted if the price falls." };
   }
 }
 
-const VERB_LABEL: Record<Verb, string> = {
-  refund: "Refund",
-  collect: "Collect shares",
-  settle: "Settle",
-};
+const VERB_LABEL: Record<Verb, string> = { refund: "Refund", collect: "Collect shares", settle: "Settle" };
 
-function groupSub(ipo: Ipo) {
-  if (ipo.phase === "live")
-    return `Current price ${lotFixed(ipo.clearingPrice ?? 0)} · closes in ${blocksToCountdown((ipo.endBlock ?? CURRENT_BLOCK) - CURRENT_BLOCK)}`;
-  if (ipo.phase === "listed") return `Listed at ${lotFixed(ipo.clearingPrice ?? 0)}`;
-  return "Not listed · refunds open";
+function groupSub(listing: Listing | undefined): string {
+  if (!listing) return "This company is no longer on the exchange";
+  if (listing.phase === "live") return listing.clearingPrice === null ? "IPO open" : `Current price ${lotFixed(listing.clearingPrice)} · IPO open`;
+  if (listing.phase === "listed") return listing.clearingPrice === null ? "Listed" : `Listed at ${lotFixed(listing.clearingPrice)}`;
+  if (listing.phase === "cleared") return "IPO closed · about to list";
+  if (listing.phase === "refunding") return "Not listed · refunds open";
+  return "IPO not open yet";
 }
+
+const bidKeyOf = (b: Bid) => `${b.ticker}:${b.id}`;
+
+/** Amounts that only exist after the exit. */
+const sharesOrCopy = (n: number | null) => (n === null ? COPY.afterSettle : `${shares(n)} shares`);
 
 // ---------------------------------------------------------------------------
-// Market trades and rejected attempts across all wallets, newest first.
+// Market trades across all wallets, newest first.
 // ---------------------------------------------------------------------------
 
-type OrderRow = {
-  id: string;
-  ipo: Ipo;
-  at: number; // ms
-  title: string;
-  reason?: string;
-  rejected: boolean;
-  tx: string;
-};
-
-/** Plain sentence for a turned-away trade (never the protocol error name). */
-function rejectReason(reason: string, detail: string, priceAfter: number, policy: Policy): string {
-  const limitInDetail = detail.match(/([\d.]+)\s*$/)?.[1];
-  if (reason === "Halted") return "Trading was halted at the time.";
-  if (reason === "DirectionalWidening")
-    return `This would have moved the price to ${lotFixed(priceAfter, 3)}, further from ${lotFixed(policy.referencePrice)} than the ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)} allowed then.`;
-  const d = bandDigits(policy.referencePrice, policy.bandBps);
-  const edge = limitInDetail ?? lotFixed(band(policy.referencePrice, policy.bandBps).hi, d);
-  const over = detail.includes("above");
-  return `This would have moved the price to ${lotFixed(priceAfter, 3)}, ${over ? "above" : "below"} the limit of ${edge} in force then.`;
-}
-
-function useOrderRows(): OrderRow[] {
-  return useMemo(() => {
-    const out: OrderRow[] = [];
-    for (const ipo of IPOS) {
-      const m = getMarket(ipo.ticker);
-      if (!m) continue;
-      for (const t of m.trades.slice(0, 3)) {
-        out.push({
-          id: `${ipo.ticker}-t-${t.tx}`,
-          ipo,
-          at: t.time * 1000,
-          title: `${t.side === "buy" ? "Buy" : "Sell"} · ${shares(t.shares)} shares at ${lotFixed(t.price)}`,
-          rejected: false,
-          tx: t.tx,
-        });
-      }
-      for (const r of m.rejected) {
-        out.push({
-          id: `${ipo.ticker}-r-${r.tx}`,
-          ipo,
-          at: Date.parse(r.time),
-          title: `${r.side === "buy" ? "Buy" : "Sell"} for ${usdc(r.usdc)} USDC`,
-          reason: rejectReason(r.reason, r.detail, r.priceAfter, m.policy),
-          rejected: true,
-          tx: r.tx,
-        });
-      }
-    }
-    return out.sort((a, b) => b.at - a.at).slice(0, 14);
-  }, []);
-}
+type OrderRow = { id: string; listing: Listing; at: number; title: string; tx: string };
 
 // ---------------------------------------------------------------------------
 // Screen
 // ---------------------------------------------------------------------------
 
 type Tab = "applications" | "trades";
-type Override = Partial<Record<string, BidState>>;
+type Override = Partial<Record<string, "exited" | "claimed">>;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "applications", label: "IPO applications" },
@@ -167,34 +112,58 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function OrdersScreen() {
-  const { connected, connect, sendTx } = useApp();
+  const { connected, connect, address, sendTx } = useApp();
   const [over, setOver] = useState<Override>({});
   const [busy, setBusy] = useState<string | "all" | null>(null);
-  const trades = useOrderRows();
+  const [tab, setTab] = useState<Tab>("applications");
 
-  const stateOf = (b: Bid) => over[bidKey(b)] ?? b.state;
+  const listings = useListings();
+  const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
+  const bids = useBids(connected ? address : null);
+  const quotes = useQuotes(all.filter(isListed).map((l) => l.ticker));
+  const { error, loading, retry, refreshing } = merge2(listings, bids);
+
+  const listingOf = (t: string) => all.find((l) => l.ticker === t);
+
+  // A settled or collected application keeps its new word until the next poll
+  // confirms it on chain.
+  const effective = (b: Bid): Bid => {
+    const o = over[bidKeyOf(b)];
+    if (!o) return b;
+    return { ...b, state: o, claimed: o === "claimed", actions: { exit: null, claim: o === "exited" } };
+  };
+
+  const myBids = (bids.data?.bids ?? []).map(effective);
+
   const groups = useMemo(() => {
-    const tickers = [...new Set(BIDS.map((b) => b.ticker))];
-    return tickers.map((t) => ({
-      ipo: getIpo(t)!,
-      bids: BIDS.filter((b) => b.ticker === t),
-    }));
-  }, []);
+    const tickers = [...new Set(myBids.map((b) => b.ticker))];
+    return tickers.map((t) => ({ ticker: t, listing: listingOf(t), bids: myBids.filter((b) => b.ticker === t) }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bids.data, over, all]);
 
-  const collectable = BIDS.filter((b) => {
-    const ipo = getIpo(b.ticker)!;
-    return statusOf(b, ipo, stateOf(b)).verb === "collect";
-  });
-  const refundable = BIDS.filter((b) => {
-    const ipo = getIpo(b.ticker)!;
-    return statusOf(b, ipo, stateOf(b)).verb === "refund";
-  });
-  const [tab, setTab] = useState<Tab>(collectable.length || refundable.length ? "applications" : "trades");
+  const trades: OrderRow[] = useMemo(() => {
+    const out: OrderRow[] = [];
+    for (const q of quotes.data ?? []) {
+      const listing = all.find((l) => l.ticker === q.ticker);
+      if (!listing) continue;
+      for (const t of q.swaps.trades.slice(0, 6)) {
+        out.push({
+          id: `${q.ticker}-${t.tx}-${t.time}`,
+          listing,
+          at: t.time * 1000,
+          title: `${t.side === "buy" ? "Buy" : "Sell"} · ${shares(t.shares)} shares at ${lotFixed(t.price)}`,
+          tx: t.tx,
+        });
+      }
+    }
+    return out.sort((a, b) => b.at - a.at).slice(0, 14);
+  }, [quotes.data, all]);
 
   if (!connected)
     return (
       <>
         <AppBar title="Orders" />
+        <DemoDataStrip className="-mx-5" />
         <OfflineStrip className="-mx-5" />
         <main>
           <EmptyState title="Sign in to see your orders" body="Your IPO applications show up here, with recent trades across the market." />
@@ -206,31 +175,24 @@ export function OrdersScreen() {
       </>
     );
 
+  const collectable = myBids.filter((b) => statusOf(b, listingOf(b.ticker)).verb === "collect");
+  const refundable = myBids.filter((b) => statusOf(b, listingOf(b.ticker)).verb === "refund");
+
   const act = async (bid: Bid, verb: Verb) => {
-    const ipo = getIpo(bid.ticker)!;
-    setBusy(bidKey(bid));
+    const listing = listingOf(bid.ticker);
+    setBusy(bidKeyOf(bid));
     const r = await sendTx(
       verb === "collect"
         ? {
-            title: `Collecting ${shares(bid.filledShares)} ${ipo.name} shares`,
-            success: `Collected ${shares(bid.filledShares)} shares`,
+            title: `Collecting your ${listing?.name ?? bid.ticker} shares`,
+            success: bid.filledShares === null ? "Shares collected" : `Collected ${shares(bid.filledShares)} shares`,
           }
         : verb === "settle"
-          ? {
-              title: "Settling your application",
-              success: bid.refund > 0 ? `${usdc(bid.refund)} USDC refunded. Shares are ready to collect` : "Settled. Shares are ready to collect",
-            }
-          : {
-              title: "Refunding your application",
-              success: `${usdc(bid.refund)} USDC refunded`,
-            },
+          ? { title: "Settling your application", success: "Settled. Shares are ready to collect" }
+          : { title: "Refunding your application", success: "Your USDC is on its way back" },
     );
     setBusy(null);
-    if (r.ok)
-      setOver((o) => ({
-        ...o,
-        [bidKey(bid)]: verb === "collect" ? "claimed" : "exited",
-      }));
+    if (r.ok) setOver((o) => ({ ...o, [bidKeyOf(bid)]: verb === "collect" ? "claimed" : "exited" }));
   };
 
   const actAll = async (verb: "collect" | "refund") => {
@@ -238,26 +200,17 @@ export function OrdersScreen() {
     setBusy("all");
     const r = await sendTx(
       verb === "collect"
-        ? {
-            title: "Collecting all your shares",
-            success: `Collected shares from ${list.length} applications`,
-          }
-        : {
-            title: "Refunding all your applications",
-            success: `${usdc(list.reduce((s, b) => s + b.refund, 0))} USDC refunded`,
-          },
+        ? { title: "Collecting all your shares", success: `Collected shares from ${list.length} applications` }
+        : { title: "Refunding all your applications", success: `${list.length} applications refunded` },
     );
     setBusy(null);
-    if (r.ok)
-      setOver((o) => ({
-        ...o,
-        ...Object.fromEntries(list.map((b) => [bidKey(b), verb === "collect" ? "claimed" : "exited"])),
-      }));
+    if (r.ok) setOver((o) => ({ ...o, ...Object.fromEntries(list.map((b) => [bidKeyOf(b), verb === "collect" ? "claimed" : "exited"] as const)) }));
   };
 
   return (
     <>
       <AppBar title="Orders" />
+      <DemoDataStrip className="-mx-5" />
       <OfflineStrip className="-mx-5" />
       <main>
         <div className="lg:hidden">
@@ -267,11 +220,13 @@ export function OrdersScreen() {
           <UnderlineTabs className="mt-1" tabs={TABS} value={tab} onChange={setTab} equal={false} />
         </div>
 
+        {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
+
         {tab === "applications" ? (
           <>
             {collectable.length > 0 ? (
               <ActionCard
-                title={`${collectable.length} ${collectable.length === 1 ? "allotment" : "allotments"} claimable`}
+                title={`${collectable.length} ${collectable.length === 1 ? "allotment" : "allotments"} ready to collect`}
                 body="One confirmation collects every share from applications you have settled."
                 label="Collect all"
                 busy={busy === "all"}
@@ -279,29 +234,33 @@ export function OrdersScreen() {
               />
             ) : refundable.length > 0 ? (
               <ActionCard
-                title={`${usdc(refundable.reduce((s, b) => s + b.refund, 0))} USDC ready to come back`}
-                body="One confirmation refunds every application that was not allotted."
+                title={`${refundable.length} ${refundable.length === 1 ? "application" : "applications"} can be refunded`}
+                body="One confirmation returns the USDC from every application that was not allotted."
                 label="Refund all"
                 busy={busy === "all"}
                 onClick={() => actAll("refund")}
               />
             ) : null}
 
-            {groups.length === 0 ? (
-              <EmptyState
-                title="No applications yet"
-                body="IPOs that are open now are under Markets, IPO."
-                action={{ label: "See open IPOs", href: "/?tab=ipo" }}
-              />
+            {loading && myBids.length === 0 ? (
+              <SkeletonList rows={3} className="mt-4" />
+            ) : groups.length === 0 ? (
+              !error && (
+                <EmptyState
+                  title="No applications yet"
+                  body="IPOs that are open now are under Markets, IPO."
+                  action={{ label: "See open IPOs", href: "/?tab=ipo" }}
+                />
+              )
             ) : (
               <>
                 <div className="lg:hidden">
-                  {groups.map(({ ipo, bids }) => (
-                    <ApplicationGroup key={ipo.ticker} ipo={ipo} bids={bids} stateOf={stateOf} busy={busy} onAct={act} />
+                  {groups.map((g) => (
+                    <ApplicationGroup key={g.ticker} ticker={g.ticker} listing={g.listing} bids={g.bids} busy={busy} onAct={act} />
                   ))}
                 </div>
                 <div className="hidden lg:block">
-                  <ApplicationTable groups={groups} stateOf={stateOf} busy={busy} onAct={act} />
+                  <ApplicationTable groups={groups} busy={busy} onAct={act} />
                 </div>
               </>
             )}
@@ -309,7 +268,9 @@ export function OrdersScreen() {
           </>
         ) : (
           <>
-            {trades.length === 0 ? (
+            {quotes.loading && trades.length === 0 ? (
+              <SkeletonList rows={4} className="mt-4" />
+            ) : trades.length === 0 ? (
               <EmptyState title="No market trades yet" body="Trades in listed companies show up here." action={{ label: "See companies", href: "/" }} />
             ) : (
               <>
@@ -328,7 +289,9 @@ export function OrdersScreen() {
                 </div>
               </>
             )}
-            <p className="t-caption mt-6">A rejected trade was sent and reverted by the trading rule. No shares or USDC changed hands, but the sender still paid the network fee.</p>
+            <p className="t-caption mt-6">
+              A trade the rule turns away never reaches the market, so it leaves no record here. You see it only while you are placing it.
+            </p>
           </>
         )}
         <BottomSpacer />
@@ -368,65 +331,57 @@ function StatusWord({ s }: { s: Status }) {
   );
 }
 
+type Group = { ticker: string; listing: Listing | undefined; bids: Bid[] };
+
 function ApplicationGroup({
-  ipo,
+  ticker,
+  listing,
   bids,
-  stateOf,
   busy,
   onAct,
-}: {
-  ipo: Ipo;
-  bids: Bid[];
-  stateOf: (b: Bid) => BidState;
-  busy: string | "all" | null;
-  onAct: (b: Bid, v: Verb) => void;
-}) {
+}: Group & { busy: string | "all" | null; onAct: (b: Bid, v: Verb) => void }) {
   const applied = bids.reduce((s, b) => s + b.budget, 0);
-  const allotted = bids.reduce((s, b) => s + b.filledShares, 0);
-  const refundable = bids.reduce((s, b) => (["exited", "claimed"].includes(stateOf(b)) ? s : s + b.refund), 0);
+  const allottedKnown = bids.filter((b) => b.filledShares !== null);
+  const allotted = allottedKnown.reduce((s, b) => s + (b.filledShares ?? 0), 0);
+  const pending = bids.length - allottedKnown.length;
+
   return (
     <section className="mt-6">
-      <Link href={`/stock/${ipo.ticker}`} className="flex min-h-16 items-center gap-3 py-2">
-        <TickerLogo ipo={ipo} size={40} />
+      <Link href={hrefFor({ ticker })} className="flex min-h-16 items-center gap-3 py-2">
+        <TickerLogo ipo={listing ?? { ticker }} size={40} />
         <span className="min-w-0 flex-1">
-          <span className="t-list-title block truncate text-text">{ipo.name}</span>
+          <span className="t-list-title block truncate text-text">{listing?.name ?? ticker.toUpperCase()}</span>
           <span className="num t-label block truncate">
-            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {groupSub(ipo)}
+            {listing && <TickerMark ticker={listing.ticker} symbol={listing.symbol} />} {listing ? "· " : ""}
+            {groupSub(listing)}
           </span>
         </span>
       </Link>
       <Card className="p-4">
-        <div className="grid grid-cols-3 gap-3">
+        <div className="grid grid-cols-2 gap-3">
           <Stat k="Applied" v={`${usdc(applied)} USDC`} />
-          <Stat k="Shares allotted" v={shares(allotted)} />
-          <Stat k="Refundable" v={`${usdc(refundable)} USDC`} />
+          <Stat k="Shares allotted" v={pending === bids.length ? COPY.afterSettle : shares(allotted)} />
         </div>
       </Card>
       <div className="divide-y divide-line">
         {bids.map((b) => {
-          const s = statusOf(b, ipo, stateOf(b));
+          const s = statusOf(b, listing);
+          const key = bidKeyOf(b);
           return (
-            <div key={bidKey(b)} className="py-3">
+            <div key={key} className="py-3">
               <div className="flex min-h-12 items-start gap-3">
                 <span className="min-w-0 flex-1">
                   <span className="num t-body block text-text">
                     {usdc(b.budget)} USDC up to {lotFixed(b.maxPrice)}
                   </span>
-                  <span className="t-label block">{dateTimeIST(b.submittedAt)}</span>
+                  <span className="t-label block">{b.submittedAt ? dateTimeIST(b.submittedAt) : `Placed at block ${b.submittedBlock}`}</span>
                 </span>
                 <StatusWord s={s} />
               </div>
               {s.note && <p className="t-label mt-1">{s.note}</p>}
               {s.verb && (
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  className="mt-2"
-                  busy={busy === bidKey(b)}
-                  disabled={busy === bidKey(b)}
-                  onClick={() => onAct(b, s.verb!)}
-                >
-                  {busy === bidKey(b) ? "Check your wallet app" : VERB_LABEL[s.verb]}
+                <Button variant="secondary" size="sm" className="mt-2" busy={busy === key} disabled={busy === key} onClick={() => onAct(b, s.verb as Verb)}>
+                  {busy === key ? "Check your wallet app" : VERB_LABEL[s.verb]}
                 </Button>
               )}
             </div>
@@ -446,89 +401,68 @@ function Stat({ k, v }: { k: string; v: string }) {
   );
 }
 
-type FlatBid = { bid: Bid; ipo: Ipo; status: Status };
+type FlatBid = { bid: Bid; listing: Listing | undefined; status: Status };
 
-function ApplicationTable({
-  groups,
-  stateOf,
-  busy,
-  onAct,
-}: {
-  groups: { ipo: Ipo; bids: Bid[] }[];
-  stateOf: (b: Bid) => BidState;
-  busy: string | "all" | null;
-  onAct: (b: Bid, v: Verb) => void;
-}) {
-  const rows: FlatBid[] = groups.flatMap(({ ipo, bids }) => bids.map((bid) => ({ bid, ipo, status: statusOf(bid, ipo, stateOf(bid)) })));
+function ApplicationTable({ groups, busy, onAct }: { groups: Group[]; busy: string | "all" | null; onAct: (b: Bid, v: Verb) => void }) {
+  const rows: FlatBid[] = groups.flatMap(({ listing, bids }) => bids.map((bid) => ({ bid, listing, status: statusOf(bid, listing) })));
   const columns: Column<FlatBid>[] = [
     {
       key: "company",
       label: "Company",
       render: (r) => (
         <span className="flex items-center gap-3">
-          <TickerLogo ipo={r.ipo} size={28} />
+          <TickerLogo ipo={r.listing ?? { ticker: r.bid.ticker }} size={28} />
           <span className="min-w-0">
-            <span className="block truncate text-text">{r.ipo.name}</span>
-            <span className="num t-label block truncate">
-              <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} /> · {groupSub(r.ipo)}
-            </span>
+            <span className="block truncate text-text">{r.listing?.name ?? r.bid.ticker.toUpperCase()}</span>
+            <span className="num t-label block truncate">{groupSub(r.listing)}</span>
           </span>
         </span>
       ),
     },
-    {
-      key: "applied",
-      label: "Applied",
-      align: "right",
-      render: (r) => `${usdc(r.bid.budget)} USDC`,
-    },
-    {
-      key: "max",
-      label: "Up to",
-      align: "right",
-      render: (r) => lotFixed(r.bid.maxPrice),
-    },
+    { key: "applied", label: "Applied", align: "right", render: (r) => `${usdc(r.bid.budget)} USDC` },
+    { key: "max", label: "Up to", align: "right", render: (r) => lotFixed(r.bid.maxPrice) },
+    { key: "allotted", label: "Allotted", align: "right", render: (r) => sharesOrCopy(r.bid.filledShares) },
     {
       key: "placed",
       label: "Placed",
-      render: (r) => <span className="t-label">{dateTimeIST(r.bid.submittedAt)}</span>,
+      render: (r) => <span className="t-label">{r.bid.submittedAt ? dateTimeIST(r.bid.submittedAt) : `Block ${r.bid.submittedBlock}`}</span>,
     },
-    {
-      key: "status",
-      label: "Status",
-      render: (r) => <StatusWord s={r.status} />,
-    },
+    { key: "status", label: "Status", render: (r) => <StatusWord s={r.status} /> },
     {
       key: "action",
       label: "Action",
       align: "right",
       render: (r) =>
         r.status.verb ? (
-          <Button variant="secondary" size="sm" busy={busy === bidKey(r.bid)} disabled={busy === bidKey(r.bid)} onClick={() => onAct(r.bid, r.status.verb!)}>
-            {busy === bidKey(r.bid) ? "Check your wallet app" : VERB_LABEL[r.status.verb]}
+          <Button
+            variant="secondary"
+            size="sm"
+            busy={busy === bidKeyOf(r.bid)}
+            disabled={busy === bidKeyOf(r.bid)}
+            onClick={() => onAct(r.bid, r.status.verb as Verb)}
+          >
+            {busy === bidKeyOf(r.bid) ? "Check your wallet app" : VERB_LABEL[r.status.verb]}
           </Button>
         ) : (
-          <span className="t-label">—</span>
+          <span className="t-label">Nothing to do</span>
         ),
     },
   ];
-  return <Table columns={columns} rows={rows} rowKey={(r) => bidKey(r.bid)} className="mt-4" />;
+  return <Table columns={columns} rows={rows} rowKey={(r) => bidKeyOf(r.bid)} className="mt-4" />;
 }
 
 function TradeRow({ row }: { row: OrderRow }) {
   return (
     <div className="flex min-h-16 items-start gap-3 py-3">
-      <TickerLogo ipo={row.ipo} size={40} />
+      <TickerLogo ipo={row.listing} size={40} />
       <span className="min-w-0 flex-1">
-        <span className="t-list-title block truncate text-text">{row.ipo.name}</span>
+        <span className="t-list-title block truncate text-text">{row.listing.name}</span>
         <span className="num t-label block">
-          <TickerMark ticker={row.ipo.ticker} symbol={row.ipo.symbol} /> · {row.title}
+          <TickerMark ticker={row.listing.ticker} symbol={row.listing.symbol} /> · {row.title}
         </span>
-        {row.reason && <span className="t-label block text-text-2">{row.reason}</span>}
         <span className="t-caption block">{dateTimeIST(row.at / 1000)}</span>
       </span>
       <span className="flex shrink-0 flex-col items-end">
-        {row.rejected && <span className="t-change-sm text-loss-text">Rejected</span>}
         <TextLink href={txUrl(row.tx)}>Receipt</TextLink>
       </span>
     </div>
@@ -542,43 +476,20 @@ function TradeTable({ rows }: { rows: OrderRow[] }) {
       label: "Company",
       render: (r) => (
         <span className="flex items-center gap-3">
-          <TickerLogo ipo={r.ipo} size={28} />
+          <TickerLogo ipo={r.listing} size={28} />
           <span className="min-w-0">
-            <span className="block truncate text-text">{r.ipo.name}</span>
+            <span className="block truncate text-text">{r.listing.name}</span>
             <span className="t-label block">
-              <TickerMark ticker={r.ipo.ticker} symbol={r.ipo.symbol} />
+              <TickerMark ticker={r.listing.ticker} symbol={r.listing.symbol} />
             </span>
           </span>
         </span>
       ),
     },
-    {
-      key: "order",
-      label: "Order",
-      render: (r) => (
-        <span className="num block">
-          {r.title}
-          {r.reason && <span className="t-label block text-text-2">{r.reason}</span>}
-        </span>
-      ),
-    },
-    {
-      key: "time",
-      label: "Time",
-      render: (r) => <span className="t-label">{dateTimeIST(r.at / 1000)}</span>,
-    },
-    {
-      key: "status",
-      label: "Status",
-      render: (r) =>
-        r.rejected ? <span className="t-change-sm text-loss-text">Rejected</span> : <span className="t-change-sm text-gain-text">Done</span>,
-    },
-    {
-      key: "receipt",
-      label: "Receipt",
-      align: "right",
-      render: (r) => <TextLink href={txUrl(r.tx)}>{shortHash(r.tx)}</TextLink>,
-    },
+    { key: "order", label: "Order", render: (r) => <span className="num block">{r.title}</span> },
+    { key: "time", label: "Time", render: (r) => <span className="t-label">{dateTimeIST(r.at / 1000)}</span> },
+    { key: "status", label: "Status", render: () => <span className="t-change-sm text-gain-text">Done</span> },
+    { key: "receipt", label: "Receipt", align: "right", render: (r) => <TextLink href={txUrl(r.tx)}>{shortHash(r.tx)}</TextLink> },
   ];
   return <Table columns={columns} rows={rows} rowKey={(r) => r.id} className="mt-4" />;
 }

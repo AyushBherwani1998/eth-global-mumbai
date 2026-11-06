@@ -1,5 +1,5 @@
 {
-  "_note": "Issuer console state per ticker. step = the lifecycle step currently expanded.",
+  "_note": "Issuer console state for the one real listing. step = the lifecycle step currently expanded. Numbers match live Acme (cleared at 0.80, 60 USDC raised, 3 applicants, policy v5); the invented second listing has been removed.",
   "runnerOnline": true,
   "acme": {
     "step": "demo",
@@ -17,43 +17,65 @@
       "durationBlocks": 300,
       "claimDelayBlocks": 100,
       "treasury": "0x7a3F9e21C04b8D5a6E1f2B3c4D5e6F7a8B9cC91E",
-      "eligibilityHuman": true
+      "eligibilityHuman": false
     },
     "steps": {
-      "create": { "done": true },
-      "ticker": { "done": true, "tx": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b", "roleGranted": true, "roleDenialTested": true },
-      "policy": { "done": true, "version": 1, "tx": "0xc3e1a2b4d6f80a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a90" },
-      "launch": { "done": true, "tx": "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c" },
-      "monitor": { "done": true, "bidCount": 31, "uniqueHumans": 24, "passesIssued": 27, "secondWalletDenials": 3, "rejectedBids": 2 },
-      "graduate": { "done": true, "graduated": true, "clearingPrice": 1.1, "unsold": 0, "migrateTx": "0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d", "ensTx": "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e" }
+      "create": {
+        "done": true
+      },
+      "ticker": {
+        "done": true,
+        "tx": "0x1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b",
+        "roleGranted": true,
+        "roleDenialTested": true
+      },
+      "policy": {
+        "done": true,
+        "version": 5,
+        "tx": "0xc3e1a2b4d6f80a1c3e5b7d9f1a3c5e7b9d1f3a5c7e9b1d3f5a7c9e1b3d5f7a90"
+      },
+      "launch": {
+        "done": true,
+        "tx": "0x2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c"
+      },
+      "monitor": {
+        "done": true,
+        "bidCount": 3,
+        "uniqueHumans": 3,
+        "passesIssued": 0,
+        "secondWalletDenials": 0,
+        "rejectedBids": 0
+      },
+      "graduate": {
+        "done": true,
+        "graduated": true,
+        "clearingPrice": 0.8,
+        "unsold": 15000,
+        "migrateTx": "0x3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d",
+        "ensTx": "0x4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e"
+      }
     },
     "runnerLog": [
-      { "time": "2026-11-06T09:58:40+05:30", "line": "Editing exchange JSON: acme → mode=listing ref=1.10 band=500bps" },
-      { "time": "2026-11-06T09:58:41+05:30", "line": "cre workflow simulate --broadcast --non-interactive --trigger-index 0" },
-      { "time": "2026-11-06T09:59:03+05:30", "line": "Report signed · v1 · 1 policy" },
-      { "time": "2026-11-06T09:59:12+05:30", "line": "Broadcast tx 0xc3e1…7a90 · ReportProcessed result=true" },
-      { "time": "2026-11-06T09:59:14+05:30", "line": "ENS acme.listingday.eth listingday.status = listed" }
+      {
+        "time": "2026-11-06T09:58:40+05:30",
+        "line": "Editing exchange JSON: acme → mode=listing ref=0.80 band=500bps"
+      },
+      {
+        "time": "2026-11-06T09:58:41+05:30",
+        "line": "cre workflow simulate --broadcast --non-interactive --trigger-index 0"
+      },
+      {
+        "time": "2026-11-06T09:59:03+05:30",
+        "line": "Report signed · v5 · 1 policy"
+      },
+      {
+        "time": "2026-11-06T09:59:12+05:30",
+        "line": "Broadcast tx 0xc3e1…7a90 · ReportProcessed result=true"
+      },
+      {
+        "time": "2026-11-06T09:59:14+05:30",
+        "line": "ENS acme.listingday.eth listingday.status = listed"
+      }
     ]
-  },
-  "kesar": {
-    "step": "monitor",
-    "steps": {
-      "create": { "done": true },
-      "ticker": { "done": true, "roleGranted": true, "roleDenialTested": false },
-      "policy": { "done": true, "version": 1 },
-      "launch": { "done": true, "tx": "0x5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a0b1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f" },
-      "monitor": { "done": false, "bidCount": 23, "uniqueHumans": 19, "passesIssued": 21, "secondWalletDenials": 2, "rejectedBids": 1 },
-      "graduate": { "done": false }
-    },
-    "bids": [
-      { "owner": "0x7a3F…C91E", "budget": 8, "maxPrice": 1.4, "state": "active" },
-      { "owner": "0x19bD…02aF", "budget": 20, "maxPrice": 1.9, "state": "active" },
-      { "owner": "0xA4e0…7731", "budget": 12.5, "maxPrice": 1.55, "state": "active" },
-      { "owner": "0x55c2…e9D0", "budget": 10, "maxPrice": 1.3, "state": "active" },
-      { "owner": "0x7a3F…C91E", "budget": 5, "maxPrice": 1.15, "state": "outbid" },
-      { "owner": "0x0bE7…41aa", "budget": 6, "maxPrice": 1.0, "state": "outbid" },
-      { "owner": "0xF2d9…88c3", "budget": 20, "maxPrice": 2.0, "state": "rejected", "reason": "BidAboveCap" }
-    ],
-    "runnerLog": []
   }
 }

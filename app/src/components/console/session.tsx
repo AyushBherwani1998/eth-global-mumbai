@@ -1,130 +1,73 @@
 "use client";
 
-// Issuer session: the console is a separate app with its own sign-in. It never
-// reads the investor session in providers.tsx, and signing in here does not
-// sign anyone into the investor app (or the other way round). The session is a
-// small module store persisted in localStorage, exposed through a provider that
-// is mounted only by the console layout.
+// Who may open the issuer console.
+//
+// The gate is the connected wallet. The signed-in address is compared with the
+// listing owner address that comes from the deployment config
+// (NEXT_PUBLIC_ISSUER_ADDRESS, mirroring contracts/deployments/<network>.json;
+// see components/wallet/env.ts for why the backend cannot supply it). There is
+// no editable local flag and no URL parameter that grants access.
+//
+// When no owner address is configured there is nothing to check against. The
+// console then runs in demo mode, which every console screen announces on
+// screen, so an open console is never mistaken for a passed check.
 
-import { createContext, useCallback, useContext, useMemo, useSyncExternalStore, type ReactNode } from "react";
+import { createContext, useContext, useMemo, type ReactNode } from "react";
+
+import { useWalletSession } from "@/components/wallet/session";
+import { LISTING_OWNER, hasListingOwner } from "@/components/wallet/env";
 import { WALLET } from "@/lib/mock";
 
-const KEY = "listingday.issuer-session";
+/** The tickers this deployment has a console for. */
+const DEPLOYED_LISTINGS = WALLET.isIssuerFor;
 
-export type IssuerSession = {
-  address: string;
+export type ConsoleAccess = {
+  /** "checked": the address was compared with the configured owner. "demo": nothing was checked. */
+  gate: "checked" | "demo";
+  /** False only while the wallet session is still being read. */
+  ready: boolean;
+  connected: boolean;
+  address: string | null;
   ensName: string | null;
-  /** Tickers whose name is registered to this wallet. */
+  /** The configured owner address, or null in demo mode. */
+  owner: string | null;
+  /** True when the signed-in address is the configured owner. Always false in demo mode. */
+  isOwner: boolean;
+  /** Listings this session may open. Empty when the address is not the owner. */
   listings: string[];
-};
-
-/** The demo issuer wallet, and a second wallet that owns no listing. */
-const ISSUER_WALLET: IssuerSession = { address: WALLET.address, ensName: WALLET.ensName, listings: WALLET.isIssuerFor };
-const OTHER_WALLET: IssuerSession = { address: "0x19bD4f2A77c6E0b31d8a95C4e7F0a2B6d3C102aF", ensName: null, listings: [] };
-const ISSUER_RAW = JSON.stringify(ISSUER_WALLET);
-const OTHER_RAW = JSON.stringify(OTHER_WALLET);
-
-// ---------------------------------------------------------------------------
-// Module store. React only ever sees a string, so the snapshot identity is
-// stable; the provider parses it once per change.
-// ---------------------------------------------------------------------------
-
-const listeners = new Set<() => void>();
-let stored: string | null = null;
-let storedFresh = false;
-/** False until the first subscribe, which runs after hydration. */
-let hydrated = false;
-
-function emit() {
-  storedFresh = false;
-  listeners.forEach((l) => l());
-}
-
-function subscribe(cb: () => void) {
-  listeners.add(cb);
-  window.addEventListener("storage", cb);
-  if (!hydrated) {
-    // The server rendered the signed-out tree; swap in the real session right
-    // after hydration instead of during it (no mismatch, no setState in an effect).
-    hydrated = true;
-    queueMicrotask(emit);
-  }
-  return () => {
-    listeners.delete(cb);
-    window.removeEventListener("storage", cb);
-  };
-}
-
-/** Screenshot / demo override, like ?theme= in the root layout. Never persisted. */
-function override(): string | null {
-  const v = new URLSearchParams(window.location.search).get("issuer");
-  if (v === "1") return ISSUER_RAW;
-  if (v === "none") return OTHER_RAW;
-  return null;
-}
-
-function getSnapshot(): string | null {
-  if (!hydrated) return null;
-  const forced = override();
-  if (forced) return forced;
-  if (!storedFresh) {
-    try {
-      stored = window.localStorage.getItem(KEY);
-    } catch {
-      stored = null;
-    }
-    storedFresh = true;
-  }
-  return stored;
-}
-
-const getServerSnapshot = () => null;
-
-function write(session: IssuerSession | null) {
-  try {
-    if (session) window.localStorage.setItem(KEY, JSON.stringify(session));
-    else window.localStorage.removeItem(KEY);
-  } catch {
-    // Private mode: the session then lasts for this page only.
-  }
-  emit();
-}
-
-// ---------------------------------------------------------------------------
-// Provider
-// ---------------------------------------------------------------------------
-
-type SessionState = {
-  session: IssuerSession | null;
   signIn: () => void;
-  /** Signs in a wallet that owns no listing, so that state is reachable. */
-  signInOther: () => void;
   signOut: () => void;
 };
 
-const Ctx = createContext<SessionState | null>(null);
+const Ctx = createContext<ConsoleAccess | null>(null);
 
 export function IssuerSessionProvider({ children }: { children: ReactNode }) {
-  const raw = useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-  const session = useMemo<IssuerSession | null>(() => {
-    if (!raw) return null;
-    try {
-      const parsed = JSON.parse(raw) as IssuerSession;
-      return parsed && typeof parsed.address === "string" ? parsed : null;
-    } catch {
-      return null;
-    }
-  }, [raw]);
+  const wallet = useWalletSession();
 
-  const signIn = useCallback(() => write(ISSUER_WALLET), []);
-  const signInOther = useCallback(() => write(OTHER_WALLET), []);
-  const signOut = useCallback(() => write(null), []);
+  const value = useMemo<ConsoleAccess>(() => {
+    const address = wallet.connected ? wallet.address : null;
+    const isOwner = hasListingOwner && !!address && address.toLowerCase() === LISTING_OWNER;
+    // Demo mode has no owner to check, so a signed-in wallet sees the listings
+    // and every screen carries the demo notice.
+    const listings = hasListingOwner ? (isOwner ? DEPLOYED_LISTINGS : []) : address ? DEPLOYED_LISTINGS : [];
+    return {
+      gate: hasListingOwner ? "checked" : "demo",
+      ready: wallet.ready,
+      connected: !!address,
+      address,
+      ensName: wallet.ensName,
+      owner: LISTING_OWNER,
+      isOwner,
+      listings,
+      signIn: wallet.login,
+      signOut: wallet.logout,
+    };
+  }, [wallet.ready, wallet.connected, wallet.address, wallet.ensName, wallet.login, wallet.logout]);
 
-  const value = useMemo<SessionState>(() => ({ session, signIn, signInOther, signOut }), [session, signIn, signInOther, signOut]);
   return <Ctx.Provider value={value}>{children}</Ctx.Provider>;
 }
 
-export function useIssuerSession(): SessionState {
+export function useIssuerSession(): ConsoleAccess {
   const v = useContext(Ctx);
   if (!v) throw new Error("useIssuerSession outside the console layout");
   return v;

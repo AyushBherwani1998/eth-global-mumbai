@@ -2,23 +2,28 @@
 
 // Issuer console, one listing (UX.md 3.9). Three sections, in this order:
 //   Listing      the lifecycle stepper, plain-English step names (issuer)
-//   Exchange desk  reference price, rule mode, halt / resume, liquidity (operator)
-//   Developer    collapsed: runner log, tx hashes, Q96 maths, addresses
-// Own header: Back, logo, name, ENS name, runner status. Desktop: three columns.
+//   Trading rule read-only policy state, plus the commands that change it
+//   Developer    collapsed: addresses, Q96 maths, receipts
+//
+// Nothing in this screen writes to a chain and nothing in it drives Chainlink
+// CRE. CRE runs from the command line for the demo (cre/README.md), so every
+// step that needs a transaction shows the command instead of a button that
+// would only pretend. The trading rule comes from `GET /v1/policy/:ticker`
+// (services/api/README.md) or says plainly that it could not be read.
 
 import { useState } from "react";
 import { Check, ChevronDown } from "lucide-react";
 
-import { useApp } from "@/components/providers";
-import { ConsoleShell, ConsoleSignIn } from "@/components/console/shell";
+import { CommandBlock, ConsoleShell, ConsoleSignIn, GateLine, NotTheOwner } from "@/components/console/shell";
 import { useIssuerSession } from "@/components/console/session";
-import { CircuitBanner } from "@/components/circuit-banner";
+import { modeWords, usePolicy, type PolicyView } from "@/components/console/policy";
+import { apiConfigured, errorTitle } from "@/lib/api";
+import { ErrorCard, SkeletonList } from "@/components/states";
 import { PriceChart } from "@/components/time-chart";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
 import { blockNo, dateTimeIST, lotFixed, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
-import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo, type Mode, type Policy } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
+import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo } from "@/lib/mock";
 
 // ---------------------------------------------------------------------------
 // Lifecycle steps. Ids match mock/console.json; the titles are plain English.
@@ -68,33 +73,18 @@ type ConsoleData = {
     state: string;
     reason?: string;
   }[];
-  runnerLog: { time: string; line: string }[];
 };
 
 const q96 = (lotPrice: number) => (((lotPrice / 1000) * 1e6) / 1e18) * 2 ** 96;
 const sci = (n: number) => n.toExponential(3).replace("e+", " × 10^");
 
 export function ConsoleScreen({ ticker }: { ticker: string }) {
-  const { session } = useIssuerSession();
+  const { ready, connected, listings } = useIssuerSession();
   const ipo = getIpo(ticker)!;
 
-  if (!session) return <ConsoleSignIn />;
-
-  if (!session.listings.includes(ticker))
-    return (
-      <ConsoleShell>
-        <div className="max-w-[640px] py-10">
-          <p className="t-label-sm text-text-2">Not your listing</p>
-          <h1 className="t-page-title mt-2 text-text">{ipo.name}</h1>
-          <p className="t-body mt-2 text-text-2">
-            This console is for the owner of {ensName(ticker)}. Sign out and sign in with the wallet that owns that name to manage this listing.
-          </p>
-          <p className="mt-4">
-            <TextLink href="/console">Back to your listings</TextLink>
-          </p>
-        </div>
-      </ConsoleShell>
-    );
+  if (!ready) return <SkeletonList rows={4} className="pt-6" />;
+  if (!connected) return <ConsoleSignIn />;
+  if (!listings.includes(ticker)) return <NotTheOwner ticker={ticker} />;
 
   return <IssuerConsole ipo={ipo} data={(CONSOLE as unknown as Record<string, ConsoleData>)[ticker]} />;
 }
@@ -106,16 +96,14 @@ export function ConsoleScreen({ ticker }: { ticker: string }) {
 function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   const firstOpen = (STEPS.find((s) => s.id === data.step)?.id ?? STEPS.find((s) => !data.steps[s.id]?.done)?.id ?? "graduate") as StepId;
   const [open, setOpen] = useState<StepId | null>(firstOpen);
-  const [deskLog, setDeskLog] = useState(data.runnerLog);
   const market = getMarket(ipo.ticker);
-  const online = CONSOLE.runnerOnline;
 
   const stepContent = (id: StepId) => {
     switch (id) {
       case "create":
         return <CreateStep ipo={ipo} />;
       case "ticker":
-        return <TickerStep ipo={ipo} data={data} />;
+        return <TickerStep ipo={ipo} />;
       case "policy":
         return <PolicyStep ipo={ipo} data={data} />;
       case "launch":
@@ -142,7 +130,7 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
             </p>
           </div>
         </header>
-        {!online && <p className="t-label mt-3 text-loss-text">Exchange actions need the CRE runner on the demo laptop.</p>}
+        <GateLine className="mt-3" />
 
         <div className="mt-6 lg:grid lg:grid-cols-[200px_minmax(0,1fr)_300px] lg:items-start lg:gap-6 xl:grid-cols-[240px_minmax(0,1fr)_360px] xl:gap-8">
           {/* Desktop step rail */}
@@ -208,11 +196,11 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
               </div>
             )}
 
-            <ExchangeDesk ipo={ipo} online={online} onLog={(l) => setDeskLog((cur) => [...cur, l])} />
+            <TradingRulePanel ipo={ipo} />
 
             <SectionTitle>Developer</SectionTitle>
-            <Details title="Runner log, addresses and maths">
-              <DeveloperPanel ipo={ipo} data={data} log={deskLog} />
+            <Details title="Addresses, maths and receipts">
+              <DeveloperPanel ipo={ipo} data={data} />
             </Details>
           </div>
 
@@ -242,22 +230,12 @@ function IssuerConsole({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
                 />
               </Card>
             ) : null}
-            <Card className="mt-3 p-4">
-              <p className="t-label">Last runner lines</p>
-              <div className="t-mono mt-2 space-y-1 text-text">
-                {deskLog.slice(-5).map((l, i) => (
-                  <p key={i} className="truncate">
-                    <span className="text-text-2">{timeIST(l.time).replace(" IST", "")}</span> {l.line}
-                  </p>
-                ))}
-                {deskLog.length === 0 && <p className="t-label">Nothing yet.</p>}
-              </div>
-            </Card>
           </aside>
         </div>
 
         <p className="t-caption mt-8 border-t border-line pt-4">
-          Prices and amounts in USDC per 1,000 shares. Sample data, not live chain reads.
+          Prices and amounts in USDC per 1,000 shares. The listing figures on this page are sample data, not live chain
+          reads. The trading rule is read from the chain when the backend is connected.
         </p>
       </div>
     </ConsoleShell>
@@ -282,32 +260,33 @@ function LiveCard({ ipo, inset }: { ipo: Ipo; inset?: boolean }) {
   const last = market ? market.prices[market.prices.length - 1].value : ipo.clearingPrice;
   const raised = ipo.raised ?? 0;
   return (
-    <>
-      <Card className={cx("p-4", !inset && "mt-4")}>
-        <div className="flex items-baseline justify-between gap-3">
-          <p className="t-label">{ipo.phase === "live" ? "Current price" : "Last price"}</p>
-          <p className="num t-list-title text-text">{last !== null ? `${lotFixed(last)} USDC` : "Not priced yet"}</p>
-        </div>
-        <div className="mt-3 flex items-baseline justify-between gap-3">
-          <p className="t-label">Phase</p>
-          <p className="t-list-title text-text">{statusLabel(ipo)}</p>
-        </div>
-        <div className="mt-4">
-          <ProgressBar value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
-          <p className="num t-label mt-2">
-            {usdc(raised)} of {OFFER.targetRaise} USDC raised · lists at {OFFER.requiredRaise}
-          </p>
-        </div>
-      </Card>
-      {market &&
-        (inset ? (
-          <div className="mt-3 overflow-hidden px-5">
-            <CircuitBanner ticker={ipo.ticker} policy={market.policy} />
-          </div>
-        ) : (
-          <CircuitBanner ticker={ipo.ticker} policy={market.policy} className="mt-4" />
-        ))}
-    </>
+    <Card className={cx("p-4", !inset && "mt-4")}>
+      <div className="flex items-baseline justify-between gap-3">
+        <p className="t-label">{ipo.phase === "live" ? "Current price" : "Last price"}</p>
+        <p className="num t-list-title text-text">{last !== null ? `${lotFixed(last)} USDC` : "Not priced yet"}</p>
+      </div>
+      <div className="mt-3 flex items-baseline justify-between gap-3">
+        <p className="t-label">Phase</p>
+        <p className="t-list-title text-text">{statusLabel(ipo)}</p>
+      </div>
+      <div className="mt-4">
+        <ProgressBar value={raised} max={OFFER.targetRaise} marker={OFFER.requiredRaise} />
+        <p className="num t-label mt-2">
+          {usdc(raised)} of {OFFER.targetRaise} USDC raised · lists at {OFFER.requiredRaise}
+        </p>
+      </div>
+      <p className="t-caption mt-3">Sample data.</p>
+    </Card>
+  );
+}
+
+/** Every listing step runs from the demo laptop, so each one says so once. */
+function RunsFromTheCommandLine({ command, note }: { command: string; note?: string }) {
+  return (
+    <div className="mt-4 border-t border-line pt-3">
+      <p className="t-body text-text">This step runs from the command line, not from this browser.</p>
+      <CommandBlock command={command} note={note} />
+    </div>
   );
 }
 
@@ -316,7 +295,6 @@ function LiveCard({ ipo, inset }: { ipo: Ipo; inset?: boolean }) {
 // ---------------------------------------------------------------------------
 
 function CreateStep({ ipo }: { ipo: Ipo }) {
-  const { sendTx } = useApp();
   return (
     <Card className="p-4">
       <div className="divide-y divide-line">
@@ -332,25 +310,13 @@ function CreateStep({ ipo }: { ipo: Ipo }) {
         <KV k="Shares offered in the IPO" v={shares(OFFER.auctioned)} sub={`${shares(OFFER.lpReserve)} kept for the market`} />
         <KV k="Issue price" v={`${lotFixed(OFFER.issuePrice)} per 1,000 shares`} />
         <KV k="Price range" v={`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`} />
-        <KV k="Most one person can apply with" v={`${OFFER.perApplicantCap} USDC`} />
+        <KV k="Most one wallet can apply with" v={`${OFFER.perApplicantCap} USDC`} sub="Counted per wallet, across all of its applications" />
         <KV k="Share of the raise kept as liquidity" v={`${OFFER.lpPercent}%`} />
         <KV k="Minimum raise to list" v={`${OFFER.requiredRaise} of ${OFFER.targetRaise} USDC`} />
-        <KV k="One application per person" v={ipo.eligibility === "human" ? "On" : "Off"} sub="Fixed once the IPO opens" />
+        <KV k="Who can apply" v="Anyone with a wallet" sub="No identity check, no KYC" />
         <KV k="Money is taken in" v="Sepolia test USDC" />
       </div>
-      <Button
-        variant="secondary"
-        className="mt-4 w-full sm:w-auto sm:min-w-[160px]"
-        onClick={() =>
-          sendTx({
-            title: "Saving your draft",
-            success: "Draft saved",
-            delayMs: 400,
-          })
-        }
-      >
-        Save draft
-      </Button>
+      <RunsFromTheCommandLine command="cd contracts && make deploy" note="Writes the listing into contracts/deployments/<network>.json." />
     </Card>
   );
 }
@@ -363,14 +329,10 @@ const RECORD_LABEL: Record<string, string> = {
   policy: "Rule publisher",
 };
 
-function TickerStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
-  const { sendTx } = useApp();
-  const st = data.steps.ticker;
+function TickerStep({ ipo }: { ipo: Ipo }) {
   return (
     <Card className="p-4">
-      <p className="t-body text-text">
-        {ensName(ipo.ticker)} <span className="text-gain-text">is registered to you</span>
-      </p>
+      <p className="t-body text-text">{ensName(ipo.ticker)}</p>
       <p className="t-label mt-1">People find this company by that name, and the app reads every address below from it.</p>
       <div className="mt-3 divide-y divide-line">
         {(["addr", "auction", "pool", "hook", "policy"] as const).map((k) => (
@@ -378,23 +340,10 @@ function TickerStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
         ))}
         <KV k="Trading status" v={ipo.status} sub="Set by the exchange, not by you" />
       </div>
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Button
-          variant="secondary"
-          onClick={() =>
-            sendTx({
-              title: "Saving the name records",
-              success: "Records saved",
-            })
-          }
-        >
-          Save records
-        </Button>
-        <Button variant="secondary" disabled={!!st.roleGranted}>
-          {st.roleGranted ? "Exchange can write the status" : "Let the exchange write the status"}
-        </Button>
-      </div>
-      <p className="t-label mt-2">The exchange needs that permission to mark this share as under watch or halted.</p>
+      <RunsFromTheCommandLine
+        command="cd contracts && make ens-sepolia"
+        note="Registers the name, writes the records, and lets the exchange write the trading status."
+      />
       <p className="mt-2">
         <TextLink href={`https://sepolia.app.ens.domains/${ensName(ipo.ticker)}`}>View in the ENS app</TextLink>
       </p>
@@ -413,7 +362,9 @@ function PolicyStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
         <KV k="Under watch" v="Trades within 5% of the reference price" />
         <KV k="Listing day" v="Trades within 5% of the price the IPO closed at" />
       </div>
-      <p className="t-body mt-3 text-text">Published. The exchange now writes the trading status onto your name.</p>
+      <p className="t-body mt-3 text-text-2">
+        The rule in force right now, and the commands that change it, are under &ldquo;Trading rule&rdquo; further down this page.
+      </p>
       {typeof data.steps.policy?.tx === "string" && (
         <p className="mt-1">
           <TextLink href={txUrl(data.steps.policy.tx as string)}>View receipt</TextLink>
@@ -433,7 +384,7 @@ function LaunchStep({ data }: { data: ConsoleData }) {
         <KV k="Price range" v={`${lotFixed(OFFER.floorPrice)} to ${lotFixed(OFFER.capPrice)}`} />
         <KV k="Minimum raise to list" v={`${OFFER.requiredRaise} USDC`} />
       </div>
-      {done ? (
+      {done && (
         <>
           <p className="t-body mt-3 text-text">The IPO is open. The contract address is written to your name.</p>
           {typeof data.steps.launch?.tx === "string" && (
@@ -442,9 +393,8 @@ function LaunchStep({ data }: { data: ConsoleData }) {
             </p>
           )}
         </>
-      ) : (
-        <Button className="mt-4 w-full sm:w-auto sm:min-w-[160px]">Open the IPO</Button>
       )}
+      <RunsFromTheCommandLine command="cd contracts && make launch" note="Opens the sale and writes the IPO contract address to the name." />
     </Card>
   );
 }
@@ -475,10 +425,8 @@ function MonitorStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
       <div className="mt-3 divide-y divide-line">
         <KV k="Raised" v={`${usdc(last ? last.raised : (ipo.raised ?? 0))} USDC`} sub={`${OFFER.requiredRaise} needed to list`} />
         <KV k="Applications" v={String(s.bidCount ?? ipo.bidCount ?? 0)} />
-        <KV k="People" v={String(s.uniqueHumans ?? ipo.applicants ?? 0)} />
-        <KV k="Verifications issued" v={String(s.passesIssued ?? 0)} />
-        <KV k="Second-account attempts turned away" v={String(s.secondWalletDenials ?? 0)} />
-        <KV k="Applications rejected" v={String(s.rejectedBids ?? 0)} />
+        <KV k="Wallets that applied" v={String(ipo.applicants ?? 0)} />
+        <KV k="Applications rejected" v={String(s.rejectedBids ?? 0)} sub="Over the per-wallet limit, or priced above the cap" />
       </div>
       {data.bids && (
         <div className="mt-4">
@@ -501,6 +449,7 @@ function MonitorStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
               </li>
             ))}
           </ul>
+          <p className="t-caption mt-2">Sample data.</p>
         </div>
       )}
     </Card>
@@ -516,9 +465,7 @@ function GraduateStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
           Opens when the IPO closes at block {blockNo(ipo.endBlock ?? CURRENT_BLOCK)}. The shares list if the IPO raised at least{" "}
           {OFFER.requiredRaise} USDC; otherwise every application is refunded and there is nothing to list.
         </p>
-        <Button className="mt-4 w-full sm:w-auto sm:min-w-[160px]" disabled>
-          Open the market
-        </Button>
+        <RunsFromTheCommandLine command="cd contracts && make settle" note="Only works once the IPO has closed." />
       </Card>
     );
   return (
@@ -539,214 +486,103 @@ function GraduateStep({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
 }
 
 // ---------------------------------------------------------------------------
-// Exchange desk (operator): reference price, rule mode, halt, liquidity.
+// Trading rule: read-only policy state, and the commands that change it.
 // ---------------------------------------------------------------------------
 
-type DeskPhase = {
-  label: string;
-  done?: boolean;
-  tx?: string;
-  status?: string;
-} | null;
-
-function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog: (l: { time: string; line: string }) => void }) {
-  const { sendTx } = useApp();
-  const m = getMarket(ipo.ticker);
-  const [policy, setPolicy] = useState<Policy | undefined>(m?.policy);
-  const [ref, setRef] = useState(String(m?.policy.referencePrice ?? ""));
-  const [phase, setPhase] = useState<DeskPhase>(null);
-  const [running, setRunning] = useState(false);
-  const [withdrawn, setWithdrawn] = useState(false);
-
-  if (!policy)
-    return (
-      <>
-        <SectionTitle>Exchange desk</SectionTitle>
-        <p className="t-body text-text-2">These controls open once the shares are listed on the market.</p>
-      </>
-    );
-
-  const tickerStatus = (p: Policy) => (p.halted ? "halted" : p.mode === "surveillance" || p.mode === "directional" ? "under watch" : "listed");
-
-  const run = (next: Policy, what: string) => {
-    if (!online || running) return;
-    setRunning(true);
-    const now = () => new Date().toISOString();
-    const tx = `0x${Array.from({ length: 64 }, () => "0123456789abcdef"[Math.floor(Math.random() * 16)]).join("")}`;
-    const lines = [
-      `Editing exchange JSON: ${ipo.ticker} → ${what}`,
-      "cre workflow simulate --broadcast --non-interactive --trigger-index 0",
-      `Report signed · v${next.version}`,
-      `Broadcast tx ${shortHash(tx)} · ReportProcessed result=true`,
-      `ENS ${ensName(ipo.ticker)} listingday.status = ${tickerStatus(next)}`,
-    ];
-    setPhase({ label: "Signing the exchange notice" });
-    lines.forEach((line, i) => {
-      setTimeout(
-        () => {
-          onLog({ time: now(), line });
-          if (i === 1) setPhase({ label: "Broadcasting the notice" });
-          if (i === 3) setPolicy({ ...next, since: now(), asOf: now(), creTx: tx });
-          if (i === lines.length - 1) {
-            setPhase({
-              label: "Applied",
-              done: true,
-              tx,
-              status: tickerStatus(next),
-            });
-            setRunning(false);
-          }
-        },
-        500 + i * 600,
-      );
-    });
-  };
-
-  const setMode = (mode: Mode, halted = false) => {
-    const bandBps = mode === "listing" || mode === "surveillance" ? 500 : 2000;
-    run({ ...policy, version: policy.version + 1, mode, halted, bandBps }, halted ? "halt" : `mode=${mode}`);
-  };
-
-  const d = bandDigits(policy.referencePrice, policy.bandBps);
-  const { lo, hi } = band(policy.referencePrice, policy.bandBps);
-  const ruleNow = policy.halted
-    ? "Trading is halted."
-    : policy.mode === "directional"
-      ? `Trades toward ${lotFixed(policy.referencePrice)} go through between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}; moves away from it stop at ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)}.`
-      : `Trades allowed between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}.`;
-
-  const controls: {
-    label: string;
-    consequence: string;
-    onClick: () => void;
-    variant?: "secondary" | "danger";
-    disabled?: boolean;
-  }[] = [
-    {
-      label: "Normal day",
-      consequence: "Trades within 20% of the reference price go through.",
-      onClick: () => setMode("normal"),
-    },
-    {
-      label: "Under watch",
-      consequence: "Tightens the limit to 5% around the reference price.",
-      onClick: () => setMode("surveillance"),
-    },
-    {
-      label: "One-way day",
-      consequence: "Trades that push the price further from the reference stop at 5% from it. Trades toward it go through within 20%.",
-      onClick: () => setMode("directional"),
-    },
-    {
-      label: "Halt trading",
-      consequence: "Stops buying and selling at once. Liquidity can still be withdrawn.",
-      onClick: () => setMode(policy.mode, true),
-      variant: "danger",
-    },
-    {
-      label: "Resume trading",
-      consequence: "Lets buying and selling start again. Only available while trading is halted.",
-      onClick: () =>
-        run(
-          {
-            ...policy,
-            version: policy.version + 1,
-            halted: false,
-            mode: policy.mode === "halted" ? "normal" : policy.mode,
-          },
-          "resume",
-        ),
-      disabled: !policy.halted,
-    },
-  ];
+function TradingRulePanel({ ipo }: { ipo: Ipo }) {
+  const { data, error, loading, refreshing, retry, updatedAt } = usePolicy(ipo.ticker);
 
   return (
     <>
-      <SectionTitle>Exchange desk</SectionTitle>
-      <p className="t-label -mt-2">What the exchange does to keep trading orderly. Every action is published to everyone.</p>
+      <SectionTitle>Trading rule</SectionTitle>
+      <p className="t-label -mt-2">
+        The limits the exchange is enforcing on your share right now. This panel only reads. Nothing here changes the rule.
+      </p>
+
+      {data && <PolicyRows p={data} updatedAt={updatedAt} refreshing={refreshing} onRetry={retry} />}
+
+      {!data && loading && (
+        <Card className="mt-3 p-4">
+          <p className="t-body text-text-2">Reading the published rule…</p>
+        </Card>
+      )}
+
+      {!data && error && (
+        <ErrorCard
+          className="mt-3"
+          title={errorTitle(error)}
+          body={error.sentence}
+          onRetry={error.retryable ? retry : undefined}
+          retrying={refreshing}
+        />
+      )}
 
       <Card className="mt-3 p-4">
-        <p className="t-list-title text-text">Reference price</p>
-        <p className="t-label mt-0.5">Today&apos;s limits are measured from this price. {ruleNow}</p>
-        <div className="mt-3 flex items-center gap-3">
-          <input
-            inputMode="decimal"
-            value={ref}
-            onChange={(e) => setRef(e.target.value.replace(/[^0-9.]/g, ""))}
-            aria-label="Reference price in USDC per 1,000 shares"
-            className="field num t-input-value h-12 w-full max-w-[180px] min-w-0 rounded-[10px] bg-transparent px-3 text-text"
-          />
-          <Button
-            variant="secondary"
-            className="shrink-0"
-            disabled={!online || running || !ref}
-            onClick={() =>
-              run(
-                {
-                  ...policy,
-                  version: policy.version + 1,
-                  referencePrice: Number(ref),
-                },
-                `ref=${ref}`,
-              )
-            }
-          >
-            Update
-          </Button>
-        </div>
-      </Card>
-
-      <Card className="mt-3 p-4">
-        <p className="t-list-title text-text">Trading rule</p>
-        <p className="t-label mt-0.5">In force now: {ruleNow}</p>
-        <ul className="mt-3 border-t border-line">
-          {controls.map((c) => (
-            <li key={c.label} className="flex flex-col gap-2 border-b border-line py-3 sm:flex-row sm:items-center sm:gap-4">
-              <Button
-                variant={c.variant ?? "secondary"}
-                className="w-full shrink-0 sm:w-[172px]"
-                disabled={!online || running || c.disabled}
-                onClick={c.onClick}
-              >
-                {c.label}
-              </Button>
-              <p className="t-label min-w-0">{c.consequence}</p>
-            </li>
-          ))}
-        </ul>
-        {phase && (
-          <div className="mt-4 border-t border-line pt-3">
-            <p className="t-body text-text">{phase.done ? `Applied · ticker status now: ${phase.status}` : `${phase.label}…`}</p>
-            {phase.tx && (
-              <p className="mt-1">
-                <TextLink href={txUrl(phase.tx)}>View receipt</TextLink>
-              </p>
-            )}
-          </div>
-        )}
-        {!online && <p className="t-label mt-3 text-loss-text">Exchange actions need the CRE runner on the demo laptop.</p>}
-      </Card>
-
-      <Card className="mt-3 p-4">
-        <p className="t-list-title text-text">Liquidity in the market</p>
-        <p className="t-label mt-0.5">{m ? `${usdc(m.liquidity.usdc)} USDC + ${shares(m.liquidity.shares)} shares` : "Not open yet"}</p>
-        <Button
-          variant="secondary"
-          className="mt-3 w-full sm:w-auto sm:min-w-[200px]"
-          disabled={withdrawn}
-          onClick={async () => {
-            const r = await sendTx({
-              title: "Withdrawing liquidity",
-              success: "Liquidity withdrawn",
-            });
-            if (r.ok) setWithdrawn(true);
-          }}
-        >
-          {withdrawn ? "Withdrawn" : "Withdraw liquidity"}
-        </Button>
-        <p className="t-label mt-2">Takes the USDC and shares back out of the market. Works even while trading is halted.</p>
+        <p className="t-list-title text-text">Changing the rule runs from the command line</p>
+        <p className="t-body mt-1 text-text-2">
+          Chainlink CRE publishes the rule. It runs on the demo laptop, not in this browser: it reads the exchange&apos;s
+          policy, signs a report and writes it on chain. Two steps, then the panel above shows what landed.
+        </p>
+        <CommandBlock
+          label="1. Set the rule on the exchange"
+          command={`curl -X POST $EXCHANGE/policy -H "x-api-key: $SECRET" -d '{"mode":"surveillance"}'`}
+          note="$EXCHANGE is the mock exchange, http://127.0.0.1:8787 by default. It takes halted, mode, refPricePoints and bands."
+        />
+        <CommandBlock
+          label="2. Publish it with Chainlink CRE"
+          command="cd cre && cre workflow simulate ./listing-policy --target staging-settings --trigger-index 0 --broadcast"
+          note="The report is signed and written to the policy contract. The hook enforces it on the next trade."
+        />
       </Card>
     </>
+  );
+}
+
+function PolicyRows({
+  p,
+  updatedAt,
+  refreshing,
+  onRetry,
+}: {
+  p: PolicyView;
+  updatedAt: number | null;
+  refreshing: boolean;
+  onRetry: () => void;
+}) {
+  const limits = p.band ? `${lotFixed(p.band.low)} to ${lotFixed(p.band.high)} per 1,000 shares` : "Not set until the shares list";
+  return (
+    <Card className="mt-3 p-4">
+      <div className="divide-y divide-line">
+        <KV k="Rule in force" v={modeWords(p)} />
+        <KV k="Trading limits" v={limits} />
+        <KV k="Trading halted" v={p.halted ? "Yes" : "No"} />
+        <KV k="Reference price" v={p.referencePrice !== null ? `${lotFixed(p.referencePrice)} per 1,000 shares` : "Not set"} />
+        <KV k="In force since" v={p.since ? dateTimeIST(p.since) : "Not published yet"} />
+        <KV
+          k="Published rule is out of date"
+          v={p.stale ? "Yes, trading is halted until the next report" : "No"}
+          sub={p.staleAt ? `Goes out of date ${dateTimeIST(p.staleAt)}` : undefined}
+        />
+      </div>
+      <Details title="Details" className="mt-3">
+        <div className="divide-y divide-line">
+          <KV k="Policy version" v={`v${p.version}`} mono />
+          <KV k="Mode" v={p.mode} mono />
+          <KV k="Band" v={`${p.bandBps} bps`} mono />
+          <KV k="Hook phase" v={p.hookPhase} mono />
+          <KV k="Receiver status" v={p.receiverStatus ?? "unset"} mono />
+          <KV k="Report as of" v={p.asOf ? dateTimeIST(p.asOf) : "unset"} />
+          <KV k="CRE report" v={p.creTx ? <TextLink href={txUrl(p.creTx)}>{shortHash(p.creTx)}</TextLink> : "No report yet"} />
+        </div>
+        <p className="t-caption mt-2">Read from GET /v1/policy/{p.ticker}.</p>
+      </Details>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        <Button variant="secondary" className="w-full sm:w-auto sm:min-w-[160px]" onClick={onRetry} busy={refreshing}>
+          Check again
+        </Button>
+        {updatedAt && <span className="t-label">Read {timeIST(new Date(updatedAt).toISOString())}</span>}
+      </div>
+    </Card>
   );
 }
 
@@ -754,9 +590,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
 // Developer (collapsed): protocol words live here and nowhere else.
 // ---------------------------------------------------------------------------
 
-function DeveloperPanel({ ipo, data, log }: { ipo: Ipo; data: ConsoleData; log: { time: string; line: string }[] }) {
-  const { sendTx } = useApp();
-  const m = getMarket(ipo.ticker);
+function DeveloperPanel({ ipo, data }: { ipo: Ipo; data: ConsoleData }) {
   return (
     <div>
       <div className="divide-y divide-line">
@@ -769,54 +603,18 @@ function DeveloperPanel({ ipo, data, log }: { ipo: Ipo; data: ConsoleData; log: 
         <KV k="Pool" v={<CopyAddress value={ipo.records.pool} />} />
         <KV k="Hook" v={<CopyAddress value={ipo.records.hook} />} />
         <KV k="Policy" v={<CopyAddress value={ipo.records.policy} />} />
-        {m && <KV k="Policy version" v={`v${m.policy.version} · ${modeWord(m.policy)}`} mono />}
-        {m && <KV k="Report receipt" v={<TextLink href={txUrl(m.policy.creTx)}>{shortHash(m.policy.creTx)}</TextLink>} />}
+        <KV k="Backend" v={apiConfigured() ? "Configured" : "Not configured"} sub="services/api, read only" />
         {Object.entries(data.steps).map(([k, v]) =>
           typeof v?.tx === "string" ? <KV key={k} k={`${k} tx`} v={<TextLink href={txUrl(v.tx)}>{shortHash(v.tx)}</TextLink>} /> : null,
         )}
       </div>
 
-      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-        <Button
-          variant="danger"
-          onClick={() =>
-            sendTx({
-              title: "Receiver tries to set url",
-              revert: "EACUnauthorizedAccountRoles",
-              revertTitle: "The exchange could not write that record",
-              revertDetail: "The receiver only holds ROLE_SET_TEXT for listingday.status. This denial is the expected result.",
-            })
-          }
-        >
-          Test role denial
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={() =>
-            sendTx({
-              title: "Sweeping unsold tokens",
-              success: "Nothing left to sweep",
-            })
-          }
-        >
-          Sweep unsold tokens
-        </Button>
-      </div>
-
-      <p className="t-list-title mt-4 text-text">Runner log</p>
-      <div className="t-mono mt-2 rounded-[8px] bg-surface-2 p-3 text-text">
-        {log.length === 0 && <p className="text-text-2">No lines yet.</p>}
-        {log.map((l, i) => (
-          <p key={i}>
-            <span className="text-text-2">{timeIST(l.time).replace(" IST", "")}</span> {l.line}
-          </p>
-        ))}
-      </div>
-      {m && <p className="t-caption mt-2">Last report {dateTimeIST(m.policy.asOf)}.</p>}
+      <p className="t-list-title mt-4 text-text">Role denial, and sweeping unsold tokens</p>
+      <p className="t-body mt-1 text-text-2">
+        Both run against the contracts from the command line. The role denial is the expected failure: the policy
+        receiver holds the status role only, so writing any other record reverts.
+      </p>
+      <CommandBlock command="cd contracts && forge script script/ens/EnsStatusRole.s.sol --rpc-url $SEPOLIA_RPC_URL" />
     </div>
   );
-}
-
-function modeWord(p: Policy) {
-  return p.halted ? "halted" : p.mode;
 }

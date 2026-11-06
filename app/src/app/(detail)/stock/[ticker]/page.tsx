@@ -1,17 +1,23 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
 import { CompanyScreen } from "@/screens/company";
 import { SkeletonChart } from "@/components/states";
-import { TICKERS, getIpo, getMarket } from "@/lib/mock";
+import { TICKERS } from "@/lib/mock";
 
+/**
+ * Build-time samples only, not a claim about which companies exist: the page
+ * itself asks the backend for that at runtime, and any other ticker renders on
+ * demand. Cache Components needs at least one sample so the static shell can
+ * be validated and prerendered (next/dist/docs 01-app dynamic-routes, "With
+ * Cache Components").
+ */
 export function generateStaticParams() {
   return TICKERS.map((ticker) => ({ ticker }));
 }
 
 export async function generateMetadata({ params }: PageProps<"/stock/[ticker]">): Promise<Metadata> {
   const { ticker } = await params;
-  return { title: getIpo(ticker)?.name ?? "Company" };
+  return { title: ticker.toUpperCase() };
 }
 
 /**
@@ -29,8 +35,11 @@ export default function StockPage({ params }: PageProps<"/stock/[ticker]">) {
 
 async function StockBody({ params }: { params: PageProps<"/stock/[ticker]">["params"] }) {
   const { ticker } = await params;
-  const ipo = getIpo(ticker);
-  if (!ipo) notFound();
-  const market = ipo.phase === "listed" ? getMarket(ticker) : undefined;
-  return <CompanyScreen ipo={ipo} market={market} />;
+  // A second boundary around the client tree: the back bar reads the URL, which
+  // is runtime data on a dynamic route, so it streams in after the shell.
+  return (
+    <Suspense fallback={<SkeletonChart className="pt-20" />}>
+      <CompanyScreen ticker={ticker} />
+    </Suspense>
+  );
 }

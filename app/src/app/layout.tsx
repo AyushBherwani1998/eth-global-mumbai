@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { Suspense } from "react";
 import { Roboto } from "next/font/google";
 import { Providers } from "@/components/providers";
 import { TopNav } from "@/components/shell";
@@ -35,7 +36,17 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       </head>
       <body>
         <Providers>
-          <TopNav />
+          {/*
+            TopNav reads usePathname (it hides itself on /console). On a route
+            that is prerendered, Cache Components needs that read behind a
+            Suspense boundary so the nav streams in after the shell; without it
+            Next logs "URL data `usePathname()` in a Client Component outside of
+            <Suspense>" for /stock/[ticker]. The nav is `hidden` below 1024px
+            and sticky above it, so a null fallback costs no layout shift.
+          */}
+          <Suspense fallback={null}>
+            <TopNav />
+          </Suspense>
           <div className="min-h-dvh w-full bg-bg">{children}</div>
         </Providers>
         <ServiceWorkerRegister />

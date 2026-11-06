@@ -1,19 +1,5 @@
 {
-  "holdings": [
-    { "ticker": "acme", "shares": 10909, "unclaimedShares": 3200, "avgCost": 1.1 },
-    { "ticker": "masala", "shares": 12000, "unclaimedShares": 0, "avgCost": 1.25 },
-    { "ticker": "vayu", "shares": 0, "unclaimedShares": 14084, "avgCost": 1.42 }
-  ],
-  "lpPositions": [
-    {
-      "id": 1842,
-      "ticker": "acme",
-      "rangeLo": 0.9,
-      "rangeHi": 1.4,
-      "liquidityUsdc": 18.4,
-      "liquidityShares": 16380,
-      "feesUsdc": 0.21,
-      "owner": "issuer"
-    }
-  ]
+  "_note": "Static fallback copy, not the app's data. Holdings are derived from live applications (GET /v1/bids) in the Portfolio screen. The invented holdings and the liquidity position that used to sit here had no backend behind them and have been removed.",
+  "holdings": [],
+  "lpPositions": []
 }

@@ -6,9 +6,10 @@
 
 import Link from "next/link";
 
-import { ConsoleShell, ConsoleSignIn } from "@/components/console/shell";
+import { ConsoleShell, ConsoleSignIn, GateLine, NotTheOwner } from "@/components/console/shell";
 import { useIssuerSession } from "@/components/console/session";
-import { EmptyState, Table, TickerLogo, cx, statusLabel, type Column } from "@/components/ui";
+import { SkeletonList } from "@/components/states";
+import { EmptyState, Table, TickerLogo, statusLabel, type Column } from "@/components/ui";
 import { usdc } from "@/lib/format";
 import { CONSOLE, OFFER, ensName, getIpo, type Ipo } from "@/lib/mock";
 
@@ -19,16 +20,19 @@ const NEXT: Record<string, string> = {
   launch: "Open the IPO",
   monitor: "Watch applications",
   graduate: "List on the market",
-  demo: "Run the exchange desk",
+  demo: "Watch the trading rule",
 };
 
 type Row = { ipo: Ipo; next: string; raised: number; applications: number };
 
 export function ConsoleListScreen() {
-  const { session } = useIssuerSession();
-  if (!session) return <ConsoleSignIn />;
+  const { ready, connected, listings, ensName: signedInEns } = useIssuerSession();
 
-  const rows: Row[] = session.listings
+  if (!ready) return <SkeletonList rows={4} className="pt-6" />;
+  if (!connected) return <ConsoleSignIn />;
+  if (listings.length === 0) return <NotTheOwner />;
+
+  const rows: Row[] = listings
     .map((t) => getIpo(t))
     .filter((i): i is Ipo => Boolean(i))
     .map((ipo) => {
@@ -76,21 +80,21 @@ export function ConsoleListScreen() {
       <header className="border-b border-line py-5">
         <h1 className="t-page-title text-text">Your listings</h1>
         <p className="t-label mt-1">
-          {session.ensName ?? "This wallet"} manages {rows.length} {rows.length === 1 ? "listing" : "listings"}. Investors never see this screen.
+          {signedInEns ?? "This wallet"} manages {rows.length} {rows.length === 1 ? "listing" : "listings"}. Investors never see this screen.
         </p>
+        <GateLine className="mt-1" />
       </header>
 
       {rows.length > 0 && (
-        <dl className="mt-6 grid grid-cols-2 gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-4">
+        <dl className="mt-6 grid gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-3">
           {[
             { k: "Listings", v: String(rows.length) },
             { k: "Raised across listings", v: `${usdc(totalRaised)} USDC` },
             { k: "Applications", v: String(totalApplications) },
-            { k: "Exchange runner", v: CONSOLE.runnerOnline ? "Online" : "Offline", tone: CONSOLE.runnerOnline },
           ].map((c) => (
             <div key={c.k} className="bg-surface p-4">
               <dt className="t-label">{c.k}</dt>
-              <dd className={cx("num t-list-title mt-1", c.tone === undefined ? "text-text" : c.tone ? "text-gain-text" : "text-loss-text")}>{c.v}</dd>
+              <dd className="num t-list-title mt-1 text-text">{c.v}</dd>
             </div>
           ))}
         </dl>

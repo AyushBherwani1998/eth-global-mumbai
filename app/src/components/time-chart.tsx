@@ -47,7 +47,6 @@ import {
 import type { ChartType } from "./chart/controls";
 import { dateTimeIST, timeIST } from "@/lib/format";
 import type { Mode } from "@/lib/mock";
-import { SURVEILLANCE_BAND_BPS } from "@/lib/policy";
 
 export type { ChartPoint } from "./chart/series";
 export type ChartRef = { time: number; value: number; mode: Mode; bandBps: number };

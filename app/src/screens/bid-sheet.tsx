@@ -9,20 +9,21 @@ import { AlertTriangle, ShieldCheck } from "lucide-react";
 import { useApp } from "@/components/providers";
 import { TickerMark } from "@/components/company/logos";
 import { AmountField, Button, Details, KV, Sheet, Slider, Stepper, TextLink, TickerLogo, cx } from "@/components/ui";
-import { lotFixed, perShare, secondsToDuration, shares, usdc } from "@/lib/format";
+import { lotFixed, perShare, shares, usdc } from "@/lib/format";
 import { COMMITTED, FAUCET_URL, OFFER, WALLET, type Ipo } from "@/lib/mock";
-import type { WorldState } from "./world-sheet";
 
 type Opts = {
   ipo: Ipo;
-  worldState: WorldState;
-  onVerify: () => void;
   onDone?: () => void;
+  /** @deprecated World ID is dropped; listings are open. Accepted and ignored. */
+  worldState?: unknown;
+  /** @deprecated World ID is dropped; listings are open. Accepted and ignored. */
+  onVerify?: () => void;
 };
 
 type Warning = { text: string; fix: string; blocking: boolean; revert?: string };
 
-export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { body: ReactNode; footer: ReactNode } {
+export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: ReactNode } {
   const { usdcBalance, sendTx } = useApp();
   const price = ipo.clearingPrice ?? OFFER.issuePrice;
   const committed = COMMITTED[ipo.ticker] ?? 0;
@@ -37,8 +38,6 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
 
   const a = Number(amount) || 0;
   const maxPrice = mode === "cutoff" ? OFFER.capPrice : limit;
-  const needsPerson = ipo.eligibility === "human";
-  const verified = !needsPerson || worldState === "verified";
 
   const warnings: Warning[] = [];
   if (a > capLeft)
@@ -50,8 +49,6 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
     });
   if (a > usdcBalance)
     warnings.push({ text: `That's more than your balance of ${usdc(usdcBalance)} USDC.`, fix: "Get free test USDC or lower the amount.", blocking: true });
-  if (needsPerson && worldState === "expired")
-    warnings.push({ text: "Your one-person check has expired.", fix: "Verify again, it takes about a minute.", blocking: true, revert: "NotEligible" });
   if (mode === "limit" && limit < price)
     warnings.push({ text: "Your limit is below today's price.", fix: "Raise it, or your money may come back as a refund.", blocking: false });
 
@@ -111,7 +108,7 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
               </a>
             </>
           ) : (
-            `Up to ${usdc(OFFER.perApplicantCap, 0)} USDC per person · ${usdc(capLeft)} left for you`
+            `Up to ${usdc(OFFER.perApplicantCap, 0)} USDC per wallet · ${usdc(capLeft)} left for you`
           )
         }
       />
@@ -151,19 +148,12 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
         <KV k="Money paid in" v={`${usdc(a)} USDC`} sub="Moves to the IPO now. After it closes, settle to get back whatever didn't buy shares." />
       </div>
 
-      {needsPerson && (
-        <div className="mt-4 flex min-h-14 items-center gap-3 border-t border-line pt-3">
-          <ShieldCheck className={cx("size-5 shrink-0", verified ? "text-gain-text" : "text-text-2")} aria-hidden />
-          <span className="t-body min-w-0 flex-1 text-text">
-            {verified ? `Verified · valid ${secondsToDuration(WALLET.worldId.voucherExpiresInSec)}` : "One application per person"}
-          </span>
-          {!verified && (
-            <Button variant="secondary" size="sm" onClick={onVerify}>
-              Verify
-            </Button>
-          )}
-        </div>
-      )}
+      <div className="mt-4 flex min-h-14 items-center gap-3 border-t border-line pt-3">
+        <ShieldCheck className="size-5 shrink-0 text-text-2" aria-hidden />
+        <span className="t-body min-w-0 flex-1 text-text-2">
+          Anyone can apply. Each wallet can put in up to {usdc(OFFER.perApplicantCap)} USDC for this IPO.
+        </span>
+      </div>
 
       {warnings.length > 0 && (
         <div className="mt-4 space-y-2">
@@ -197,7 +187,7 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
         size="bar"
         className="w-full"
         busy={busy}
-        disabled={busy || a <= 0 || !verified || (step === 3 && blocked)}
+        disabled={busy || a <= 0 || (step === 3 && blocked)}
         onClick={run}
       >
         {busy ? "Check your wallet app" : label}
@@ -207,7 +197,6 @@ export function useApplyForm({ ipo, worldState, onVerify, onDone }: Opts): { bod
           <TextLink onClick={run}>Send anyway to see it rejected</TextLink>
         </p>
       )}
-      {!verified && <p className="t-caption mt-2 text-center">Verify you&apos;re one person to apply.</p>}
     </>
   );
 
@@ -240,16 +229,16 @@ export function ApplySheet({
   ipo,
   open,
   onClose,
-  worldState,
-  onVerify,
 }: {
   ipo: Ipo;
   open: boolean;
   onClose: () => void;
-  worldState: WorldState;
-  onVerify: () => void;
+  /** @deprecated World ID is dropped; listings are open. Accepted and ignored. */
+  worldState?: unknown;
+  /** @deprecated World ID is dropped; listings are open. Accepted and ignored. */
+  onVerify?: () => void;
 }) {
-  const { body, footer } = useApplyForm({ ipo, worldState, onVerify, onDone: onClose });
+  const { body, footer } = useApplyForm({ ipo, onDone: onClose });
   return (
     <Sheet open={open} onClose={onClose} title={`Apply for ${ipo.name}`} footer={footer}>
       <div className="flex items-center gap-3 pb-1">

@@ -6,15 +6,19 @@
   "chainName": "Sepolia",
   "usdcBalance": 14.62,
   "ethBalance": 0.0841,
-  "isIssuerFor": ["acme", "kesar"],
+  "isIssuerFor": [
+    "acme"
+  ],
   "worldId": {
     "status": "verified",
-    "humanKey": "0x2b91…f04c",
+    "humanKey": "0x2b91\u2026f04c",
     "voucherExpiresInSec": 412
   },
   "allowances": {
     "usdcToPermit2": true,
-    "permit2ToAuction": { "kesar": 5, "tara": 0 }
+    "permit2ToAuction": {
+      "acme": 0
+    }
   },
   "anonRpc": {
     "transport": "Nox mixnet",

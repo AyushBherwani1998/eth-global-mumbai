@@ -7,8 +7,7 @@ import { DetailBar } from "@/components/shell";
 import { useApp } from "@/components/providers";
 import { Card, KV, TextLink } from "@/components/ui";
 import { APP_VERSION } from "@/lib/version";
-import { dateTimeIST } from "@/lib/format";
-import { WALLET } from "@/lib/mock";
+import { OFFER } from "@/lib/mock";
 
 export function AboutScreen() {
   const { anon, network } = useApp();
@@ -37,8 +36,8 @@ export function AboutScreen() {
           <Card className="mt-1 p-4">
             <p className="t-body text-text">
               Every exchange rule here is inspired by the NSE but is not the NSE. This is not a regulated product, there are no regulatory claims, and
-              nothing here is advice. Money is Sepolia test USDC with no value, and the one-person check proves only that you are a unique person: it
-              is not KYC and it does not identify you.
+              nothing here is advice. Money is Sepolia test USDC with no value. Anyone with a wallet can apply for an IPO: nobody is identified, there
+              is no KYC, and the only limit is that one wallet can put at most {OFFER.perApplicantCap} USDC into a single IPO.
             </p>
           </Card>
         </section>
@@ -46,21 +45,22 @@ export function AboutScreen() {
         <section className="mt-6">
           <h2 className="t-section-title">How private browsing works</h2>
           <p className="t-body mt-1 text-text-2">
-            Every price this app looks up goes through a private relay, so the data provider cannot link your internet address to the companies you
-            look at. It is on by default and you can see the counters in Account, under Private browsing.
+            Prices and company details have to be fetched from somewhere, and whoever serves them can normally see your internet address next to every
+            company you look at. Private browsing sends those lookups through a relay instead, so the two cannot be tied together.
           </p>
           <p className="t-list-title mt-3 text-text">What this doesn&apos;t hide</p>
           <ul className="t-body mt-1 list-disc space-y-1 pl-5 text-text-2">
             <li>The provider still sees which companies are looked up, just not by whom.</li>
             <li>The very first connection is not private.</li>
-            <li>Buying, selling and applying go through your own wallet.</li>
+            <li>Buying, selling and applying go through your own wallet, which has its own connection.</li>
           </ul>
-          <div className="mt-3 divide-y divide-line">
-            <KV k="Relay" v={anon.transport} sub={`Fallback: ${WALLET.anonRpc.fallback}`} />
-            <KV k="Private lookups" v={anon.reads.toLocaleString("en-US")} />
-            <KV k="Direct lookups" v={String(anon.direct)} sub="Should always be zero" />
-            <KV k="Connected since" v={dateTimeIST(anon.since)} />
-          </div>
+          <p className="t-list-title mt-3 text-text">Where this build stands</p>
+          <p className="t-body mt-1 text-text-2">
+            {anon.live
+              ? `Lookups are going through ${anon.transport} right now.`
+              : `Not switched on yet. This build's lookups still go straight to the server, and so does the one request it makes to read your account name. The relay is ${anon.transport}, with ${anon.fallback} behind it.`}
+          </p>
+          <p className="t-caption mt-2">No lookup counts are shown here. Nothing is measuring that traffic yet, so there is nothing to report.</p>
         </section>
 
         <section className="mt-6">

@@ -2,16 +2,24 @@
 
 // App state. Sign-in is real: Privy owns the session (components/wallet), so
 // `connected`, `address` and `ensName` come from the signed-in account.
-// Everything else here is still mock: balances, holdings, bids, policy, prices,
-// the private-read counter and the transaction toasts.
+// Everything else here is still mock: balances, holdings, bids, policy, prices
+// and the transaction toasts.
+//
+// Two things deliberately do not exist here any more:
+//   - a private-read counter. The app reads sample data, so there was nothing
+//     to count and the old number only incremented on a timer (see the privacy
+//     explainer in shell.tsx, which now describes the design without numbers).
+//   - an issuer override. Who sees the issuer console is decided by comparing
+//     the signed-in address with the configured listing owner, and by nothing
+//     else; `?issuer=1` is gone.
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createContext, useCallback, useContext, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { WALLET } from "@/lib/mock";
 import { shortHash, txUrl } from "@/lib/format";
 import { ThemeProvider } from "./theme";
 import { Toast } from "./ui";
 import { WalletSessionProvider, useWalletSession } from "./wallet/session";
-import { ISSUER_ADDRESS } from "./wallet/env";
+import { LISTING_OWNER, hasListingOwner } from "./wallet/env";
 
 type ToastItem = {
   id: number;
@@ -50,8 +58,8 @@ type AppState = {
   switchNetwork: () => void;
   /** Demo helper so a screen can show the wrong-network state. */
   setWrongNetwork: (wrong: boolean) => void;
-  anon: { transport: string; reads: number; direct: number; lastError: string | null; since: string };
-  countRead: (n?: number) => void;
+  /** The private-reads design, for the explainer. No counters: nothing here measures traffic. */
+  anon: { transport: string; fallback: string; live: boolean };
   sendTx: (o: TxOptions) => Promise<{ ok: boolean; tx: string }>;
   /** Show a plain toast without a transaction. */
   notify: (title: string, status?: ToastItem["status"], detail?: string) => void;
@@ -76,21 +84,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
   );
 }
 
-/**
- * Who sees the issuer console. The signed-in address has to be the one that
- * owns the demo listings; `?issuer=1` allowlists whatever address you are
- * signed in with, so a judge can use their own wallet without a rebuild.
- */
-function useIssuerOverride() {
-  return useSyncExternalStore(
-    () => () => {},
-    () => new URLSearchParams(window.location.search).get("issuer") === "1",
-    () => false,
-  );
-}
-
-const ISSUER_OWNER = (ISSUER_ADDRESS || WALLET.address).toLowerCase();
-
 /** Screenshot hook. ?signedout=1 keeps the investor session signed out. It does not touch the issuer console. */
 function useSignedOutFlag() {
   return useSyncExternalStore(
@@ -102,22 +95,12 @@ function useSignedOutFlag() {
 
 function AppProvider({ children }: { children: React.ReactNode }) {
   const signedOut = useSignedOutFlag();
-  const issuerOverride = useIssuerOverride();
   const session = useWalletSession();
   const connected = session.connected && !signedOut;
   const [wrongNetwork, setWrongNetwork] = useState(false);
-  const [reads, setReads] = useState(WALLET.anonRpc.anonReads);
   const [toast, setToast] = useState<ToastItem | null>(null);
   const nextId = useRef(1);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const countRead = useCallback((n = 1) => setReads((r) => r + n), []);
-
-  // Every screen polls per block; mimic that so the counter visibly ticks.
-  useEffect(() => {
-    const id = setInterval(() => setReads((r) => r + 2), 12000);
-    return () => clearInterval(id);
-  }, []);
 
   const dismiss = useCallback(() => {
     if (timer.current) clearTimeout(timer.current);
@@ -152,7 +135,6 @@ function AppProvider({ children }: { children: React.ReactNode }) {
               : { status: "error", title: o.revertTitle ?? "That didn't go through", detail: [o.revertDetail, o.revert].filter(Boolean).join(" · "), tx },
             ok ? 4000 : 7000,
           );
-          setReads((r) => r + 3);
           resolve({ ok, tx });
         }, o.delayMs ?? 1400);
       });
@@ -160,7 +142,9 @@ function AppProvider({ children }: { children: React.ReactNode }) {
     [show],
   );
 
-  const isIssuer = connected && (issuerOverride || (session.address ?? "").toLowerCase() === ISSUER_OWNER);
+  // The listing owner comes from the deployment config (wallet/env.ts), never
+  // from the URL or local storage. With no owner configured nothing matches.
+  const isIssuer = connected && hasListingOwner && (session.address ?? "").toLowerCase() === LISTING_OWNER;
 
   const value = useMemo<AppState>(
     () => ({
@@ -179,16 +163,15 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       setWrongNetwork,
       anon: {
         transport: WALLET.anonRpc.transport,
-        reads,
-        direct: WALLET.anonRpc.directReads,
-        lastError: WALLET.anonRpc.lastError,
-        since: WALLET.anonRpc.connectedSince,
+        fallback: WALLET.anonRpc.fallback,
+        // No read in this build goes through the relay yet: the screens render
+        // sample data, and the one real network call (reverse ENS) is direct.
+        live: false,
       },
-      countRead,
       sendTx,
       notify,
     }),
-    [connected, isIssuer, session.ready, session.address, session.ensName, session.login, session.logout, wrongNetwork, reads, countRead, sendTx, notify],
+    [connected, isIssuer, session.ready, session.address, session.ensName, session.login, session.logout, wrongNetwork, sendTx, notify],
   );
 
   return (

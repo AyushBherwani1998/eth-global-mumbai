@@ -6,12 +6,12 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 
 import { Logo } from "@/components/shell";
 import { Button, Card, TickerLogo, cx } from "@/components/ui";
 import { shortAddr } from "@/lib/format";
-import { CONSOLE, getIpo } from "@/lib/mock";
+import { ensName, getIpo } from "@/lib/mock";
 import { useIssuerSession } from "./session";
 
 /** Console page width: wider and denser than the investor 1200px container. */
@@ -19,20 +19,81 @@ export function ConsoleContainer({ children, className }: { children: ReactNode;
   return <div className={cx("mx-auto w-full max-w-[1280px] px-5", className)}>{children}</div>;
 }
 
-export function RunnerStatus({ className }: { className?: string }) {
-  const online = CONSOLE.runnerOnline;
+// ---------------------------------------------------------------------------
+// Notices. Flat, bordered, untinted: a heading line and a sentence.
+// ---------------------------------------------------------------------------
+
+export function Notice({ title, children, className }: { title: string; children: ReactNode; className?: string }) {
   return (
-    <span className={cx("t-change-sm whitespace-nowrap", online ? "text-gain-text" : "text-loss-text", className)}>
-      {online ? "Runner online" : "Runner offline"}
-    </span>
+    <div className={cx("rounded-[10px] border border-line-strong bg-surface p-4", className)}>
+      <p className="t-list-title text-text">{title}</p>
+      <div className="t-body mt-1 text-text-2">{children}</div>
+    </div>
+  );
+}
+
+/**
+ * Shown on every console screen when no listing owner address is configured.
+ * Without it an open console could be read as a passed ownership check.
+ */
+export function DemoModeNotice({ className }: { className?: string }) {
+  const { gate } = useIssuerSession();
+  if (gate === "checked") return null;
+  return (
+    <Notice title="Demo mode. Nobody is being checked." className={cx("mt-4", className)}>
+      No listing owner address is set for this build, so this console does not know whether you own anything. Anyone who
+      signs in can open it and read these screens. Set the owner address in the deployment config and the console checks
+      the signed-in wallet against it.
+    </Notice>
+  );
+}
+
+/** The signed-in address and what it was checked against. */
+export function GateLine({ className }: { className?: string }) {
+  const { gate, address, owner } = useIssuerSession();
+  return (
+    <p className={cx("t-label", className)}>
+      {gate === "checked"
+        ? `Signed in as ${shortAddr(address ?? "")}, which matches the listing owner ${shortAddr(owner ?? "")}.`
+        : `Signed in as ${shortAddr(address ?? "")}. Not checked against any owner address.`}
+    </p>
+  );
+}
+
+/** A command to run on the demo laptop. Never a button that pretends to run it. */
+export function CommandBlock({ label, command, note }: { label?: string; command: string; note?: ReactNode }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="mt-3">
+      {label && <p className="t-label">{label}</p>}
+      <div className="mt-1 flex items-start gap-3 rounded-[8px] bg-surface-2 p-3">
+        <code className="t-mono min-w-0 flex-1 break-all whitespace-pre-wrap text-text">{command}</code>
+        <button
+          type="button"
+          onClick={() => {
+            navigator.clipboard?.writeText(command).then(
+              () => {
+                setCopied(true);
+                setTimeout(() => setCopied(false), 1500);
+              },
+              () => {},
+            );
+          }}
+          className="t-change-sm h-12 shrink-0 px-1 text-text-2 hover:text-text"
+        >
+          {copied ? "Copied" : "Copy"}
+        </button>
+      </div>
+      {note && <p className="t-label mt-1">{note}</p>}
+    </div>
   );
 }
 
 /** Header + listings navigation. Rendered by every signed-in console screen. */
 export function ConsoleShell({ children }: { children: ReactNode }) {
-  const { session, signOut } = useIssuerSession();
+  const { address, ensName: signedInEns, signOut, listings } = useIssuerSession();
   const path = usePathname();
-  const listings = (session?.listings ?? []).filter((t) => getIpo(t));
+  const open = listings.filter((t) => getIpo(t));
 
   return (
     <div className="min-h-dvh bg-bg">
@@ -43,8 +104,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           <span aria-hidden className="hidden h-5 w-px bg-line sm:block" />
           <span className="t-card-title hidden text-text sm:block">Issuer console</span>
           <div className="ml-auto flex items-center gap-4">
-            <RunnerStatus />
-            <span className="t-label hidden truncate md:block">{session?.ensName ?? shortAddr(session?.address)}</span>
+            <span className="t-label hidden truncate md:block">{signedInEns ?? shortAddr(address ?? "")}</span>
             <button type="button" onClick={signOut} className="t-change-sm h-12 shrink-0 text-text-2 hover:text-text">
               Sign out
             </button>
@@ -55,7 +115,7 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
             <ConsoleNavLink href="/console" active={path === "/console"}>
               All listings
             </ConsoleNavLink>
-            {listings.map((t) => {
+            {open.map((t) => {
               const ipo = getIpo(t)!;
               return (
                 <ConsoleNavLink key={t} href={`/console/${t}`} active={path === `/console/${t}`}>
@@ -69,7 +129,10 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
           </nav>
         </ConsoleContainer>
       </header>
-      <ConsoleContainer className="pb-12">{children}</ConsoleContainer>
+      <ConsoleContainer className="pb-12">
+        <DemoModeNotice />
+        {children}
+      </ConsoleContainer>
     </div>
   );
 }
@@ -87,18 +150,46 @@ function ConsoleNavLink({ href, active, children }: { href: string; active: bool
   );
 }
 
+/** Signed in, but this wallet is not the listing owner. */
+export function NotTheOwner({ ticker }: { ticker?: string }) {
+  const { address, owner } = useIssuerSession();
+  return (
+    <ConsoleShell>
+      <div className="max-w-[640px] py-10">
+        <p className="t-label-sm text-text-2">Not your listing</p>
+        <h1 className="t-page-title mt-2 text-text">This console is for the listing owner</h1>
+        <p className="t-body mt-2 text-text-2">
+          {ticker
+            ? `${ensName(ticker)} is managed by one address. Sign out and sign in with that wallet to open this listing.`
+            : "No listing is registered to the wallet you are signed in with. Sign out and sign in with the wallet that owns the listing."}
+        </p>
+        <div className="mt-4 divide-y divide-line border-t border-line">
+          <p className="t-label flex min-h-12 items-center justify-between gap-4 py-2">
+            <span>You are signed in as</span>
+            <span className="num t-mono text-text">{shortAddr(address ?? "")}</span>
+          </p>
+          <p className="t-label flex min-h-12 items-center justify-between gap-4 py-2">
+            <span>The listing owner is</span>
+            <span className="num t-mono text-text">{shortAddr(owner ?? "")}</span>
+          </p>
+        </div>
+      </div>
+    </ConsoleShell>
+  );
+}
+
 /** What an issuer can do here. Shown beside the sign-in so the purpose of the
  *  console is readable before anyone signs in. */
 const CAN_DO: { title: string; sub: string }[] = [
-  { title: "Publish a listing", sub: "Shares, issue price and the name investors find you by." },
-  { title: "Open an IPO", sub: "Take applications, then watch the price and the money raised." },
-  { title: "Set the trading rule", sub: "The price limits the exchange enforces on your share each day." },
-  { title: "Halt trading", sub: "Stop buying and selling at once. Liquidity can still be withdrawn." },
+  { title: "Follow a listing", sub: "Shares, issue price and the name investors find you by." },
+  { title: "Watch the IPO", sub: "Applications, the money raised and the price so far." },
+  { title: "Read the trading rule", sub: "The price limits the exchange is enforcing on your share right now." },
+  { title: "See every receipt", sub: "The transaction behind each step, on Etherscan." },
 ];
 
-/** Signed-out console: its own sign-in, never the investor one. */
+/** Signed-out console: the real wallet sign-in, and nothing that fakes one. */
 export function ConsoleSignIn() {
-  const { signIn, signInOther } = useIssuerSession();
+  const { signIn, gate } = useIssuerSession();
   return (
     <div className="flex min-h-dvh flex-col bg-bg">
       <header className="flex h-14 shrink-0 items-center gap-3 border-b border-line px-5 lg:px-10 xl:px-16">
@@ -141,23 +232,24 @@ export function ConsoleSignIn() {
           <div className="w-full">
             <Card className="p-5 sm:p-6">
               <h2 className="t-section-title text-text">Issuer sign in</h2>
-              <p className="t-body mt-2 text-text-2">Use the wallet that owns your listing&apos;s name, for example acme.listingday.eth.</p>
+              <p className="t-body mt-2 text-text-2">
+                {gate === "checked"
+                  ? "Sign in with the wallet that owns your listing. The console checks that address and opens only for it."
+                  : "Sign in with your wallet to look around."}
+              </p>
               <Button className="mt-5 w-full" onClick={signIn}>
                 Sign in
               </Button>
               <p className="t-label mt-3">One signature, nothing is charged. Investors never sign in here.</p>
-              <div className="mt-5 border-t border-line pt-3">
-                <button type="button" onClick={signInOther} className="t-change-sm flex h-12 items-center text-text-2 hover:text-text">
-                  Use a different wallet
-                </button>
-                <p className="t-label">Signs in a wallet that owns no listing, so you can see that state.</p>
-              </div>
             </Card>
 
-            <div className="mt-4 flex min-h-12 items-center justify-between gap-3 rounded-[10px] border border-line px-4 py-3">
-              <span className="t-label">Exchange runner</span>
-              <RunnerStatus />
-            </div>
+            {gate === "demo" && (
+              <Notice title="Demo mode. Nobody is being checked." className="mt-4">
+                No listing owner address is set for this build, so any wallet that signs in can open this console. It is
+                not an ownership check.
+              </Notice>
+            )}
+
             <p className="t-caption mt-3">
               Buying and selling shares happens in the{" "}
               <Link href="/" className="text-gain-text">

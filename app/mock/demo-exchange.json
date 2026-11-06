@@ -1,0 +1,230 @@
+{
+  "_note": "The demo exchange. This is NOT app data: nothing under src/ imports it. app/dev/api-stub reads it and serves it through the real API routes, and every response it serves is marked (health reports stub://fixtures, and the app shows a 'Demo data' strip on every screen while it is pointed there). Point the app at the real services/api and this file is never read, so only what is actually on chain shows, unmarked.",
+  "_times": "Every time is minutes before the moment the stub starts, so the 5m / 1H / 1D chart windows always have shape. Blocks are derived at 12s each.",
+  "_sector": "sector and city stay null here, exactly as the real API returns them (services/api/README.md: nothing on chain carries them). Where a company has a trade and a town, it is in the ENS description, which is where a real issuer would put it.",
+  "parent": "listingday.eth",
+  "chainId": 11155111,
+  "currentBlock": 7412212,
+  "offer": {
+    "totalSupply": 110000,
+    "auctioned": 90000,
+    "lpReserve": 20000,
+    "issuePrice": 1,
+    "floorPrice": 0.8,
+    "capPrice": 1.9,
+    "perApplicantCap": 20,
+    "targetRaise": 90,
+    "requiredRaise": 45,
+    "lpPercent": 20
+  },
+  "companies": [
+    {
+      "ticker": "acme",
+      "symbol": "ACME",
+      "name": "Acme SME",
+      "onChain": true,
+      "description": "Precision fasteners and stampings for two-wheeler makers. Three plants in Chakan, Pune; 14 years in business.",
+      "url": "https://github.com/listing-day",
+      "avatar": { "initials": "AC", "bg": "#1C4E89", "fg": "#ffffff" },
+      "phase": "listed",
+      "status": "listed",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 620,
+        "endedMinutesAgo": 560,
+        "claimMinutesAgo": 540,
+        "clearing": 0.8,
+        "raised": 60,
+        "applicants": 3,
+        "bidCount": 3,
+        "graduated": true
+      },
+      "listedMinutesAgo": 330,
+      "pool": { "usdc": 12, "shares": 15000, "vol": 0.004 },
+      "policy": [
+        { "minutesAgo": 330, "version": 1, "mode": "listing", "ref": 0.8, "bandBps": 500, "target": 0.808, "label": "Listed at 0.80 · ±5% band" },
+        { "minutesAgo": 200, "version": 3, "mode": "listing", "ref": 0.8, "bandBps": 500, "target": 0.796, "label": "v3 Listing day · ±5% · ref 0.80" },
+        { "minutesAgo": 45, "version": 5, "mode": "listing", "ref": 0.8, "bandBps": 500, "target": 0.812, "label": "v5 Listing day · ±5% · ref 0.80" }
+      ],
+      "bids": [
+        { "id": 0, "budget": 20, "maxPrice": 1.9, "state": "claimed", "filledShares": 25000, "refund": 0, "claimed": true, "mine": true, "minutesAgo": 600 },
+        { "id": 1, "budget": 20, "maxPrice": 1.0, "state": "exited", "filledShares": 25000, "refund": 0, "claimed": false, "claimOpen": true, "mine": true, "minutesAgo": 596 },
+        { "id": 2, "budget": 20, "maxPrice": 1.1, "state": "claimed", "filledShares": 25000, "refund": 0, "claimed": true, "mine": false, "minutesAgo": 590 }
+      ]
+    },
+    {
+      "ticker": "masala",
+      "symbol": "MASALA",
+      "name": "Masala Bros Kitchens",
+      "description": "Nine delivery-only kitchens across Bengaluru serving regional thalis. Profitable since FY24.",
+      "url": "https://masalabros.example",
+      "avatar": { "initials": "MB", "bg": "#A15C1A", "fg": "#ffffff" },
+      "phase": "listed",
+      "status": "listed",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 7000,
+        "endedMinutesAgo": 6940,
+        "claimMinutesAgo": 6920,
+        "clearing": 1.25,
+        "raised": 88.2,
+        "applicants": 36,
+        "bidCount": 40,
+        "graduated": true
+      },
+      "listedMinutesAgo": 5760,
+      "pool": { "usdc": 19.8, "shares": 14620, "vol": 0.006 },
+      "policy": [
+        { "minutesAgo": 5760, "version": 1, "mode": "listing", "ref": 1.25, "bandBps": 500, "target": 1.29, "label": "Listed at 1.25 · ±5% band" },
+        { "minutesAgo": 4320, "version": 2, "mode": "normal", "ref": 1.29, "bandBps": 2000, "target": 1.33, "label": "v2 Normal ±20% · ref 1.29" },
+        { "minutesAgo": 2880, "version": 3, "mode": "normal", "ref": 1.31, "bandBps": 2000, "target": 1.29, "label": "v3 Normal ±20% · ref 1.31" },
+        { "minutesAgo": 1440, "version": 4, "mode": "normal", "ref": 1.32, "bandBps": 2000, "target": 1.36, "label": "v4 Normal ±20% · ref 1.32" },
+        { "minutesAgo": 95, "version": 5, "mode": "normal", "ref": 1.34, "bandBps": 2000, "target": 1.37, "label": "v5 Normal ±20% · ref 1.34" }
+      ],
+      "bids": [
+        { "id": 4, "budget": 15, "maxPrice": 1.6, "state": "claimed", "filledShares": 12000, "refund": 0, "claimed": true, "mine": true, "minutesAgo": 6980 }
+      ]
+    },
+    {
+      "ticker": "nirmaan",
+      "symbol": "NIRMAAN",
+      "name": "Nirmaan Infra Projects",
+      "description": "EPC contractor for state highway and rural road work out of Nagpur. Four live contracts on the order book.",
+      "url": "https://nirmaan-infra.example",
+      "avatar": { "initials": "NI", "bg": "#3E4C6B", "fg": "#ffffff" },
+      "phase": "listed",
+      "status": "surveillance",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 4400,
+        "endedMinutesAgo": 4340,
+        "claimMinutesAgo": 4320,
+        "clearing": 0.98,
+        "raised": 71.6,
+        "applicants": 25,
+        "bidCount": 28,
+        "graduated": true
+      },
+      "listedMinutesAgo": 2880,
+      "pool": { "usdc": 14.2, "shares": 15640, "vol": 0.005 },
+      "policy": [
+        { "minutesAgo": 2880, "version": 1, "mode": "listing", "ref": 0.98, "bandBps": 500, "target": 0.95, "label": "Listed at 0.98 · ±5% band" },
+        { "minutesAgo": 1440, "version": 2, "mode": "normal", "ref": 0.93, "bandBps": 2000, "target": 0.9, "label": "v2 Normal ±20% · ref 0.93" },
+        { "minutesAgo": 300, "version": 3, "mode": "surveillance", "ref": 0.9, "bandBps": 500, "target": 0.912, "label": "v3 Surveillance ±5% · ref 0.90" }
+      ],
+      "bids": []
+    },
+    {
+      "ticker": "vayu",
+      "symbol": "VAYU",
+      "name": "Vayu E-Mobility",
+      "description": "Electric three-wheelers for last-mile cargo, assembled in Sitapura, Jaipur. 2,100 vehicles sold.",
+      "url": "https://vayu-ev.example",
+      "avatar": { "initials": "VE", "bg": "#1F6A6A", "fg": "#ffffff" },
+      "phase": "listed",
+      "status": "halted",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 5900,
+        "endedMinutesAgo": 5840,
+        "claimMinutesAgo": 5820,
+        "clearing": 1.42,
+        "raised": 90,
+        "applicants": 41,
+        "bidCount": 45,
+        "graduated": true
+      },
+      "listedMinutesAgo": 4320,
+      "pool": { "usdc": 21.1, "shares": 17460, "vol": 0.007 },
+      "policy": [
+        { "minutesAgo": 4320, "version": 1, "mode": "listing", "ref": 1.42, "bandBps": 500, "target": 1.37, "label": "Listed at 1.42 · ±5% band" },
+        { "minutesAgo": 2880, "version": 2, "mode": "normal", "ref": 1.36, "bandBps": 2000, "target": 1.24, "label": "v2 Normal ±20% · ref 1.36" },
+        { "minutesAgo": 760, "version": 3, "mode": "directional", "ref": 1.3, "bandBps": 2000, "target": 1.21, "label": "v3 One-way day · back toward 1.30" },
+        { "minutesAgo": 68, "version": 4, "mode": "halted", "ref": 1.3, "bandBps": 2000, "target": 1.21, "halted": true, "coolOffMin": 60, "label": "v4 Halted · swaps revert" }
+      ],
+      "bids": [
+        { "id": 9, "budget": 20, "maxPrice": 1.8, "state": "exited", "filledShares": 14084, "refund": 0, "claimed": false, "claimOpen": true, "mine": true, "minutesAgo": 5830 }
+      ]
+    },
+    {
+      "ticker": "kesar",
+      "symbol": "KESAR",
+      "name": "Kesar Agro Foods",
+      "description": "Saffron, dry fruits and spice blends from Srinagar. Exports to 11 countries; this issue funds a cold-storage unit.",
+      "url": "https://kesar-agro.example",
+      "avatar": { "initials": "KA", "bg": "#C46B2C", "fg": "#ffffff" },
+      "phase": "live",
+      "status": "auction",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 70,
+        "endsInMinutes": 42,
+        "clearing": 1.24,
+        "raised": 61.4,
+        "applicants": 19,
+        "bidCount": 23
+      },
+      "bids": [
+        { "id": 14, "budget": 8, "maxPrice": 1.4, "state": "active", "mine": true, "minutesAgo": 58 },
+        { "id": 21, "budget": 5, "maxPrice": 1.15, "state": "outbid", "mine": true, "minutesAgo": 31 }
+      ]
+    },
+    {
+      "ticker": "tara",
+      "symbol": "TARA",
+      "name": "Tara Handloom Textiles",
+      "description": "Power-loom sarees and dress material from Surat, supplying 400+ retailers in Gujarat and Maharashtra.",
+      "url": "https://tara-textiles.example",
+      "avatar": { "initials": "TT", "bg": "#7A3E5C", "fg": "#ffffff" },
+      "phase": "live",
+      "status": "auction",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 22,
+        "endsInMinutes": 88,
+        "clearing": 0.86,
+        "raised": 12,
+        "applicants": 6,
+        "bidCount": 6
+      },
+      "bids": []
+    },
+    {
+      "ticker": "lotus",
+      "symbol": "LOTUS",
+      "name": "Lotus Ceramics",
+      "description": "Vitrified floor tiles for the domestic market, made in Morbi. This issue closed below the minimum, so it did not list.",
+      "url": "https://lotus-ceramics.example",
+      "avatar": { "initials": "LC", "bg": "#8E3D55", "fg": "#ffffff" },
+      "phase": "refunding",
+      "status": "auction",
+      "eligibility": "open",
+      "auction": {
+        "startedMinutesAgo": 420,
+        "endedMinutesAgo": 180,
+        "claimMinutesAgo": 160,
+        "clearing": 0.82,
+        "raised": 31.2,
+        "applicants": 12,
+        "bidCount": 14,
+        "graduated": false
+      },
+      "bids": [
+        { "id": 2, "budget": 10, "maxPrice": 1.2, "state": "refundable", "exitable": "exitBid", "mine": true, "minutesAgo": 300 }
+      ]
+    },
+    {
+      "ticker": "prakriti",
+      "symbol": "PRAKRITI",
+      "name": "Prakriti Organics",
+      "description": "Bio-fertilisers and organic pest control for grape and onion farmers in the Nashik belt.",
+      "url": "https://prakriti-organics.example",
+      "avatar": { "initials": "PO", "bg": "#3E6B4F", "fg": "#ffffff" },
+      "phase": "draft",
+      "status": "draft",
+      "eligibility": "open",
+      "auction": { "startsInMinutes": 126, "endsInMinutes": 186 },
+      "bids": []
+    }
+  ]
+}

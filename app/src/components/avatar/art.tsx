@@ -1,34 +1,53 @@
-// Generated profile picture: flat geometric shapes on a 64-unit grid, picked
+// Generated profile picture: a flat monochrome mark on a 64-unit grid, picked
 // deterministically from the wallet address. No library, no network, no canvas.
 //
-// The same address and variant always give the same picture. Colours are the
-// company-mark tokens from globals.css, so an avatar follows light and dark the
-// way every other surface in the app does. Twelve shape templates, ten
-// palettes, four rotations: enough that two people never look alike, few enough
-// that every one of them is a flat shape study and not noise.
+// Why monochrome. The company marks (components/company/logos.tsx) are a
+// saturated field carrying a white glyph in a rounded square, and they own the
+// --mark-* hues. An avatar built from the same hues reads as one more company
+// logo. So a person's picture is built only from the ink of the interface:
+// var(--text) laid over var(--surface) at fixed strengths. Nothing in the app
+// that is not a person is grey, so a person is never mistaken for a company,
+// and the picture follows light and dark without a second palette.
+//
+// Why full-bleed. A small shape centred in a field is the grammar of an icon:
+// a triangle becomes play, two bars become pause, a dot in a ring becomes
+// record. Every direction here divides the whole circle instead, so the mark
+// is read as a mark and not as a control.
+//
+// Three directions are implemented. DIRECTION picks the one the app ships; the
+// other two stay here, one word away.
+//
+//   field   flat value fields divided by a straight edge
+//   moon    the same, divided by the edge of one large circle
+//   rule    hairlines and arcs crossing the frame, nothing contained
+//
+// Rules that hold in all three: the same address and variant always give the
+// same picture; every tone is ink over surface at 0.09 or more, so no field
+// can match the frame and look like a bite out of the circle; the smallest
+// feature is 5 units (just under 2px at 24px) so every mark survives the app
+// bar; tones top out well short of full ink, so an avatar never outshouts the
+// hairlines and black text around it.
 
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 
-// The neutral in each palette. --surface-2 rather than --surface, so a shape
-// that touches the rim still reads as a shape and not a bite out of the circle.
-const PAPER = "var(--surface-2)";
+const INK = "var(--text)";
+const PAPER = "var(--surface)";
 
-/** Palettes drawn from the mark tokens plus the brand and gain tokens. */
-const PALETTES: [string, string, string][] = [
-  ["var(--mark-acme)", "var(--mark-vayu)", "var(--mark-prakriti)"],
-  ["var(--mark-kesar)", "var(--mark-masala)", "var(--mark-acme)"],
-  ["var(--mark-tara)", "var(--mark-lotus)", "var(--mark-nirmaan)"],
-  ["var(--mark-prakriti)", "var(--mark-acme)", "var(--mark-masala)"],
-  ["var(--mark-nirmaan)", "var(--mark-vayu)", "var(--mark-tara)"],
-  ["var(--brand)", "var(--mark-acme)", "var(--mark-nirmaan)"],
-  ["var(--mark-lotus)", "var(--mark-kesar)", "var(--mark-tara)"],
-  ["var(--mark-vayu)", "var(--mark-prakriti)", "var(--mark-acme)"],
-  ["var(--mark-masala)", "var(--mark-lotus)", "var(--mark-kesar)"],
-  ["var(--gain-text)", "var(--mark-prakriti)", "var(--mark-vayu)"],
-];
+/**
+ * Opacities, not colours. `ground` tints the whole circle; `soft` and `firm`
+ * are laid over it, so a nested shape reads darker than a neighbouring one
+ * without either needing its own colour.
+ */
+type Tones = { ground: number; soft: number; firm: number };
+type Layer = { a: number; nodes: ReactNode[] };
+type Form = { spin?: boolean; tilt?: number; draw: (t: Tones) => Layer[] };
+type Direction = { forms: Form[]; tones: Tones[] };
 
-type Ink = { bg: string; a: string; b: string; paper: string };
-type Template = (ink: Ink, rand: () => number) => ReactNode[];
+const L = (a: number, ...nodes: ReactNode[]): Layer => ({ a, nodes });
+
+/** Strokes run past the frame so a cap is never visible inside the circle. */
+const OUT = 14;
+const LINE = { fill: "none", strokeWidth: 7.5 } as const;
 
 // --- deterministic hashing ---------------------------------------------------
 
@@ -41,164 +60,202 @@ function hash32(s: string) {
   return h >>> 0;
 }
 
-/** xorshift32, seeded from the hash. Same seed, same sequence, every time. */
-function makeRand(seed: number) {
-  let x = seed || 0x9e3779b9;
-  return () => {
-    x ^= x << 13;
-    x >>>= 0;
-    x ^= x >>> 17;
-    x ^= x << 5;
-    x >>>= 0;
-    return x / 4294967296;
-  };
-}
+// --- 1. field: straight edges ------------------------------------------------
+// Two or three flat values meeting on a straight edge. Nothing here is small
+// enough to break down at 24px, and the silhouette is the frame itself.
 
-// --- shape templates ---------------------------------------------------------
-
-const quarters: Template = ({ a, b, paper }, rand) => {
-  const corners = [
-    "M0,0 L32,0 A32,32 0 0 1 0,32 Z",
-    "M64,0 L64,32 A32,32 0 0 1 32,0 Z",
-    "M64,64 L32,64 A32,32 0 0 1 64,32 Z",
-    "M0,64 L0,32 A32,32 0 0 1 32,64 Z",
-  ];
-  const ink = [a, b, paper];
-  return corners.map((d, i) => <path key={i} d={d} fill={ink[Math.floor(rand() * 3)]} />);
+const FIELD: Direction = {
+  tones: [
+    { ground: 0.16, soft: 0.24, firm: 0.52 },
+    { ground: 0.22, soft: 0.26, firm: 0.58 },
+    { ground: 0.17, soft: 0.2, firm: 0.47 },
+  ],
+  forms: [
+    // half
+    { spin: true, draw: (t) => [L(t.firm, <rect x={0} y={34} width={64} height={30} />)] },
+    // two bands under a wide ground
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <rect x={0} y={22} width={64} height={20} />), L(t.firm, <rect x={0} y={42} width={64} height={22} />)],
+    },
+    // off-centre split
+    { spin: true, draw: (t) => [L(t.firm, <rect x={26} y={0} width={38} height={64} />)] },
+    // diagonal
+    { spin: true, draw: (t) => [L(t.firm, <path d="M0,64 L64,0 L64,64 Z" />)] },
+    // opposite quarters
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <rect x={32} y={0} width={32} height={32} />), L(t.soft, <rect x={0} y={32} width={32} height={32} />)],
+    },
+    // band
+    { spin: true, draw: (t) => [L(t.firm, <rect x={0} y={23} width={64} height={18} />)] },
+    // cut corner
+    { spin: true, draw: (t) => [L(t.soft, <path d="M0,0 L64,0 L0,42 Z" />)] },
+    // column and shelf
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <rect x={0} y={0} width={24} height={64} />), L(t.soft, <rect x={24} y={44} width={40} height={20} />)],
+    },
+    // diagonal band
+    { spin: true, draw: (t) => [L(t.firm, <path d="M0,44 L44,0 L64,0 L64,20 L20,64 L0,64 Z" />)] },
+    // step
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <rect x={0} y={32} width={64} height={32} />), L(t.soft, <rect x={32} y={16} width={32} height={16} />)],
+    },
+    // three columns
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <rect x={21} y={0} width={22} height={64} />), L(t.firm, <rect x={43} y={0} width={21} height={64} />)],
+    },
+    // shelf over a half
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <rect x={0} y={38} width={64} height={26} />), L(t.soft, <rect x={0} y={26} width={64} height={12} />)],
+    },
+  ],
 };
 
-const arcs: Template = ({ a, b, paper }) =>
-  [
-    [52, a],
-    [36, b],
-    [20, paper],
-  ].map(([r, fill], i) => <circle key={i} cx={32} cy={64} r={r as number} fill={fill as string} />);
+// --- 2. moon: curved edges ---------------------------------------------------
+// The same restraint with one large circle instead of a straight edge. Every
+// circle is bigger than the frame or centred outside it, so what shows is an
+// arc crossing the picture, never a disc sitting inside it.
 
-const triangles: Template = ({ a, b, paper }, rand) => {
-  const ink = [a, b, paper];
-  const out: ReactNode[] = [];
-  for (let gy = 0; gy < 2; gy += 1) {
-    for (let gx = 0; gx < 2; gx += 1) {
-      const x = gx * 32;
-      const y = gy * 32;
-      const shapes = [
-        `M${x},${y} L${x + 32},${y} L${x},${y + 32} Z`,
-        `M${x},${y} L${x + 32},${y} L${x + 32},${y + 32} Z`,
-        `M${x + 32},${y} L${x + 32},${y + 32} L${x},${y + 32} Z`,
-        `M${x},${y} L${x + 32},${y + 32} L${x},${y + 32} Z`,
-      ];
-      out.push(
-        <path key={`${gx}-${gy}`} d={shapes[Math.floor(rand() * 4)]} fill={ink[Math.floor(rand() * 3)]} />,
-      );
-    }
-  }
-  return out;
+const MOON: Direction = {
+  tones: [
+    { ground: 0.16, soft: 0.22, firm: 0.5 },
+    { ground: 0.21, soft: 0.25, firm: 0.56 },
+    { ground: 0.18, soft: 0.2, firm: 0.46 },
+  ],
+  forms: [
+    // crescent, light side left
+    { spin: true, draw: (t) => [L(t.firm, <circle cx={46} cy={32} r={30} />)] },
+    // wide crescent
+    { spin: true, draw: (t) => [L(t.firm, <circle cx={-2} cy={32} r={40} />)] },
+    // dome with a nested dome
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <circle cx={32} cy={62} r={44} />), L(t.firm, <circle cx={32} cy={70} r={34} />)],
+    },
+    // two circles meeting: the overlap reads as a third value
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <circle cx={32} cy={6} r={30} />), L(t.soft, <circle cx={32} cy={58} r={30} />)],
+    },
+    // corner bloom
+    { spin: true, draw: (t) => [L(t.soft, <circle cx={8} cy={8} r={40} />), L(t.firm, <circle cx={4} cy={4} r={24} />)] },
+    // ring of ground around a near-full disc
+    { draw: (t) => [L(t.firm, <circle cx={32} cy={32} r={27} />)] },
+    // shallow rise
+    { spin: true, draw: (t) => [L(t.firm, <circle cx={32} cy={84} r={56} />)] },
+    // opposed blooms
+    { spin: true, draw: (t) => [L(t.soft, <circle cx={58} cy={6} r={36} />), L(t.soft, <circle cx={6} cy={58} r={36} />)] },
+    // crescent over a half
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <rect x={0} y={30} width={64} height={34} />), L(t.firm, <circle cx={40} cy={40} r={30} />)],
+    },
+    // eclipse: a large arc with a smaller one inside it
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <circle cx={-6} cy={32} r={46} />), L(t.firm, <circle cx={-18} cy={32} r={44} />)],
+    },
+    // quarter bloom with a straight edge
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <circle cx={60} cy={58} r={42} />), L(t.soft, <rect x={0} y={0} width={64} height={14} />)],
+    },
+    // two arcs from the same side
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <circle cx={32} cy={-14} r={40} />), L(t.firm, <circle cx={32} cy={-26} r={40} />)],
+    },
+  ],
 };
 
-const stripes: Template = ({ a, b, paper }) => (
-  [
-    [-16, a],
-    [4, paper],
-    [24, b],
-    [44, paper],
-  ].map(([y, fill], i) => (
-    <rect key={i} x={-32} y={y as number} width={128} height={16} fill={fill as string} transform="rotate(45 32 32)" />
-  ))
-);
+// --- 3. rule: hairlines and arcs ---------------------------------------------
+// The lightest of the three. One stroke weight, every line running out past
+// the frame, so the picture is a fragment of a larger drawing rather than a
+// glyph. Matches an interface made of 1px rules and white space.
 
-const orbit: Template = ({ a, b, paper }) => [
-  <circle key="big" cx={24} cy={24} r={20} fill={a} />,
-  <circle key="small" cx={47} cy={46} r={12} fill={b} />,
-  <rect key="bar" x={0} y={54} width={64} height={10} fill={paper} />,
-];
-
-const cross: Template = ({ a, b, paper }) => [
-  <rect key="v" x={24} y={0} width={16} height={64} fill={a} />,
-  <rect key="h" x={0} y={24} width={64} height={16} fill={b} />,
-  <circle key="d1" cx={12} cy={12} r={7} fill={paper} />,
-  <circle key="d2" cx={52} cy={52} r={7} fill={paper} />,
-];
-
-const pie: Template = ({ a, b, paper }, rand) => {
-  const wedges = [
-    "M32,32 L58,32 A26,26 0 0 1 32,58 Z",
-    "M32,32 L32,58 A26,26 0 0 1 6,32 Z",
-    "M32,32 L6,32 A26,26 0 0 1 32,6 Z",
-    "M32,32 L32,6 A26,26 0 0 1 58,32 Z",
-  ];
-  const ink = rand() > 0.5 ? [a, paper, b, paper] : [paper, a, paper, b];
-  return wedges.map((d, i) => <path key={i} d={d} fill={ink[i]} />);
+const RULE: Direction = {
+  tones: [
+    { ground: 0.13, soft: 0.2, firm: 0.54 },
+    { ground: 0.17, soft: 0.22, firm: 0.6 },
+    { ground: 0.11, soft: 0.17, firm: 0.48 },
+  ],
+  forms: [
+    // one arc sweeping through
+    { spin: true, draw: (t) => [L(t.firm, <circle cx={58} cy={32} r={34} {...LINE} />)] },
+    // arc and a rule
+    {
+      spin: true,
+      draw: (t) => [
+        L(t.firm, <circle cx={4} cy={4} r={30} {...LINE} />, <path d={`M${-OUT},46 H${64 + OUT}`} {...LINE} />),
+      ],
+    },
+    // two rules
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <path d={`M${-OUT},22 H${64 + OUT}`} {...LINE} />, <path d={`M${-OUT},42 H${64 + OUT}`} {...LINE} />)],
+    },
+    // shallow arc under a rule
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <circle cx={32} cy={66} r={40} {...LINE} />, <path d={`M${-OUT},16 H${64 + OUT}`} {...LINE} />)],
+    },
+    // inner ring
+    { draw: (t) => [L(t.firm, <circle cx={32} cy={32} r={24} {...LINE} />)] },
+    // three rules
+    {
+      spin: true,
+      draw: (t) => [
+        L(t.firm,
+          <path d={`M${-OUT},14 H${64 + OUT}`} {...LINE} />,
+          <path d={`M${-OUT},32 H${64 + OUT}`} {...LINE} />,
+          <path d={`M${-OUT},50 H${64 + OUT}`} {...LINE} />,
+        ),
+      ],
+    },
+    // rule across a corner, with an arc
+    {
+      spin: true,
+      tilt: 45,
+      draw: (t) => [L(t.firm, <path d={`M${-OUT},32 H${64 + OUT}`} {...LINE} />, <circle cx={50} cy={14} r={22} {...LINE} />)],
+    },
+    // two concentric arcs from a corner
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <circle cx={10} cy={54} r={16} {...LINE} />, <circle cx={10} cy={54} r={30} {...LINE} />)],
+    },
+    // a rule on the edge of a soft field
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <rect x={0} y={36} width={64} height={28} />), L(t.firm, <path d={`M${-OUT},36 H${64 + OUT}`} {...LINE} />)],
+    },
+    // a rule and a very shallow arc running with it
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <path d={`M${-OUT},22 H${64 + OUT}`} {...LINE} />, <circle cx={32} cy={118} r={76} {...LINE} />)],
+    },
+    // two arcs sweeping from the same side
+    {
+      spin: true,
+      draw: (t) => [L(t.firm, <circle cx={-24} cy={32} r={40} {...LINE} />, <circle cx={-24} cy={32} r={58} {...LINE} />)],
+    },
+    // arc over a soft corner
+    {
+      spin: true,
+      draw: (t) => [L(t.soft, <path d="M0,0 L64,0 L0,46 Z" />), L(t.firm, <circle cx={62} cy={62} r={40} {...LINE} />)],
+    },
+  ],
 };
 
-const chevrons: Template = ({ a, b, paper }) =>
-  [
-    [6, a],
-    [24, paper],
-    [42, b],
-  ].map(([y, stroke], i) => (
-    <path
-      key={i}
-      d={`M8,${y} L32,${(y as number) + 20} L56,${y}`}
-      fill="none"
-      stroke={stroke as string}
-      strokeWidth={9}
-      strokeLinecap="square"
-      strokeLinejoin="miter"
-    />
-  ));
+export const DIRECTIONS = { field: FIELD, moon: MOON, rule: RULE };
+export type DirectionName = keyof typeof DIRECTIONS;
 
-const columns: Template = ({ a, b, paper }, rand) => {
-  const ink = [a, paper, b, paper];
-  return [0, 1, 2, 3].map((i) => {
-    const h = 16 + Math.floor(rand() * 36);
-    return <rect key={i} x={6 + i * 14} y={64 - h} width={10} height={h} fill={ink[i]} />;
-  });
-};
-
-const halfRounds: Template = ({ a, b, paper }, rand) => {
-  const ink = [a, b, paper];
-  const out: ReactNode[] = [];
-  for (let gy = 0; gy < 2; gy += 1) {
-    for (let gx = 0; gx < 2; gx += 1) {
-      const x = gx * 32;
-      const y = gy * 32;
-      const faces = [
-        `M${x},${y + 16} A16,16 0 0 1 ${x + 32},${y + 16} Z`,
-        `M${x},${y + 16} A16,16 0 0 0 ${x + 32},${y + 16} Z`,
-        `M${x + 16},${y} A16,16 0 0 0 ${x + 16},${y + 32} Z`,
-        `M${x + 16},${y} A16,16 0 0 1 ${x + 16},${y + 32} Z`,
-      ];
-      out.push(<path key={`${gx}-${gy}`} d={faces[Math.floor(rand() * 4)]} fill={ink[Math.floor(rand() * 3)]} />);
-    }
-  }
-  return out;
-};
-
-const diamond: Template = ({ a, paper }) => [
-  <rect key="outer" x={14} y={14} width={36} height={36} fill={a} transform="rotate(45 32 32)" />,
-  <rect key="inner" x={24} y={24} width={16} height={16} fill={paper} transform="rotate(45 32 32)" />,
-];
-
-const ring: Template = ({ a, b, paper }) => [
-  <circle key="ring" cx={32} cy={32} r={22} fill="none" stroke={a} strokeWidth={14} />,
-  <path key="notch" d="M32,32 L32,4 A28,28 0 0 1 60,32 Z" fill={paper} />,
-  <circle key="dot" cx={32} cy={32} r={7} fill={b} />,
-];
-
-const TEMPLATES: Template[] = [
-  quarters,
-  arcs,
-  triangles,
-  stripes,
-  orbit,
-  cross,
-  pie,
-  chevrons,
-  columns,
-  halfRounds,
-  diamond,
-  ring,
-];
+/** The direction the app ships. The other two render from the same file. */
+export const DIRECTION: DirectionName = "field";
 
 /** How many different pictures the picker offers for one address. */
 export const VARIANT_COUNT = 8;
@@ -210,21 +267,24 @@ export function GeneratedAvatar({
   variant = 0,
   size = 36,
   className,
+  direction = DIRECTION,
 }: {
   address: string;
   variant?: number;
   size?: number;
   className?: string;
+  direction?: DirectionName;
 }) {
-  // The address picks where the walk starts; the variant steps along it by a
-  // stride coprime with the list length, so the eight choices the picker offers
-  // are always eight different shapes in eight different palettes.
-  const base = hash32(address.toLowerCase());
-  const h = hash32(`${address.toLowerCase()}#${variant}`);
-  const [bg, a, b] = PALETTES[(base + variant * 3) % PALETTES.length];
-  const template = TEMPLATES[(base + variant * 5) % TEMPLATES.length];
-  const rotation = ((h >>> 15) % 4) * 90;
-  const shapes = template({ bg, a, b, paper: PAPER }, makeRand(h));
+  // The address picks where the walk starts; the variant steps along by strides
+  // coprime with the list lengths, so the eight pictures the picker offers are
+  // eight different forms rather than the same one restated.
+  const key = address.toLowerCase();
+  const base = hash32(key);
+  const h = hash32(`${key}#${variant}`);
+  const d = DIRECTIONS[direction];
+  const tones = d.tones[(base + variant * 3) % d.tones.length];
+  const form = d.forms[(base + variant * 5) % d.forms.length];
+  const turn = (form.spin ? ((h >>> 13) % 4) * 90 : 0) + (form.tilt ?? 0);
 
   return (
     <svg
@@ -235,8 +295,17 @@ export function GeneratedAvatar({
       className={className}
       style={{ borderRadius: "50%", display: "block" }}
     >
-      <rect width={64} height={64} fill={bg} />
-      <g transform={`rotate(${rotation} 32 32)`}>{shapes}</g>
+      <rect width={64} height={64} fill={PAPER} />
+      <rect width={64} height={64} fill={INK} opacity={tones.ground} />
+      <g transform={`rotate(${turn} 32 32)`}>
+        {form.draw(tones).map((layer, i) => (
+          <g key={i} fill={INK} stroke={INK} strokeWidth={0} opacity={layer.a}>
+            {layer.nodes.map((node, j) => (
+              <Fragment key={j}>{node}</Fragment>
+            ))}
+          </g>
+        ))}
+      </g>
     </svg>
   );
 }
