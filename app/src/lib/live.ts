@@ -11,7 +11,7 @@
 // - `retry()` re-runs immediately (that is the Retry button).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiFailure, POLL, api, asApiFailure, type BidsResponse, type ListingsResponse, type MarketView, type SwapsResponse } from "./api";
+import { ApiFailure, POLL, api, asApiFailure, type BidsResponse, type ListingsResponse, type MarketView, type Portfolio } from "./api";
 
 export type Live<T> = {
   data: T | null;
@@ -24,6 +24,13 @@ export type Live<T> = {
   /** ms, for "as of" copy. */
   updatedAt: number | null;
 };
+
+const refreshers = new Set<() => void>();
+
+/** Re-read everything on screen now, e.g. once a transaction's receipt is in. */
+export function refreshLive() {
+  refreshers.forEach((r) => r());
+}
 
 /** What the last completed read returned, and which request it answered. */
 type Entry<T> = { key: string | null; data: T | null; error: ApiFailure | null; updatedAt: number | null };
@@ -72,11 +79,14 @@ export function useLive<T>(key: string | null, load: () => Promise<T>, intervalM
     const onVisible = () => {
       if (!document.hidden) void run();
     };
+    const onRefresh = () => void run();
     document.addEventListener("visibilitychange", onVisible);
+    refreshers.add(onRefresh);
     return () => {
       alive = false;
       clearInterval(id);
       document.removeEventListener("visibilitychange", onVisible);
+      refreshers.delete(onRefresh);
     };
   }, [key, intervalMs, attempt]);
 
@@ -136,12 +146,12 @@ export function useListing(ticker: string | null) {
   return useLive(ticker ? `listing:${ticker}` : null, () => api.listing(ticker as string), POLL.listings);
 }
 
-export function useMarket(ticker: string | null) {
-  return useLive(ticker ? `market:${ticker}` : null, () => api.market(ticker as string), POLL.market);
-}
+/** How many recent trades every market read asks for: enough for a day of chart and the trades tab. */
+export const TRADES_LIMIT = 400;
 
-export function useSwaps(ticker: string | null, limit = 400) {
-  return useLive(ticker ? `swaps:${ticker}:${limit}` : null, () => api.swaps(ticker as string, { limit }), POLL.swaps);
+/** Pool price, policy, recent trades and price points, reference/band steps and halt spans: one call. */
+export function useMarket(ticker: string | null) {
+  return useLive(ticker ? `market:${ticker}:${TRADES_LIMIT}` : null, () => api.market(ticker as string, { limit: TRADES_LIMIT }), POLL.market);
 }
 
 export function useAuction(ticker: string | null) {
@@ -165,7 +175,7 @@ export function useEligibility(ticker: string | null, address: string | null) {
   );
 }
 
-export type Quote = { ticker: string; market: MarketView; swaps: SwapsResponse };
+export type Quote = { ticker: string; market: MarketView };
 
 /**
  * Price, band and trade history for a set of listed companies, in one resource
@@ -179,10 +189,7 @@ export function useQuotes(tickers: string[]): Live<Quote[]> {
     async () => {
       const ts = list ? list.split(",") : [];
       return Promise.all(
-        ts.map(async (ticker) => {
-          const [market, swaps] = await Promise.all([api.market(ticker), api.swaps(ticker, { limit: 400 })]);
-          return { ticker, market, swaps };
-        }),
+        ts.map(async (ticker) => ({ ticker, market: await api.market(ticker, { limit: TRADES_LIMIT }) })),
       );
     },
     POLL.market,
@@ -192,4 +199,28 @@ export function useQuotes(tickers: string[]): Live<Quote[]> {
 /** Is the server up, and is it serving a chain or the development fixtures? */
 export function useHealth() {
   return useLive("health", () => api.health(), POLL.health);
+}
+
+/**
+ * This wallet's USDC and ETH, share balances (held even with no bids), and
+ * every bid across listings. Null address (signed out) stands the poll down.
+ */
+export function usePortfolio(address: string | null): Live<Portfolio> {
+  return useLive(address ? `portfolio:${address.toLowerCase()}` : null, () => api.portfolio(address as string), POLL.portfolio);
+}
+
+/**
+ * The tickers `address` is the issuer of, per `/v1/issuer/:ticker?address=`
+ * (`check.isIssuer`). One check per listing; slow poll, it changes only with ENS ownership.
+ */
+export function useIssuerOf(tickers: string[], address: string | null): Live<string[]> {
+  const list = tickers.join(",");
+  return useLive(
+    address && list ? `issuer:${address.toLowerCase()}:${list}` : null,
+    async () => {
+      const rows = await Promise.all(list.split(",").map((t) => api.issuer(t, address as string)));
+      return rows.filter((r) => r.check?.isIssuer).map((r) => r.ticker);
+    },
+    POLL.issuer,
+  );
 }

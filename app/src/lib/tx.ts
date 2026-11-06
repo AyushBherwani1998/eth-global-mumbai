@@ -90,7 +90,7 @@ export type RunOptions<D = Record<string, unknown>> = {
   chainId: number;
   /** True while the API reports fixtures (`/health` rpc `stub://`). */
   demoData?: boolean;
-  /** Return a sentence to refuse the final call (approvals are never sent if the first prepare is refused). */
+  /** Return a sentence to refuse; checked on every prepare, before the simulation result. */
   guard?: (p: Prepared<D>) => string | null;
   onProgress?: (p: TxProgress) => void;
   /** Receipt source; defaults to polling the wallet's own provider. */
@@ -278,11 +278,9 @@ export async function runPrepared<D = Record<string, unknown>>(o: RunOptions<D>)
     const final = p.steps[p.steps.length - 1];
     const approvals = p.steps.slice(0, -1).filter((s) => s.needed);
 
+    const no = o.guard?.(p) ?? null;
+    if (no) return fail("refused", { message: no });
     if (p.simulate.ok === false) return fail("simulation", { error: p.simulate.error, message: p.simulate.error?.message ?? MESSAGES.simulation });
-    if (round === 0 && o.guard) {
-      const no = o.guard(p);
-      if (no) return fail("refused", { message: no });
-    }
 
     if (approvals.length > 0) {
       const fresh = approvals.filter((s) => !confirmedApprovals.has(s.kind));
@@ -292,19 +290,16 @@ export async function runPrepared<D = Record<string, unknown>>(o: RunOptions<D>)
         await sleep(o.lagRetryMs ?? 3_000);
         continue;
       }
+      const base = confirmedApprovals.size;
       for (let i = 0; i < fresh.length; i += 1) {
-        const r = await send(fresh[i], i, fresh.length + 1);
+        const r = await send(fresh[i], base + i, base + fresh.length + 1);
         if (!r.ok) return r.result;
         confirmedApprovals.add(fresh[i].kind);
       }
       continue;
     }
 
-    if (o.guard && round > 0) {
-      const no = o.guard(p);
-      if (no) return fail("refused", { message: no });
-    }
-    const r = await send(final, 0, 1);
+    const r = await send(final, confirmedApprovals.size, confirmedApprovals.size + 1);
     if (!r.ok) return r.result;
     return { ok: true, tx: r.tx, blockNumber: r.blockNumber, steps, prepared: p };
   }

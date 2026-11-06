@@ -327,4 +327,8 @@ export const POLL = {
   eligibility: 30_000,
   /** Is the server up, and is it serving a chain or fixtures. */
   health: 60_000,
+  /** Your balances: they change when you trade, and every send refreshes them. */
+  portfolio: 15_000,
+  /** Who the issuer of a listing is changes only with ENS ownership. */
+  issuer: 120_000,
 } as const;

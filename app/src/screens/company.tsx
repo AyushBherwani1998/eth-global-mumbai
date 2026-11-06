@@ -6,8 +6,9 @@
 // Protocol words live in the Details tab and nowhere else.
 //
 // Data: GET /v1/listings/:ticker for the company and its offer, then either
-// /v1/market/:ticker + /swaps (listed) or /v1/auction/:ticker + /clearing
-// (every IPO phase), plus /v1/bids?owner= for this wallet's own applications.
+// /v1/market/:ticker (listed: price, trades, reference/band steps, halt spans)
+// or /v1/auction/:ticker + /clearing (every IPO phase), plus /v1/portfolio
+// (shares held) and /v1/bids?owner= for this wallet's own applications.
 // Nothing on this page comes from a fixture.
 
 import Link from "next/link";
@@ -50,10 +51,10 @@ import {
 } from "@/components/ui";
 import { useCountdown, blocksAsSeconds } from "@/lib/hooks";
 import { BLOCK_SECONDS, changeVs, dateTimeIST, lotFixed, perShare, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
-import { COPY, dayOpenOf, eventDetail, eventWords, lastPriceOf, orCopy, pricePoints, seriesNow, toMarket, toPolicy } from "@/lib/adapt";
+import { COPY, dayOpenOf, eventDetail, eventWords, lastPriceOf, orCopy, pricePoints, seriesNow, sharesHeld, toMarket, toPolicy, tradeGate, withHalts, type TradeGate } from "@/lib/adapt";
 import { ApiErrorCard, DemoDataStrip } from "@/lib/api-state";
-import type { Auction, ClearingResponse, ListingDetail, MarketView, SwapsResponse } from "@/lib/api";
-import { merge2, useAuction, useBids, useClearing, useListing, useMarket, useSwaps } from "@/lib/live";
+import type { Auction, ClearingResponse, ListingDetail, MarketView } from "@/lib/api";
+import { merge2, useAuction, useBids, useClearing, useListing, useMarket } from "@/lib/live";
 import type { Policy, Rejected } from "@/lib/mock";
 import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
 import { useApplyForm, ApplySheet } from "./bid-sheet";
@@ -210,11 +211,9 @@ function rejectSentence(r: Rejected, policy: Policy) {
 type ListedTab = "overview" | "trades" | "rejected" | "details";
 
 function ListedCompany({ listing }: { listing: ListingDetail }) {
-  const { connected, address } = useApp();
+  const { connected, portfolio } = useApp();
   const marketRead = useMarket(listing.ticker);
-  const swapsRead = useSwaps(listing.ticker);
-  const bidsRead = useBids(connected ? address : null, listing.ticker);
-  const { error, loading, retry, refreshing } = merge2(marketRead, swapsRead);
+  const { error, loading, retry, refreshing } = marketRead;
 
   const [range, setRange] = useState<ChartRange>("1D");
   const [chartType, setChartType] = useChartType();
@@ -228,30 +227,29 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
   const [seenRejected, setSeenRejected] = useState<Rejected[]>([]);
 
   const marketView: MarketView | null = marketRead.data;
-  const swaps: SwapsResponse | null = swapsRead.data;
   const policy = toPolicy(marketView?.policy);
-  const market = useMemo(() => toMarket(marketView, swaps), [marketView, swaps]);
-  const halted = marketView ? marketView.mode === "halted" || marketView.policy.halted : false;
+  const market = useMemo(() => toMarket(marketView), [marketView]);
+  const gate = tradeGate(marketView);
 
-  const points = useMemo(() => pricePoints(swaps), [swaps]);
+  const points = useMemo(() => pricePoints(marketView), [marketView]);
   // The pool's own clock: the last point it produced. Never the machine clock.
   const nowSec = seriesNow(points, marketView?.policy.asOf ?? listing.listedAt);
-  const last = lastPriceOf(marketView, swaps);
+  const last = lastPriceOf(marketView);
   const shown = hover?.value ?? last;
 
-  const data = useMemo(() => (points.length > 1 ? sliceRange(points, range, nowSec) : points), [points, range, nowSec]);
+  // Halt windows have no trades of their own; mark them on the chart up to the server's head time.
+  const chartPoints = useMemo(
+    () => (marketView ? withHalts(points, marketView.haltSpans, marketView.reference.at(-1)?.time ?? nowSec) : points),
+    [marketView, points, nowSec],
+  );
+  const data = useMemo(() => (chartPoints.length > 1 ? sliceRange(chartPoints, range, nowSec) : chartPoints), [chartPoints, range, nowSec]);
   const base = data[0]?.value ?? null;
   const change = shown !== null && base !== null ? changeVs(shown, base) : null;
   const rejectTimes = useMemo(() => seenRejected.map((r) => new Date(r.time).getTime() / 1000), [seenRejected]);
 
-  const owned = useMemo(() => {
-    const mine = bidsRead.data?.bids ?? [];
-    return mine.reduce((s, b) => s + (b.claimed || b.actions.claim ? (b.filledShares ?? 0) : 0), 0);
-  }, [bidsRead.data]);
-  const toCollect = useMemo(
-    () => (bidsRead.data?.bids ?? []).reduce((s, b) => s + (b.actions.claim ? (b.filledShares ?? 0) : 0), 0),
-    [bidsRead.data],
-  );
+  // Wallet balance plus shares won but not collected yet: bought shares count even with no application.
+  const toCollect = portfolio.data?.holdings.find((h) => h.ticker === listing.ticker)?.unclaimedShares ?? 0;
+  const owned = sharesHeld(portfolio.data, listing.ticker) + toCollect;
 
   const daySeries = useMemo(() => (points.length > 1 ? sliceRange(points, "1D", nowSec) : points), [points, nowSec]);
   const dayLow = daySeries.length ? Math.min(...daySeries.map((d) => d.value)) : null;
@@ -301,7 +299,7 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
       <DetailBar />
       <DemoDataStrip className="-mx-5" />
       <TwoColumn
-        panel={<OrderPanel listing={listing} market={market} last={last} side={side} setSide={setSide} onRejected={(r) => setSeenRejected((x) => [r, ...x])} />}
+        panel={<OrderPanel listing={listing} market={market} gate={gate} side={side} setSide={setSide} onRejected={(r) => setSeenRejected((x) => [r, ...x])} />}
       >
         <main>
           <CompanyHead
@@ -382,8 +380,8 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                       owned > 0
                         ? toCollect > 0
                           ? `${shares(toCollect)} shares ready to collect in Orders`
-                          : "Shares you got from the IPO"
-                        : "Shares you get from an IPO show up here"
+                          : "In your wallet"
+                        : "Shares you buy, or get from an IPO, show up here"
                     }
                   />
                 ) : (
@@ -442,9 +440,9 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
 
               {tab === "trades" && (
                 <>
-                  {swaps && swaps.trades.length > 0 ? (
+                  {marketView && marketView.trades.length > 0 ? (
                     <ul className="divide-y divide-line">
-                      {swaps.trades.map((t) => (
+                      {marketView.trades.map((t) => (
                         <li key={`${t.tx}-${t.time}`} className="flex min-h-16 items-center justify-between gap-4 py-3">
                           <span>
                             <span className={cx("t-list-title block", t.side === "buy" ? "text-gain-text" : "text-loss-text")}>
@@ -453,8 +451,8 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                             <span className="t-label block">{timeIST(t.time)}</span>
                           </span>
                           <span className="num text-right">
-                            <span className="t-list-title block text-text">{lotFixed(t.price, 3)}</span>
-                            <span className="t-label block">{usdc(t.usdc)} USDC</span>
+                            <span className="t-list-title block text-text">{lotFixed(t.avgPrice, 3)}</span>
+                            <span className="t-label block">{usdc(t.usdc)} USDC · average price</span>
                           </span>
                         </li>
                       ))}
@@ -522,6 +520,9 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                       }
                     />
                     {marketView?.policy.stale && <KV k="Published rule is out of date" v="Trading is halted until the next report" />}
+                    {marketView?.policy.coolOffUntil && marketView.haltCause === "coolingOff" && (
+                      <KV k="Cooling off until" v={dateTimeIST(marketView.policy.coolOffUntil)} />
+                    )}
                   </div>
                 </>
               )}
@@ -531,15 +532,15 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
       </TwoColumn>
 
       <ActionBar>
-        <Button variant="sell" size="bar" className="flex-1" disabled={halted || !market} onClick={() => openSheet("sell")}>
-          {halted ? "Trading halted" : "Sell"}
+        <Button variant="sell" size="bar" className="flex-1" disabled={!gate.open || !market} onClick={() => openSheet("sell")}>
+          {gate.open ? "Sell" : gateWord(gate)}
         </Button>
-        <Button variant="buy" size="bar" className="flex-1" disabled={halted || !market} onClick={() => openSheet("buy")}>
-          {halted ? "Trading halted" : "Buy"}
+        <Button variant="buy" size="bar" className="flex-1" disabled={!gate.open || !market} onClick={() => openSheet("buy")}>
+          {gate.open ? "Buy" : gateWord(gate)}
         </Button>
       </ActionBar>
 
-      {market && (
+      {market && gate.open && (
         <TradeSheet
           key={sheet ?? "closed"}
           ipo={listing}
@@ -580,17 +581,24 @@ function ruleSentence(policy: Policy | null): string {
   return ruleCopy(policy)?.text ?? "Trades go through at any price the market reaches.";
 }
 
+/** Short button word for a closed gate. */
+function gateWord(gate: TradeGate): string {
+  if (gate.open) return "";
+  return gate.cause === "report" ? "Trading halted" : gate.cause === "coolingOff" ? "Cooling off" : gate.cause === "notListed" ? "Not trading yet" : "Trading paused";
+}
+
 /** Desktop sticky panel (UX.md 3.3): price, Buy | Sell, then the trade form. */
 function OrderPanel({
   listing,
   market,
+  gate,
   side,
   setSide,
   onRejected,
 }: {
   listing: ListingDetail;
   market: ReturnType<typeof toMarket>;
-  last: number | null;
+  gate: TradeGate;
   side: TradeSide;
   setSide: (s: TradeSide) => void;
   onRejected: (r: Rejected) => void;
@@ -601,6 +609,14 @@ function OrderPanel({
         <p className="t-label">Price</p>
         <p className="t-price-large text-text">{COPY.noPrice}</p>
         <p className="t-body mt-3 text-text-2">Buying and selling open once this company&apos;s pool has a price and a trading rule.</p>
+      </Card>
+    );
+  if (!gate.open)
+    return (
+      <Card className="p-5">
+        <p className="t-list-title text-text">{gate.title}</p>
+        <p className="t-body mt-2 text-text-2">{gate.body}</p>
+        {gate.until && <p className="t-label mt-2">Until {dateTimeIST(gate.until)}</p>}
       </Card>
     );
   return <OrderPanelForm listing={listing} market={market} side={side} setSide={setSide} onRejected={onRejected} />;
@@ -784,7 +800,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
                           <span className="font-medium" style={{ color: markVar(listing.ticker) }}>
                             {(raised / offer.targetRaise).toFixed(2)}
                           </span>{" "}
-                          times · {listing.applicants} {listing.applicants === 1 ? "person" : "people"} ·{" "}
+                          times · {listing.applicants} {listing.applicants === 1 ? "wallet" : "wallets"} ·{" "}
                           {raised >= offer.requiredRaise ? "past the minimum to list" : `lists if it reaches ${usdc(offer.requiredRaise, 0)} USDC`}
                         </p>
                       </>
@@ -829,7 +845,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
                 <KV k="Most one person can apply with" v={`${usdc(offer.perApplicantCap, 0)} USDC`} />
                 <KV k="Minimum raise to list" v={`${usdc(offer.requiredRaise, 0)} USDC`} sub={`Target ${usdc(offer.targetRaise, 0)} USDC`} />
                 <KV k="Who can apply" v={listing.eligibility === "human" ? "One application per person" : "Anyone with USDC"} />
-                <KV k="Applications so far" v={`${listing.applicants} ${listing.applicants === 1 ? "person" : "people"}`} />
+                <KV k="Applications so far" v={`${listing.applicants} ${listing.applicants === 1 ? "wallet" : "wallets"}`} />
                 <KV
                   k="How long applications stay open"
                   v={
@@ -856,7 +872,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
               ) : (
                 <ul className="divide-y divide-line">
                   {myBids.map((b) => (
-                    <li key={`${b.ticker}:${b.id}`} className="flex min-h-16 items-center justify-between gap-4 py-3">
+                    <li key={b.key} className="flex min-h-16 items-center justify-between gap-4 py-3">
                       <span>
                         <span className="t-list-title block text-text">
                           {usdc(b.budget)} USDC up to {lotFixed(b.maxPrice)}
