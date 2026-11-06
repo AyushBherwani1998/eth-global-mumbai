@@ -1,4 +1,4 @@
-# Running Thamba locally
+# Running thaamba locally
 
 Two modes. Both serve the app at http://localhost:3000.
 

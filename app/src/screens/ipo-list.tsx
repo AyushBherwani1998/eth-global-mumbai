@@ -15,7 +15,7 @@ import { useApp } from "@/components/providers";
 import { useMemo } from "react";
 import { TickerMark, markVar } from "@/components/company/logos";
 import { changeDigits, countdown } from "@/components/company/num";
-import { Button, Card, Change, EmptyState, ProgressBar, PromoCard, Segmented, Skeleton, TickerLogo } from "@/components/ui";
+import { Button, Card, Change, EmptyState, ProgressBar, PromoCard, Segmented, Skeleton, TickerLogo, ViewSwap, holdPageHeight } from "@/components/ui";
 import { useCountdown, blocksAsSeconds } from "@/lib/hooks";
 import { changeVs, lotFixed, usdc } from "@/lib/format";
 import { COPY, hrefFor, isClosed, isOpen, isUpcoming, orCopy } from "@/lib/adapt";
@@ -23,7 +23,8 @@ import { ApiErrorCard } from "@/lib/api-state";
 import { api, POLL, type Auction, type Listing } from "@/lib/api";
 import { merge2, useBids, useLive, useListings } from "@/lib/live";
 
-type Seg = "open" | "upcoming" | "closed";
+const SEGS = ["open", "upcoming", "closed"] as const;
+type Seg = (typeof SEGS)[number];
 
 export function IpoBody() {
   const { connected, address } = useApp();
@@ -56,6 +57,13 @@ export function IpoBody() {
   const applications = bids.data?.bids.length ?? 0;
   const { error, loading, retry, refreshing } = merge2(listings, auctions);
 
+  // The segmented row holds the page height itself; a segment changed from
+  // somewhere else (the empty state's "See upcoming IPOs") has to say so.
+  const goSeg = (next: Seg) => {
+    holdPageHeight();
+    setSeg(next);
+  };
+
   return (
     <>
       <Segmented
@@ -70,57 +78,65 @@ export function IpoBody() {
         ]}
       />
 
-      {loading && list.length === 0 && (
+      <ViewSwap view={shown} order={SEGS}>
+        {loading && list.length === 0 && (
+          <div className="mt-5 grid gap-5 lg:grid-cols-2">
+            {[0, 1].map((i) => (
+              <Card key={i} className="p-4">
+                <div className="flex items-center gap-3">
+                  <Skeleton w={40} h={40} />
+                  <span className="flex-1">
+                    <Skeleton w="60%" h={22} />
+                    <Skeleton w="40%" h={20} className="mt-1" />
+                  </span>
+                </div>
+                <Skeleton h={48} className="mt-4" />
+                <Skeleton h={48} className="mt-4 rounded-[10px]" />
+              </Card>
+            ))}
+          </div>
+        )}
+
+        {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
+
+        {!loading && !error && (
+          <>
+            {list.length === 0 && shown === "open" && (
+              <EmptyState title="No IPOs open right now" body="See what is coming up next." action={{ label: "See upcoming IPOs", onClick: () => goSeg("upcoming") }} />
+            )}
+            {list.length === 0 && shown === "upcoming" && <EmptyState title="Nothing scheduled" body="New IPOs show up here when a company announces one." />}
+            {list.length === 0 && shown === "closed" && <EmptyState title="No closed IPOs yet" body="Finished IPOs and their results show up here." />}
+          </>
+        )}
+
         <div className="mt-5 grid gap-5 lg:grid-cols-2">
-          {[0, 1].map((i) => (
-            <Card key={i} className="p-4">
-              <div className="flex items-center gap-3">
-                <Skeleton w={40} h={40} />
-                <span className="flex-1">
-                  <Skeleton w="60%" h={22} />
-                  <Skeleton w="40%" h={20} className="mt-1" />
-                </span>
-              </div>
-              <Skeleton h={48} className="mt-4" />
-              <Skeleton h={48} className="mt-4 rounded-[10px]" />
-            </Card>
+          {list.map((listing) => (
+            <IpoCard
+              key={listing.ticker}
+              listing={listing}
+              auction={auctions.data?.[listing.ticker]}
+              pending={auctions.loading}
+              applied={committed[listing.ticker] ?? 0}
+            />
           ))}
         </div>
-      )}
 
-      {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
+        {applications > 0 && (
+          <PromoCard
+            className="mt-5"
+            href="/orders"
+            icon={<ListOrdered />}
+            title={`Your applications · ${applications}`}
+            sub="Track, collect shares or take a refund in Orders"
+          />
+        )}
 
-      {!loading && !error && (
-        <>
-          {list.length === 0 && shown === "open" && (
-            <EmptyState title="No IPOs open right now" body="See what is coming up next." action={{ label: "See upcoming IPOs", onClick: () => setSeg("upcoming") }} />
-          )}
-          {list.length === 0 && shown === "upcoming" && <EmptyState title="Nothing scheduled" body="New IPOs show up here when a company announces one." />}
-          {list.length === 0 && shown === "closed" && <EmptyState title="No closed IPOs yet" body="Finished IPOs and their results show up here." />}
-        </>
-      )}
-
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        {list.map((listing) => (
-          <IpoCard key={listing.ticker} listing={listing} auction={auctions.data?.[listing.ticker]} applied={committed[listing.ticker] ?? 0} />
-        ))}
-      </div>
-
-      {applications > 0 && (
-        <PromoCard
-          className="mt-5"
-          href="/orders"
-          icon={<ListOrdered />}
-          title={`Your applications · ${applications}`}
-          sub="Track, collect shares or take a refund in Orders"
-        />
-      )}
-
-      {list.length > 0 && (
-        <p className="t-caption mt-6">
-          An IPO lists only if it raises the minimum shown on its card. Otherwise every application is refunded.
-        </p>
-      )}
+        {list.length > 0 && (
+          <p className="t-caption mt-6">
+            An IPO lists only if it raises the minimum shown on its card. Otherwise every application is refunded.
+          </p>
+        )}
+      </ViewSwap>
     </>
   );
 }
@@ -139,14 +155,21 @@ function Head({ listing }: { listing: Listing }) {
   );
 }
 
-function IpoCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
-  if (listing.phase === "live") return <OpenCard listing={listing} auction={auction} applied={applied} />;
-  if (listing.phase === "draft") return <UpcomingCard listing={listing} auction={auction} />;
+/**
+ * `pending` means the auction read for this card has not landed yet, which is
+ * not the same thing as the server having nothing to say. A card that cannot
+ * tell the two apart tells the user the wrong one and then corrects itself a
+ * moment later, which is the flicker a tab switch used to end in.
+ */
+function IpoCard({ listing, auction, pending, applied }: { listing: Listing; auction: Auction | undefined; pending: boolean; applied: number }) {
+  const waiting = pending && !auction;
+  if (listing.phase === "live") return <OpenCard listing={listing} auction={auction} waiting={waiting} applied={applied} />;
+  if (listing.phase === "draft") return <UpcomingCard listing={listing} auction={auction} waiting={waiting} />;
   if (listing.phase === "listed" || listing.phase === "cleared") return <ListedCard listing={listing} auction={auction} />;
   return <RefundCard listing={listing} auction={auction} applied={applied} />;
 }
 
-function OpenCard({ listing, auction, applied }: { listing: Listing; auction: Auction | undefined; applied: number }) {
+function OpenCard({ listing, auction, waiting, applied }: { listing: Listing; auction: Auction | undefined; waiting: boolean; applied: number }) {
   const seconds = useCountdown(blocksAsSeconds(auction?.blocksRemaining));
   const raised = listing.raised ?? auction?.raised ?? null;
   const target = auction?.targetRaise ?? null;
@@ -164,7 +187,7 @@ function OpenCard({ listing, auction, applied }: { listing: Listing; auction: Au
         <span className="text-right">
           <span className="t-label block">Closes in</span>
           <span className={`num t-section-title block ${seconds !== null && seconds < 3600 ? "text-warn" : "text-text"}`}>
-            {seconds === null ? COPY.noSchedule : countdown(seconds)}
+            {seconds !== null ? countdown(seconds) : waiting ? <Skeleton w={86} h={24} /> : COPY.noSchedule}
           </span>
         </span>
       </div>
@@ -177,6 +200,13 @@ function OpenCard({ listing, auction, applied }: { listing: Listing; auction: Au
             </span>{" "}
             subscribed{required !== null ? ` · lists if it reaches ${usdc(required, 0)} USDC` : ""}
           </p>
+        </>
+      ) : waiting ? (
+        // Same shape and the same height as the progress block it is standing
+        // in for, so nothing below it moves when the real numbers arrive.
+        <>
+          <Skeleton h={4} className="mt-3 rounded-full" />
+          <Skeleton w="70%" h={18} className="mt-2" />
         </>
       ) : (
         <p className="t-caption mt-3">How much has been applied for isn&apos;t available from this server yet.</p>
@@ -199,8 +229,17 @@ function OpenCard({ listing, auction, applied }: { listing: Listing; auction: Au
   );
 }
 
-function UpcomingCard({ listing, auction }: { listing: Listing; auction: Auction | undefined }) {
+function UpcomingCard({ listing, auction, waiting }: { listing: Listing; auction: Auction | undefined; waiting: boolean }) {
   const seconds = useCountdown(blocksAsSeconds(auction?.blocksRemaining));
+  if (waiting)
+    return (
+      <Card className="p-4">
+        <Head listing={listing} />
+        <Skeleton w="60%" h={20} className="mt-4" />
+        <Skeleton w="80%" h={20} className="mt-1" />
+        <Skeleton w="50%" h={18} className="mt-1" />
+      </Card>
+    );
   return (
     <Card className="p-4">
       <Head listing={listing} />

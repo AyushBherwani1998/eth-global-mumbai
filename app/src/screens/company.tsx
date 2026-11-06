@@ -14,7 +14,7 @@ import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { BadgeCheck, ExternalLink, Wallet } from "lucide-react";
-import { ActionBar, DetailBar, ShareButton, TwoColumn } from "@/components/shell";
+import { ActionBar, DetailBar, ShareButton, SignInButton, SignInCard, TwoColumn } from "@/components/shell";
 import { CircuitBanner, ruleCopy } from "@/components/circuit-banner";
 import { useApp } from "@/components/providers";
 import { ChartSkeleton } from "@/components/chart/skeleton";
@@ -51,7 +51,7 @@ import {
 import { useCountdown, blocksAsSeconds } from "@/lib/hooks";
 import { BLOCK_SECONDS, changeVs, dateTimeIST, lotFixed, perShare, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
 import { COPY, dayOpenOf, eventDetail, eventWords, lastPriceOf, orCopy, pricePoints, seriesNow, toMarket, toPolicy } from "@/lib/adapt";
-import { ApiErrorCard, DemoDataStrip } from "@/lib/api-state";
+import { ApiErrorCard } from "@/lib/api-state";
 import type { Auction, ClearingResponse, ListingDetail, MarketView, SwapsResponse } from "@/lib/api";
 import { merge2, useAuction, useBids, useClearing, useListing, useMarket, useSwaps } from "@/lib/live";
 import type { Policy, Rejected } from "@/lib/mock";
@@ -86,73 +86,234 @@ export function CompanyScreen({ ticker }: { ticker: string }) {
 // ---------------------------------------------------------------------------
 
 /**
- * Logo, name, status and the verified ENS name. There is no sector line:
- * nothing on chain carries a sector, and the app does not keep a private list
- * of invented ones.
+ * Company identity, price and today's facts.
+ *
+ * Phone is the layout Groww uses and the one the owner signed off: mark, name,
+ * ticker, price, change, all on one left edge. It is identical in all three
+ * desktop variants below and does not change.
+ *
+ * Desktop is the open question, so it is built three ways and switched with
+ * `?head=1|2|3` (variant 1 ships). Every one of them has to leave no element
+ * floating: the price belongs to the name, and the status chip, Share and the
+ * facts each have a home with an edge shared with something.
  */
+export type HeadVariant = 1 | 2 | 3;
+
+type HeadPrice = {
+  /** "Current price" / "Final price". Listed shares carry no label. */
+  label?: string;
+  value: string;
+  num?: boolean;
+  change?: ReactNode;
+  /** "Last 24 hours", "vs issue price". */
+  note?: ReactNode;
+  /** "Closes in 41m 49s". */
+  extra?: ReactNode;
+};
+
+type HeadFact = { k: string; v: string };
+
+const UNIT_LINE = "Prices in USDC per 1,000 shares";
+
+function VerifiedLine({ listing, onDetails, className }: { listing: ListingDetail; onDetails: () => void; className?: string }) {
+  return (
+    <p className={cx("t-label flex flex-wrap items-center gap-x-2", className)}>
+      <TickerMark ticker={listing.ticker} symbol={listing.symbol} />
+      <span aria-hidden>·</span>
+      <button type="button" onClick={onDetails} className="t-label inline-flex items-center gap-1 text-gain-text">
+        <BadgeCheck className="size-4" aria-hidden /> Verified
+      </button>
+    </p>
+  );
+}
+
+function ChangeLine({ price, className }: { price: HeadPrice; className?: string }) {
+  return (
+    <p className={cx("flex items-baseline gap-2 whitespace-nowrap", className)}>
+      {price.change}
+      {/* The note swaps between a range word and a timestamp as the pointer
+          moves across the chart. Both sit in a grid column that sizes to its
+          content, so letting it resize would shift the name beside it on every
+          hover. The slot is reserved for the longer of the two and the text
+          cannot wrap, so nothing moves. */}
+      {price.note && (
+        <span className="t-body min-w-[14ch] text-text-2 tabular-nums">{price.note}</span>
+      )}
+    </p>
+  );
+}
+
+/**
+ * Variant 1 ships. 2 and 3 stay reachable at `?head=2` / `?head=3` only so the
+ * owner can flip between them live; delete the two losers once the call is
+ * final. See the comparison at /tmp/header-variants.png.
+ */
+function headVariant(raw: string | null): HeadVariant {
+  return raw === "2" ? 2 : raw === "3" ? 3 : 1;
+}
+
 function CompanyHead({
   listing,
-  note,
   onDetails,
-  aside,
+  price,
+  facts,
+  variant = 1,
 }: {
   listing: ListingDetail;
-  note?: ReactNode;
   onDetails: () => void;
-  /** Price block. Sits beside the name from lg up, below it on a phone. */
-  aside?: ReactNode;
+  price?: HeadPrice;
+  facts?: HeadFact[];
+  variant?: HeadVariant;
 }) {
+  const bigPrice = price && (
+    <p className={cx("t-price-large min-w-[5ch] text-text tabular-nums", price.num && "num")}>{price.value}</p>
+  );
+  const share = <ShareButton title={listing.name} />;
+  const chip = <StatusChip ipo={listing} />;
+
   return (
-    <div className="pt-2 lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start lg:gap-6">
-      <div className="lg:col-start-1">
-      <div className="flex items-center justify-between gap-3">
-        <TickerLogo ipo={listing} size={40} />
-        <span className="lg:hidden">
-          <ShareButton title={listing.name} />
-        </span>
-      </div>
-      <div className="mt-3 flex items-start justify-between gap-3">
-        <h1 className="text-[20px] leading-7 text-text">{listing.name}</h1>
-        <span className="mt-0.5 shrink-0 lg:hidden">
-          <StatusChip ipo={listing} />
-        </span>
-      </div>
-      <p className="t-label mt-1 flex flex-wrap items-center gap-x-2">
-        <TickerMark ticker={listing.ticker} symbol={listing.symbol} />
-        <span aria-hidden>·</span>
-        <button type="button" onClick={onDetails} className="t-label inline-flex items-center gap-1 text-gain-text">
-          <BadgeCheck className="size-4" aria-hidden /> Verified
-        </button>
-        {note && (
-          <>
-            <span aria-hidden>·</span>
-            {note}
-          </>
+    <>
+      {/* Phone. Unchanged in every variant. */}
+      <div className="pt-2 lg:hidden">
+        <div className="flex items-center justify-between gap-3">
+          <TickerLogo ipo={listing} size={40} />
+          {share}
+        </div>
+        <div className="mt-3 flex items-start justify-between gap-3">
+          <h1 className="text-[20px] leading-7 font-medium text-text">{listing.name}</h1>
+          <span className="mt-0.5 shrink-0">{chip}</span>
+        </div>
+        <VerifiedLine listing={listing} onDetails={onDetails} className="mt-1" />
+        {price && (
+          <div className="mt-4">
+            {price.label && <p className="t-label">{price.label}</p>}
+            {bigPrice}
+            <ChangeLine price={price} className="mt-1" />
+            {price.extra}
+            <p className="t-caption mt-1">{UNIT_LINE}</p>
+          </div>
         )}
-      </p>
       </div>
-      {aside !== undefined && <div className="lg:col-start-2 lg:text-right">{aside}</div>}
-      <div className="hidden lg:col-start-2 lg:row-start-1 lg:flex lg:items-center lg:justify-end lg:gap-3">
-        <StatusChip ipo={listing} />
-        <ShareButton title={listing.name} />
-      </div>
-    </div>
+
+      {/* 1. Price on the name's line: mark, name, number read left to right as
+             one sentence; ticker and change sit under their own halves; the
+             facts run the full width underneath so nothing is an island. */}
+      {variant === 1 && (
+        <div className="hidden pt-2 lg:block">
+          <div className="flex items-start gap-5">
+            <TickerLogo ipo={listing} size={44} className="mt-1 shrink-0" />
+            <div className="grid min-w-0 flex-1 grid-cols-[auto_auto] items-baseline justify-start gap-x-10">
+              <h1 className="text-[26px] leading-9 font-medium text-text">{listing.name}</h1>
+              {bigPrice}
+              <VerifiedLine listing={listing} onDetails={onDetails} className="mt-1" />
+              {price && <ChangeLine price={price} className="mt-1" />}
+              {/* Anything else about the price stays in the price's own column,
+                  so the cluster never spills back to the page edge. */}
+              <span />
+              <span>{price?.extra}</span>
+              <span />
+              <p className="t-caption mt-1">{UNIT_LINE}</p>
+            </div>
+            <div className="flex shrink-0 items-center gap-3">
+              {chip}
+              {share}
+            </div>
+          </div>
+          {facts && facts.length > 0 && (
+            <dl className="mt-5 flex items-stretch divide-x divide-line border-t border-line pt-4">
+              {facts.map((f) => (
+                <div key={f.k} className="min-w-0 flex-1 px-8 first:pl-0 last:pr-0">
+                  <dt className="t-label">{f.k}</dt>
+                  <dd className="num t-list-title mt-0.5 text-text">{f.v}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+        </div>
+      )}
+
+      {/* 2. The phone stack scaled up, with the right half given a real edge:
+             a ruled column holding the status, Share and the day's facts, so
+             the two halves share a border instead of floating apart. */}
+      {variant === 2 && (
+        <div className="hidden items-stretch gap-10 pt-2 lg:flex">
+          <div className="min-w-0 flex-1">
+            <TickerLogo ipo={listing} size={48} />
+            <h1 className="mt-3 text-[26px] leading-9 font-medium text-text">{listing.name}</h1>
+            <VerifiedLine listing={listing} onDetails={onDetails} className="mt-1" />
+            {price && (
+              <div className="mt-4">
+                {price.label && <p className="t-label">{price.label}</p>}
+                {bigPrice}
+                <ChangeLine price={price} className="mt-1" />
+                {price.extra}
+                <p className="t-caption mt-1">{UNIT_LINE}</p>
+              </div>
+            )}
+          </div>
+          <div className="flex w-[320px] shrink-0 flex-col border-l border-line pl-8">
+            <div className="flex items-center justify-end gap-3">
+              {chip}
+              {share}
+            </div>
+            {facts && facts.length > 0 && (
+              <dl className="mt-auto divide-y divide-line border-t border-line">
+                {facts.map((f) => (
+                  <div key={f.k} className="flex min-h-11 items-center justify-between gap-4 py-2">
+                    <dt className="t-label">{f.k}</dt>
+                    <dd className="num t-body text-text">{f.v}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* 3. One band, ruled top and bottom and divided into cells, which is the
+             layout language the brand already uses (design/brand/TOKENS.md).
+             Identity and price fill the first cell, each fact gets its own,
+             and Share closes the row: every edge is shared, nothing floats. */}
+      {variant === 3 && (
+        <div className="mt-2 hidden border-y border-line lg:block">
+          <div className="flex items-stretch divide-x divide-line">
+            <div className="min-w-0 flex-1 py-5 pr-8">
+              <div className="flex items-start gap-4">
+                <TickerLogo ipo={listing} size={44} className="mt-0.5 shrink-0" />
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+                    <h1 className="text-[26px] leading-9 font-medium text-text">{listing.name}</h1>
+                    {chip}
+                  </div>
+                  <VerifiedLine listing={listing} onDetails={onDetails} className="mt-0.5" />
+                </div>
+              </div>
+              {price && (
+                <div className="mt-4">
+                  {price.label && <p className="t-label">{price.label}</p>}
+                  {bigPrice}
+                  <ChangeLine price={price} className="mt-1" />
+                  {price.extra}
+                  <p className="t-caption mt-1">{UNIT_LINE}</p>
+                </div>
+              )}
+            </div>
+            {(facts ?? []).map((f) => (
+              <div key={f.k} className="flex w-[200px] shrink-0 flex-col justify-end py-5 pl-8">
+                <dt className="t-label">{f.k}</dt>
+                <dd className="num t-list-title mt-0.5 text-text">{f.v}</dd>
+              </div>
+            ))}
+            <div className="flex shrink-0 items-end py-5 pl-8">{share}</div>
+          </div>
+        </div>
+      )}
+    </>
   );
 }
 
-function PriceBlock({ label, value, digits = 2, children, inHead }: { label?: string; value: number | null; digits?: number; children?: ReactNode; inHead?: boolean }) {
-  return (
-    <div className={cx("mt-4", inHead && "lg:mt-0")}>
-      {label && <p className="t-label">{label}</p>}
-      <p className={cx("t-price-large text-text", value !== null && "num")}>{value === null ? COPY.noPrice : lotFixed(value, digits)}</p>
-      {children}
-    </div>
-  );
-}
 
-function UnitLine() {
-  return <p className="t-caption mt-1">Prices in USDC per 1,000 shares</p>;
-}
+
 
 function Description({ listing }: { listing: ListingDetail }) {
   return <p className="t-body text-text">{listing.description ?? COPY.noDescription}</p>;
@@ -210,6 +371,7 @@ function rejectSentence(r: Rejected, policy: Policy) {
 type ListedTab = "overview" | "trades" | "rejected" | "details";
 
 function ListedCompany({ listing }: { listing: ListingDetail }) {
+  const params = useSearchParams();
   const { connected, address } = useApp();
   const marketRead = useMarket(listing.ticker);
   const swapsRead = useSwaps(listing.ticker);
@@ -288,7 +450,7 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
 
   const chartControls = (
     <>
-      <RangeChipRow value={range} onChange={setRange} options={RANGE_OPTIONS} className="lg:flex-1" />
+      <RangeChipRow value={range} onChange={setRange} options={RANGE_OPTIONS} className="lg:w-[412px] lg:shrink-0" />
       <div className="mt-1 flex items-center justify-between lg:mt-0">
         <ChartTypeToggle value={chartType} onChange={setChartType} />
         <ExpandButton onClick={() => setExpanded(true)} />
@@ -299,25 +461,31 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
   return (
     <>
       <DetailBar />
-      <DemoDataStrip className="-mx-5" />
       <TwoColumn
         panel={<OrderPanel listing={listing} market={market} last={last} side={side} setSide={setSide} onRejected={(r) => setSeenRejected((x) => [r, ...x])} />}
       >
         <main>
           <CompanyHead
             listing={listing}
+            variant={headVariant(params.get("head"))}
             onDetails={() => setTab("details")}
-            aside={
-              marketView ? (
-                <PriceBlock value={shown} inHead>
-                  <p className="mt-1 flex flex-wrap items-baseline gap-2 lg:justify-end">
-                    {change && <Change abs={change.abs} rel={change.rel} digits={changeDigits(change.abs)} size="lg" />}
-                    <span className="t-body text-text-2">{hover ? dateTimeIST(hover.time) : change ? RANGE_WORDS[range] : "No trades in this pool yet"}</span>
-                  </p>
-                  <UnitLine />
-                </PriceBlock>
-              ) : undefined
+            price={
+              marketView
+                ? {
+                    value: shown === null ? COPY.noPrice : lotFixed(shown),
+                    num: shown !== null,
+                    change: change ? <Change abs={change.abs} rel={change.rel} digits={changeDigits(change.abs)} size="lg" /> : undefined,
+                    note: hover ? dateTimeIST(hover.time) : change ? RANGE_WORDS[range] : "No trades in this pool yet",
+                  }
+                : undefined
             }
+            facts={[
+              {
+                k: "Today's range",
+                v: dayLow !== null && dayHigh !== null ? `${lotFixed(dayLow)} to ${lotFixed(dayHigh)}` : COPY.noPrice,
+              },
+              { k: "Available to trade", v: marketView ? `${usdc(marketView.liquidity.usdc)} USDC` : COPY.noPrice },
+            ]}
           />
 
           {loading && !marketView ? (
@@ -329,14 +497,14 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
               {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
 
               {policy && (
-                <div className="mt-4">
+                <div className="mt-6">
                   <CircuitBanner ticker={listing.ticker} policy={policy} />
                 </div>
               )}
 
               {data.length > 1 ? (
                 <>
-                  <div className="mt-4">{chart(280)}</div>
+                  <div className="mt-6">{chart(280)}</div>
 
                   {chartType === "bars" && win && (
                     <dl className="num mt-2 grid grid-cols-4 gap-2 text-[13px] leading-[18px]">
@@ -354,7 +522,7 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                     </dl>
                   )}
 
-                  <div className="dotted-line mt-3 pt-2 lg:flex lg:items-center lg:gap-4">{chartControls}</div>
+                  <div className="dotted-line mt-3 pt-2 lg:flex lg:items-center lg:justify-between lg:gap-6">{chartControls}</div>
                 </>
               ) : (
                 <Card className="mt-4 p-4">
@@ -366,7 +534,7 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                 </Card>
               )}
 
-              <div className="mt-4">
+              <div className="mt-6">
                 {connected ? (
                   <PromoCard
                     href="/portfolio"
@@ -387,7 +555,11 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                     }
                   />
                 ) : (
-                  <PromoCard icon={<Wallet />} title="Sign in to see your shares" sub="Your shares and what they are worth show up here." />
+                  <SignInCard
+                    quiet
+                    title="Your shares in this company"
+                    body={`Sign in and what you hold in ${listing.name}, and what it is worth today, shows up here.`}
+                  />
                 )}
               </div>
 
@@ -407,7 +579,9 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
               {tab === "overview" && (
                 <div className="pt-3">
                   <Description listing={listing} />
-                  {dayLow !== null && dayHigh !== null && last !== null && <DayRange low={dayLow} high={dayHigh} price={last} />}
+                  {dayLow !== null && dayHigh !== null && last !== null && (
+                    <DayRange low={dayLow} high={dayHigh} price={last} />
+                  )}
                   <div className="mt-4 divide-y divide-line">
                     <KV
                       k="Listing price"
@@ -530,13 +704,25 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
         </main>
       </TwoColumn>
 
+      {/* Signed out the bar is the sign-in itself: one tap, one dialog. Two
+          buttons that both did the same thing would be a choice that isn't one. */}
       <ActionBar>
-        <Button variant="sell" size="bar" className="flex-1" disabled={halted || !market} onClick={() => openSheet("sell")}>
-          {halted ? "Trading halted" : "Sell"}
-        </Button>
-        <Button variant="buy" size="bar" className="flex-1" disabled={halted || !market} onClick={() => openSheet("buy")}>
-          {halted ? "Trading halted" : "Buy"}
-        </Button>
+        {!connected && halted ? (
+          <Button variant="buy" size="bar" className="w-full" disabled>
+            Trading halted
+          </Button>
+        ) : !connected ? (
+          <SignInButton label="Sign in to buy or sell" size="bar" className="w-full" />
+        ) : (
+          <>
+            <Button variant="sell" size="bar" className="flex-1" disabled={halted || !market} onClick={() => openSheet("sell")}>
+              {halted ? "Trading halted" : "Sell"}
+            </Button>
+            <Button variant="buy" size="bar" className="flex-1" disabled={halted || !market} onClick={() => openSheet("buy")}>
+              {halted ? "Trading halted" : "Buy"}
+            </Button>
+          </>
+        )}
       </ActionBar>
 
       {market && (
@@ -559,7 +745,7 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
         chart={(h) => chart(h, true)}
         footer={
           <div className="lg:flex lg:items-center lg:gap-4">
-            <RangeChipRow value={range} onChange={setRange} options={RANGE_OPTIONS} className="lg:flex-1" />
+            <RangeChipRow value={range} onChange={setRange} options={RANGE_OPTIONS} className="lg:w-[412px] lg:shrink-0" />
             <div className="mt-1 flex justify-start lg:mt-0">
               <ChartTypeToggle value={chartType} onChange={setChartType} />
             </div>
@@ -595,6 +781,15 @@ function OrderPanel({
   setSide: (s: TradeSide) => void;
   onRejected: (r: Rejected) => void;
 }) {
+  const { connected } = useApp();
+  if (!connected)
+    return (
+      <SignInCard
+        title="Buy and sell here"
+        body={`Sign in and the buy and sell form opens in this panel. ${listing.name}'s price and today's limits are the same either way.`}
+        label="Sign in to buy or sell"
+      />
+    );
   if (!market)
     return (
       <Card className="p-5">
@@ -648,7 +843,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
   const [tab, setTab] = useState<IpoTab>("overview");
   const [view, setView] = useState<"price" | "raise">("price");
   const [hover, setHover] = useState<HoverPoint>(null);
-  const [applyOpen, setApplyOpen] = useState(params.get("apply") === "1" && listing.phase === "live");
+  const [applyOpen, setApplyOpen] = useState(params.get("apply") === "1" && listing.phase === "live" && connected);
 
   const auction: Auction | null = auctionRead.data;
   const clearing: ClearingResponse | null = clearingRead.data;
@@ -682,25 +877,49 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
     [view, offer],
   );
 
-  const note = open ? (
-    <span className="text-gain-text">IPO open</span>
-  ) : draft ? (
-    <span>IPO upcoming</span>
-  ) : listing.phase === "cleared" ? (
-    <span>IPO closed</span>
-  ) : (
-    <span>Not listed</span>
-  );
-
   const applyPanel = <ApplyPanel listing={listing} price={price} seconds={seconds} />;
+
+  // Same rule as a listed company: the price belongs to the identity, so it
+  // sits in the header cluster under the name rather than starting a second
+  // block at the page edge.
+  const headPrice = !auction
+    ? undefined
+    : draft
+      ? {
+          label: "Issue price",
+          value: lotFixed(offer.issuePrice),
+          num: true,
+          note: `Price range ${lotFixed(offer.floorPrice)} to ${lotFixed(offer.capPrice)}${seconds !== null ? ` · opens in ${countdown(seconds)}` : ""}`,
+        }
+      : {
+          label: open ? "Current price" : "Final price",
+          value: shown === null ? COPY.noClearing : lotFixed(shown),
+          num: shown !== null,
+          change: ch ? <Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} size="lg" /> : undefined,
+          note: hover ? dateTimeIST(hover.time) : ch ? "vs issue price" : "No bids yet",
+          extra:
+            open && seconds !== null ? (
+              <p className="t-body mt-1 text-text">
+                Closes in <span className={seconds < 3600 ? "text-warn" : undefined}>{countdown(seconds)}</span>
+              </p>
+            ) : undefined,
+        };
 
   return (
     <>
       <DetailBar />
-      <DemoDataStrip className="-mx-5" />
       <TwoColumn panel={open ? applyPanel : <PhasePanel listing={listing} price={price} seconds={seconds} applied={applied} />}>
         <main>
-          <CompanyHead listing={listing} note={note} onDetails={() => setTab("details")} />
+          <CompanyHead
+            listing={listing}
+            variant={headVariant(params.get("head"))}
+            onDetails={() => setTab("details")}
+            price={headPrice}
+            facts={[
+              { k: "Price range", v: `${lotFixed(offer.floorPrice)} to ${lotFixed(offer.capPrice)}` },
+              { k: "Applications", v: `${listing.applicants} ${listing.applicants === 1 ? "person" : "people"}` },
+            ]}
+          />
 
           {error && !auction && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
           {loading && !auction && <ChartSkeleton className="mt-2" height={280} />}
@@ -711,15 +930,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
 
               {draft ? (
                 <>
-                  <PriceBlock label="Issue price" value={offer.issuePrice}>
-                    <p className="num t-body mt-1 text-text-2">
-                      Price range {lotFixed(offer.floorPrice)} to {lotFixed(offer.capPrice)}
-                      {seconds !== null ? ` · opens in ${countdown(seconds)}` : ""}
-                    </p>
-                    <UnitLine />
-                  </PriceBlock>
-
-                  <Card className="mt-4 p-4">
+                  <Card className="mt-6 p-4">
                     <p className="t-list-title text-text">
                       {seconds === null ? "Applications have not been scheduled yet" : `Applications open in ${countdown(seconds)}`}
                     </p>
@@ -728,22 +939,9 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
                 </>
               ) : (
                 <>
-                  <PriceBlock label={open ? "Current price" : "Final price"} value={shown}>
-                    <p className="mt-1 flex flex-wrap items-baseline gap-2">
-                      {ch && <Change abs={ch.abs} rel={ch.rel} digits={changeDigits(ch.abs)} size="lg" />}
-                      <span className="t-body text-text-2">{hover ? dateTimeIST(hover.time) : ch ? "vs issue price" : "No bids yet"}</span>
-                    </p>
-                    {open && seconds !== null && (
-                      <p className="t-body mt-1 text-text">
-                        Closes in <span className={seconds < 3600 ? "text-warn" : undefined}>{countdown(seconds)}</span>
-                      </p>
-                    )}
-                    <UnitLine />
-                  </PriceBlock>
-
                   {chartData.length > 1 && (
                     <>
-                      <div className="mt-4">
+                      <div className="mt-6">
                         <PriceChart
                           data={chartData}
                           kind={view === "price" ? "clearing" : "raised"}
@@ -846,7 +1044,11 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
           {tab === "application" && (
             <div className="pt-3">
               {!connected ? (
-                <EmptyState title="Sign in to see your application" body="Applications are tied to the wallet that placed them." />
+                <SignInCard
+                  quiet
+                  title="Your application for this IPO"
+                  body="Sign in and what you applied for, the price you set and what is left to do show up here."
+                />
               ) : myBids.length === 0 ? (
                 <EmptyState
                   title="You have not applied yet"
@@ -892,9 +1094,13 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
 
       {open && (
         <ActionBar>
-          <Button variant="buy" size="bar" className="flex-1" onClick={() => setApplyOpen(true)}>
-            Apply
-          </Button>
+          {connected ? (
+            <Button variant="buy" size="bar" className="flex-1" onClick={() => setApplyOpen(true)}>
+              Apply
+            </Button>
+          ) : (
+            <SignInButton label="Sign in to apply" size="bar" className="w-full" />
+          )}
         </ActionBar>
       )}
       {draft && (
@@ -929,11 +1135,11 @@ function secondsToWords(total: number): string {
 }
 
 /** Thin day range: low, high, and a marker on the last price. */
-function DayRange({ low, high, price }: { low: number; high: number; price: number }) {
+function DayRange({ low, high, price, className }: { low: number; high: number; price: number; className?: string }) {
   const span = high - low || 1;
   const pct = Math.max(0, Math.min(100, ((price - low) / span) * 100));
   return (
-    <div className="mt-4">
+    <div className={cx("mt-4", className)}>
       <p className="t-label">Today&apos;s range</p>
       <div className="relative mt-3 h-1 bg-line">
         <span aria-hidden className="absolute top-1/2 size-2 -translate-y-1/2 bg-text" style={{ left: `calc(${pct}% - 4px)` }} />
@@ -969,6 +1175,19 @@ function RangeScale({ offer }: { offer: ListingDetail["offer"] }) {
 
 /** Desktop panel while an IPO is open: price, then the Apply form. */
 function ApplyPanel({ listing, price, seconds }: { listing: ListingDetail; price: number | null; seconds: number | null }) {
+  const { connected } = useApp();
+  if (!connected)
+    return (
+      <SignInCard
+        title="Apply for this IPO"
+        body={`Sign in and the application form opens in this panel. ${listing.name}'s price range and how long it stays open are the same either way.`}
+        label="Sign in to apply"
+      />
+    );
+  return <ApplyPanelForm listing={listing} price={price} seconds={seconds} />;
+}
+
+function ApplyPanelForm({ listing, price, seconds }: { listing: ListingDetail; price: number | null; seconds: number | null }) {
   const { body, footer } = useApplyForm({ ipo: listing, worldState: "verified", onVerify: () => {} });
   return (
     <Card className="p-5">

@@ -39,7 +39,7 @@ const STEPS: { id: StepId; title: string; sub: string }[] = [
   {
     id: "ticker",
     title: "Register the name",
-    sub: "Your company name on Thamba, and what it points to.",
+    sub: "Your company name on thaamba, and what it points to.",
   },
   {
     id: "policy",

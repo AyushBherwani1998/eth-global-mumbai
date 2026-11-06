@@ -10,14 +10,14 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
-import { AppBar } from "@/components/shell";
+import { AppBar, SignInCard } from "@/components/shell";
 import { useApp } from "@/components/providers";
 import { OfflineStrip, SkeletonList } from "@/components/states";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, EmptyState, SectionTitle, Table, TextLink, TickerLogo, UnderlineTabs, cx, type Column } from "@/components/ui";
 import { dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
 import { COPY, hrefFor, isListed } from "@/lib/adapt";
-import { ApiErrorCard, DemoDataStrip } from "@/lib/api-state";
+import { ApiErrorCard } from "@/lib/api-state";
 import type { Bid, Listing } from "@/lib/api";
 import { merge2, useBids, useListings, useQuotes } from "@/lib/live";
 import { BottomSpacer } from "./common";
@@ -112,7 +112,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function OrdersScreen() {
-  const { connected, connect, address, sendTx } = useApp();
+  const { connected, address, sendTx } = useApp();
   const [over, setOver] = useState<Override>({});
   const [busy, setBusy] = useState<string | "all" | null>(null);
   const [tab, setTab] = useState<Tab>("applications");
@@ -159,17 +159,27 @@ export function OrdersScreen() {
     return out.sort((a, b) => b.at - a.at).slice(0, 14);
   }, [quotes.data, all]);
 
+  // Same shape and the same words as the signed-out Portfolio: what this page
+  // shows once you are in, named after its own two tabs, and one Sign in.
   if (!connected)
     return (
       <>
         <AppBar title="Orders" />
-        <DemoDataStrip className="-mx-5" />
         <OfflineStrip className="-mx-5" />
-        <main>
-          <EmptyState title="Sign in to see your orders" body="Your IPO applications show up here, with recent trades across the market." />
-          <Button className="mt-1" onClick={connect}>
-            Sign in
-          </Button>
+        <main className="lg:max-w-[640px]">
+          <SignInCard
+            className="mt-4"
+            title="Your orders live here"
+            body="Sign in and this page fills in with everything you have placed, and what is left to do on each one."
+            points={[
+              "Every IPO application you have made, and where it stands",
+              "Shares to collect and money to take back once an IPO closes",
+              "Your buys and sells, with a receipt for each",
+            ]}
+          />
+          <p className="t-body mt-6 text-text-2">
+            Nothing to sign in for yet? <TextLink href="/">See the companies listed today</TextLink>
+          </p>
           <BottomSpacer />
         </main>
       </>
@@ -210,7 +220,6 @@ export function OrdersScreen() {
   return (
     <>
       <AppBar title="Orders" />
-      <DemoDataStrip className="-mx-5" />
       <OfflineStrip className="-mx-5" />
       <main>
         <div className="lg:hidden">
@@ -425,9 +434,10 @@ function ApplicationTable({ groups, busy, onAct }: { groups: Group[]; busy: stri
     {
       key: "placed",
       label: "Placed",
+      align: "right",
       render: (r) => <span className="t-label">{r.bid.submittedAt ? dateTimeIST(r.bid.submittedAt) : `Block ${r.bid.submittedBlock}`}</span>,
     },
-    { key: "status", label: "Status", render: (r) => <StatusWord s={r.status} /> },
+    { key: "status", label: "Status", align: "right", render: (r) => <StatusWord s={r.status} /> },
     {
       key: "action",
       label: "Action",
@@ -487,8 +497,8 @@ function TradeTable({ rows }: { rows: OrderRow[] }) {
       ),
     },
     { key: "order", label: "Order", render: (r) => <span className="num block">{r.title}</span> },
-    { key: "time", label: "Time", render: (r) => <span className="t-label">{dateTimeIST(r.at / 1000)}</span> },
-    { key: "status", label: "Status", render: () => <span className="t-change-sm text-gain-text">Done</span> },
+    { key: "time", label: "Time", align: "right", render: (r) => <span className="t-label">{dateTimeIST(r.at / 1000)}</span> },
+    { key: "status", label: "Status", align: "right", render: () => <span className="t-change-sm text-gain-text">Done</span> },
     { key: "receipt", label: "Receipt", align: "right", render: (r) => <TextLink href={txUrl(r.tx)}>{shortHash(r.tx)}</TextLink> },
   ];
   return <Table columns={columns} rows={rows} rowKey={(r) => r.id} className="mt-4" />;

@@ -7,7 +7,6 @@
 import { Details, KV } from "@/components/ui";
 import { ErrorCard } from "@/components/states";
 import { errorTitle, type ApiFailure } from "./api";
-import { useHealth } from "./live";
 
 /**
  * Plain English, the fix in the sentence, Retry. The server's own wording and
@@ -37,24 +36,6 @@ export function ApiErrorCard({
           </div>
         </Details>
       )}
-    </div>
-  );
-}
-
-/**
- * "Demo data" while the app is pointed at app/dev/api-stub instead of a chain.
- * The stub's /health answers `stub://fixtures`; a real backend answers with an
- * RPC host, and this renders nothing. Grey strip, no tint, no icon.
- */
-export function DemoDataStrip({ className }: { className?: string }) {
-  const { data } = useHealth();
-  const isStub = typeof data?.rpc === "string" && data.rpc.startsWith("stub://");
-  if (!isStub) return null;
-  return (
-    <div role="status" className={`flex min-h-12 items-center border-y border-line-strong bg-surface-2 px-5 py-2 ${className ?? ""}`}>
-      <p className="t-body text-text">
-        <span className="font-medium">Demo data.</span> These numbers come from a local test server, not from a live chain. Nothing here is real.
-      </p>
     </div>
   );
 }

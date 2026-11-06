@@ -1,17 +1,122 @@
 /*
- * Privy modal, brought onto our tokens.
+ * Privy's sign-in dialog, brought onto our tokens.
  *
- * Privy's `appearance` config covers the background and the accent colour, but
- * not the typeface, the corner radius or the hairline, and it paints a shadow
- * we do not use anywhere in this app (UI.md 1.2: elevation does not exist).
- * Those four come from here, scoped to Privy's own stable element ids
- * (#privy-dialog, #privy-modal-content, #privy-dialog-backdrop) so nothing in
- * the app is touched.
+ * Privy's `appearance` config (session.tsx) covers one background colour, one
+ * accent and the logo. Everything else it paints from its own design system:
+ * a 24px radius, a drop shadow, a blurred backdrop, 13/14px type and an
+ * indigo interactive colour. None of that is ours.
  *
- * Everything below reads a token, so the modal follows light and dark the same
- * way the rest of the app does.
+ * Privy publishes that design system as `--privy-*` custom properties on
+ * :root, so the bulk of this file is a mapping, not a list of overrides: one
+ * Privy variable to one of our tokens. Because our tokens are already
+ * theme-aware, the modal follows light and dark the same way the app does,
+ * with no second palette to keep in step. `:root:root` outranks Privy's own
+ * `:root` block whichever order the two stylesheets land in.
+ *
+ * Four things are not variables and need rules of their own: the backdrop
+ * blur, the 16px type floor (UI.md 7.1), the 48px hit areas (7.2) and the
+ * typeface.
  */
 
+:root:root {
+  /* Grounds and text. */
+  --privy-color-background: var(--surface);
+  --privy-color-background-2: var(--surface-2);
+  --privy-color-background-3: var(--brand);
+  --privy-color-background-hover: var(--surface-2);
+  --privy-color-background-clicked: var(--surface-2);
+  --privy-color-background-disabled: var(--surface);
+  --privy-color-foreground: var(--text);
+  --privy-color-foreground-2: var(--text-2);
+  --privy-color-foreground-3: var(--text-3);
+  --privy-color-foreground-4: var(--line);
+  --privy-color-foreground-accent: var(--surface-2);
+  --privy-color-foreground-hover: var(--text);
+  --privy-color-foreground-clicked: var(--text);
+  --privy-color-foreground-disabled: var(--text-3);
+
+  /* Hairlines: one weight, one colour, like every other edge in the app. */
+  --privy-color-border-default: var(--line);
+  --privy-color-border-hover: var(--line-strong);
+  --privy-color-border-focus: var(--line-strong);
+  --privy-color-border-error: var(--loss);
+  --privy-color-border-success: var(--gain);
+  --privy-color-border-warning: var(--warn);
+  --privy-color-border-info: var(--line);
+  --privy-color-border-interactive: var(--buy);
+  --privy-color-border-interactive-hover: var(--buy);
+
+  /* Action colour: ours is the buy green, never Privy's indigo. */
+  --privy-color-accent: var(--buy);
+  --privy-color-accent-light: var(--gain);
+  --privy-color-accent-hover: var(--gain);
+  --privy-color-accent-dark: var(--buy);
+  --privy-color-accent-darkest: var(--buy);
+  --privy-color-background-interactive: var(--buy);
+  --privy-color-background-interactive-hover: var(--buy);
+  --privy-color-background-interactive-clicked: var(--buy);
+  --privy-color-background-interactive-disabled: var(--surface-2);
+  --privy-color-foreground-interactive: var(--gain-text);
+  --privy-color-foreground-interactive-hover: var(--gain-text);
+  --privy-link-navigation-color: var(--gain-text);
+
+  /* Status colours. */
+  --privy-color-success: var(--gain);
+  --privy-color-success-dark: var(--gain-text);
+  --privy-color-success-light: var(--gain);
+  --privy-color-success-bg: var(--surface-2);
+  --privy-color-error: var(--loss-text);
+  --privy-color-error-dark: var(--loss-text);
+  --privy-color-error-light: var(--loss);
+  --privy-color-error-bg: var(--surface-2);
+  --privy-color-error-bg-hover: var(--surface-2);
+  --privy-color-warn: var(--warn);
+  --privy-color-warn-light: var(--warn);
+  --privy-color-warn-bg: var(--surface-2);
+  --privy-color-warning-dark: var(--warn);
+  --privy-color-info-bg: var(--surface-2);
+  --privy-color-info-bg-hover: var(--surface-2);
+
+  /* Icons. */
+  --privy-color-icon-default: var(--text);
+  --privy-color-icon-muted: var(--text-2);
+  --privy-color-icon-subtle: var(--text-3);
+  --privy-color-icon-default-hover: var(--text);
+  --privy-color-icon-muted-hover: var(--text-2);
+  --privy-color-icon-subtle-hover: var(--text-2);
+  --privy-color-icon-default-clicked: var(--text);
+  --privy-color-icon-muted-clicked: var(--text-2);
+  --privy-color-icon-subtle-clicked: var(--text-2);
+  --privy-color-icon-default-disabled: var(--text-3);
+  --privy-color-icon-muted-disabled: var(--text-3);
+  --privy-color-icon-subtle-disabled: var(--text-3);
+  --privy-color-icon-muted-disabled-alt: var(--text-3);
+  --privy-color-icon-subtle-disabled-alt: var(--text-3);
+  --privy-color-icon-success: var(--gain);
+  --privy-color-icon-warning: var(--warn);
+  --privy-color-icon-error: var(--loss);
+  --privy-color-icon-error-hover: var(--loss);
+  --privy-color-icon-error-clicked: var(--loss);
+  --privy-color-icon-interactive: var(--buy);
+  --privy-color-icon-interactive-hover: var(--buy);
+  --privy-color-icon-interactive-clicked: var(--buy);
+
+  /*
+   * Elevation does not exist in this app (UI.md 1.2). Privy builds all three
+   * of its shadows out of this one colour, so clearing it clears all three and
+   * leaves the focus ring, which is built from a border colour, untouched.
+   */
+  --privy-color-shadow-elevation: transparent;
+
+  /* One radius, 10px, everywhere a corner is drawn. "full" stays a circle. */
+  --privy-border-radius-xs: var(--radius-card);
+  --privy-border-radius-sm: var(--radius-card);
+  --privy-border-radius-md: var(--radius-card);
+  --privy-border-radius-mdlg: var(--radius-card);
+  --privy-border-radius-lg: var(--radius-card);
+}
+
+/* Roboto, and none of Privy's letter-spacing. */
 #privy-dialog,
 #privy-dialog-backdrop {
   font-family: var(--font-sans);
@@ -24,14 +129,73 @@
   letter-spacing: 0 !important;
 }
 
-/* The sheet itself: our surface, our hairline, 10px, no elevation. */
-#privy-modal-content {
+/*
+ * The sheet itself and the panel Privy elevates it inside. The variables above
+ * already clear the shadow and the radius; these two make it explicit so a
+ * Privy release that stops reading its own tokens cannot bring them back.
+ */
+#privy-modal-content,
+#privy-dialog [id^="headlessui-dialog-panel"] {
   border-radius: var(--radius-card) !important;
-  border: 1px solid var(--line) !important;
   box-shadow: none !important;
 }
 
-/* Buttons, inputs and wallet rows inside it: 10px, no shadow, 48px minimum. */
+#privy-modal-content {
+  border: 1px solid var(--line) !important;
+  background: var(--surface) !important;
+}
+
+/* Type floor (UI.md 7.1): Privy sets 13 and 14 where we never go below 16. */
+#privy-dialog p,
+#privy-dialog button,
+#privy-dialog input,
+#privy-dialog label {
+  font-size: 16px !important;
+  line-height: 24px !important;
+}
+
+/* Hit areas (UI.md 7.2). The close button carries an aria-label, so it is
+   excluded from the row rule and sized on its own. */
+#privy-dialog button:not([aria-label]),
+#privy-dialog input {
+  min-height: 48px !important;
+}
+
+/*
+ * Privy's close is a 24px icon on a grey tile, which is both under our hit
+ * area and the one icon-only control we don't allow (UI.md 7.3 lets only the
+ * back arrow go unlabelled). It gets a 48px target, no tile, and the word
+ * "Close" beside the x, the way every other Close in the app reads.
+ */
+#privy-dialog button[aria-label] {
+  display: inline-flex !important;
+  flex-direction: row-reverse !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: auto !important;
+  min-width: 48px !important;
+  height: 48px !important;
+  min-height: 48px !important;
+  gap: 6px !important;
+  padding: 0 10px !important;
+  background: transparent !important;
+  color: var(--text) !important;
+}
+
+#privy-dialog button[aria-label]:hover {
+  background: var(--surface-2) !important;
+}
+
+#privy-dialog button[aria-label]::after {
+  content: "Close";
+  order: -1;
+  white-space: nowrap;
+  font-size: 15px;
+  line-height: 20px;
+  font-weight: 500;
+  color: var(--text);
+}
+
 #privy-dialog button,
 #privy-dialog input,
 #privy-dialog [role="button"] {
@@ -39,22 +203,33 @@
   box-shadow: none !important;
 }
 
-#privy-dialog button:not([aria-label]),
-#privy-dialog input {
-  min-height: 48px !important;
-}
-
-/* Overlay: our token, no blur (UI.md 2.15). */
+/*
+ * Overlay: our token, no blur (UI.md 2.15). `backdrop-filter: none` is dropped
+ * as a no-op by the CSS minifier, so the blur is cancelled with a real value.
+ */
 #privy-dialog-backdrop {
   background: var(--overlay) !important;
-  backdrop-filter: none !important;
-  -webkit-backdrop-filter: none !important;
+  /*
+   * The blur Privy paints behind the modal cannot be cancelled from this file:
+   * every *.css here goes through @tailwindcss/turbopack (next.config.ts) and
+   * it drops a `backdrop-filter` declaration whatever the value. The one rule
+   * that survives is created at runtime instead; see `flatBackdrop` in
+   * session.tsx.
+   */
 }
 
-/* On phone Privy docks to the bottom; match our sheet's top-only radius. */
-@media (max-width: 767px) {
-  #privy-modal-content {
+/*
+ * Privy switches to a bottom sheet under 441px (its own breakpoint, not ours:
+ * at 500px it is still a centred card). Only there does the top-only radius
+ * apply, the same way our own Sheet behaves.
+ */
+@media (max-width: 440px) {
+  #privy-modal-content,
+  #privy-dialog [id^="headlessui-dialog-panel"] {
     border-radius: var(--radius-card) var(--radius-card) 0 0 !important;
+  }
+
+  #privy-modal-content {
     border-bottom: 0 !important;
   }
 }

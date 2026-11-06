@@ -13,15 +13,15 @@
 import Link from "next/link";
 import { useMemo } from "react";
 
-import { AppBar } from "@/components/shell";
+import { AppBar, AppSettingsRows, SignInCard } from "@/components/shell";
 import { useApp } from "@/components/providers";
 import { OfflineStrip, SkeletonList } from "@/components/states";
 import { CompanyLogo, TickerMark, logoColor, markVar } from "@/components/company/logos";
 import { Sparkline } from "@/components/sparkline";
-import { Button, Card, Change, Details, EmptyState, KV, ListRow, SectionTitle, Table, TextLink, TickerLogo, cx, type Column } from "@/components/ui";
+import { Card, Change, Details, EmptyState, KV, ListRow, SectionTitle, Table, TextLink, TickerLogo, cx, type Column } from "@/components/ui";
 import { lotFixed, shares, shortAddr, usdc } from "@/lib/format";
 import { COPY, dayOpenOf, isListed, lastPriceOf, nowSeconds, pricePoints } from "@/lib/adapt";
-import { ApiErrorCard, DemoDataStrip } from "@/lib/api-state";
+import { ApiErrorCard } from "@/lib/api-state";
 import { FAUCET_URL } from "@/lib/mock";
 import type { Listing } from "@/lib/api";
 import { merge2, useBids, useListings, useQuotes } from "@/lib/live";
@@ -118,7 +118,7 @@ function Allocation({ rows, total }: { rows: Holding[]; total: number }) {
 }
 
 export function PortfolioScreen() {
-  const { connected, connect, usdcBalance, ethBalance, address, ensName } = useApp();
+  const { connected, usdcBalance, ethBalance, address, ensName } = useApp();
 
   const listings = useListings();
   const all = useMemo(() => listings.data?.listings ?? [], [listings.data]);
@@ -158,16 +158,32 @@ export function PortfolioScreen() {
       .sort((a, b) => (b.value ?? 0) - (a.value ?? 0));
   }, [bids.data, quotes.data, all, nowSec]);
 
+  // Signed out this page has nothing of its own to show, so it says exactly
+  // what fills it, in the words the signed-in page uses for those same
+  // sections, and offers one way to get there. Appearance and About sit at the
+  // foot: they are the only settings that work without an account, and
+  // Portfolio is the "you" tab, one tap from the nav on every screen.
   if (!connected)
     return (
       <>
         <AppBar title="Portfolio" />
-        <DemoDataStrip className="-mx-5" />
-        <main>
-          <EmptyState title="Sign in to see your shares" body="What you own, what it is worth and how it did today." />
-          <Button className="mt-1" onClick={connect}>
-            Sign in
-          </Button>
+        <OfflineStrip className="-mx-5" />
+        <main className="lg:max-w-[640px]">
+          <SignInCard
+            className="mt-4"
+            title="Your investments live here"
+            body="Sign in and this page fills in with everything you hold, priced at the last trade."
+            points={[
+              "The value of your shares, and how it moved today",
+              "Every company you hold, with its price and today's change",
+              "Shares waiting to be collected from an IPO",
+              "Your USDC available to spend",
+            ]}
+          />
+          <p className="t-body mt-6 text-text-2">
+            Nothing to sign in for yet? <TextLink href="/">See the companies listed today</TextLink>
+          </p>
+          <AppSettingsRows className="mt-8" />
           <BottomSpacer />
         </main>
       </>
@@ -208,7 +224,6 @@ export function PortfolioScreen() {
     return (
       <>
         <AppBar title="Portfolio" />
-        <DemoDataStrip className="-mx-5" />
         <OfflineStrip className="-mx-5" />
         <main>
           {error ? <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} /> : <SkeletonList rows={3} className="mt-4" />}
@@ -221,7 +236,6 @@ export function PortfolioScreen() {
     return (
       <>
         <AppBar title="Portfolio" />
-        <DemoDataStrip className="-mx-5" />
         <OfflineStrip className="-mx-5" />
         <main>
           {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
@@ -258,7 +272,15 @@ export function PortfolioScreen() {
       key: "spark",
       label: "",
       width: "80px",
-      render: (r) => (r.points.length > 1 ? <Sparkline points={r.points} width={72} height={28} up={(r.today?.abs ?? 0) >= 0} /> : null),
+      align: "right",
+      // An <svg> is display:block under preflight, so text-align cannot move
+      // it. The wrapper is what actually puts it on the column's right edge.
+      render: (r) =>
+        r.points.length > 1 ? (
+          <span className="flex justify-end">
+            <Sparkline points={r.points} width={72} height={28} up={(r.today?.abs ?? 0) >= 0} />
+          </span>
+        ) : null,
     },
     { key: "price", label: "Price", align: "right", render: (r) => (r.last === null ? COPY.noPrice : lotFixed(r.last)) },
     { key: "value", label: "Value", align: "right", render: (r) => (r.value === null ? COPY.noPrice : usdc(r.value)) },
@@ -273,7 +295,6 @@ export function PortfolioScreen() {
   return (
     <>
       <AppBar title="Portfolio" />
-      <DemoDataStrip className="-mx-5" />
       <OfflineStrip className="-mx-5" />
       <main>
         {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}

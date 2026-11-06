@@ -5,7 +5,8 @@
 // See components/README.md for the prop reference.
 
 import Link from "next/link";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useId, useLayoutEffect, useRef, useState, useTransition, type ReactNode } from "react";
 import { Check, ChevronDown, ChevronRight, Copy, ExternalLink, Loader2, X } from "lucide-react";
 import { CompanyLogo } from "@/components/company/logos";
 import type { Ipo } from "@/lib/mock";
@@ -129,6 +130,206 @@ export function Progress({ value, max, marker }: { value: number; max: number; m
 }
 
 // ---------------------------------------------------------------------------
+// In-place view swaps (UI.md 5): one body replacing another under a tab row.
+// ---------------------------------------------------------------------------
+
+/**
+ * One movement, one duration, one curve, for every tab-like control in the app.
+ *
+ * 200ms is the number UI.md 5 already gives a tab underline, and the curve is
+ * the decelerating one the chart's range tween runs on (`easeOutCubic` in
+ * components/chart/series.ts, 1 - (1 - t)^3, written here as the bezier CSS
+ * spells it). So when a tab row changes, the underline and the body it governs
+ * travel together on the same curve for the same 200ms: one gesture, not two
+ * animations that happen to overlap.
+ *
+ * The travel is 8px, the distance UI.md 5 already allows a modal, taken
+ * sideways here in the direction the tab row moved: the body arrives from the
+ * side the user reached towards.
+ */
+const SWAP_MS = 200;
+const SWAP_EASE = "cubic-bezier(0.215, 0.61, 0.355, 1)";
+const SWAP_PX = 8;
+
+function prefersReducedMotion() {
+  try {
+    return window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  } catch {
+    return false;
+  }
+}
+
+/** The hold currently in force, so a second swap replaces it instead of racing it. */
+let releaseHold: (() => void) | null = null;
+
+/**
+ * Hold the page's height across one view swap.
+ *
+ * Two tab bodies are never the same height. When the shorter one arrives the
+ * document shrinks, the browser clamps the scroll position to the new bottom,
+ * and the whole page -- the tab row the user is still touching included --
+ * slides up under the finger. Nobody asked for that scroll.
+ *
+ * So: pin the page to the height it had, let the new body settle, then let go.
+ * If letting go would still clamp the scroll, keep exactly the height the
+ * current position needs to stand on, and drop even that the moment scrolling
+ * up makes it unnecessary. The page never gets shorter under a reader.
+ *
+ * Every in-place swap goes through here, which is how a tab row that only
+ * calls `onChange` (UnderlineTabs, Segmented) gets this without its screen
+ * knowing anything about it. It has to be called *before* the new view is in
+ * the DOM -- from the control that starts the swap, never from an effect after
+ * it -- because by then the browser has already clamped the scroll.
+ */
+export function holdPageHeight() {
+  if (typeof document === "undefined") return;
+  // A sheet owns the page scroll while it is open (body overflow is hidden), so
+  // a tab row inside one has nothing to hold.
+  if (document.querySelector('[role="dialog"]')) return;
+
+  const body = document.body;
+  const doc = document.documentElement;
+  // Where the reader is, before anything is let go of: dropping a pad from an
+  // earlier swap can shrink the page and clamp the scroll on its own.
+  const needed = window.scrollY + window.innerHeight;
+  const was = window.scrollY;
+  releaseHold?.();
+  body.style.minHeight = `${Math.max(doc.scrollHeight, needed)}px`;
+  if (window.scrollY !== was) window.scrollTo(0, was);
+
+  let timer = 0;
+  let onScroll: (() => void) | null = null;
+  const stop = () => {
+    window.clearTimeout(timer);
+    if (onScroll) window.removeEventListener("scroll", onScroll);
+    onScroll = null;
+    body.style.minHeight = "";
+    if (releaseHold === stop) releaseHold = null;
+  };
+  const settle = () => {
+    // Where the reader is has to be read before the hold comes off: letting go
+    // and measuring is itself enough to make the browser clamp the scroll, and
+    // then the number being protected is already gone.
+    const needed = window.scrollY + window.innerHeight;
+    body.style.minHeight = "";
+    const natural = doc.scrollHeight;
+    if (needed <= natural) {
+      stop();
+      return;
+    }
+    // Still too short: keep exactly the height this position needs. All of this
+    // happens in one go, before the browser paints, so a clamp that did land
+    // between the two lines above is undone without ever being seen.
+    body.style.minHeight = `${needed}px`;
+    if (window.scrollY + window.innerHeight < needed) window.scrollTo(0, needed - window.innerHeight);
+    onScroll = () => {
+      if (window.scrollY + window.innerHeight <= natural) stop();
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+  };
+  timer = window.setTimeout(settle, prefersReducedMotion() ? 0 : SWAP_MS);
+  releaseHold = stop;
+}
+
+/**
+ * Play the arrival on elements that have just become the new view.
+ *
+ * The swap itself is never gated: React has already put the new body in the
+ * DOM and it is interactive from the first frame. The animation runs over the
+ * top of it, so a tab is usable at 0ms and merely still settling at 100ms.
+ *
+ * `dir` is -1, 0 or 1: which way along the tab row the user moved.
+ */
+function playSwap(targets: Element[], dir: number) {
+  if (prefersReducedMotion()) return;
+  for (const el of targets) {
+    if (!(el instanceof HTMLElement) || typeof el.animate !== "function") continue;
+    // A view that animates its own arrival (ViewSwap) is left alone: two fades
+    // over one body is two gestures, which is the thing this is avoiding.
+    if (el.hasAttribute("data-view-swap")) continue;
+    el.animate([{ opacity: 0, transform: `translateX(${dir * SWAP_PX}px)` }, { opacity: 1, transform: "none" }], {
+      duration: SWAP_MS,
+      easing: SWAP_EASE,
+    });
+  }
+}
+
+/**
+ * Play the arrival on the content a tab row governs but does not own.
+ *
+ * `UnderlineTabs` and `Segmented` are given a value and a callback; the body
+ * they switch between belongs to the screen, as a sibling further down the
+ * same block. So the row finds that content the only way it can -- the
+ * elements that follow it once the swap has committed -- and animates those.
+ * It is how a screen that never heard of any of this still gets the motion.
+ *
+ * Deliberately shallow: at most three steps up looking for something that
+ * follows, never past `<main>` or the page itself, and nothing animated from a
+ * row that is not the visible one (Orders renders a phone row and a desktop
+ * row, and only one of them is on screen).
+ */
+function playSwapAfter(row: HTMLElement | null, dir: number) {
+  if (!row || prefersReducedMotion()) return;
+  if (row.offsetParent === null) return;
+
+  let node: HTMLElement | null = row;
+  for (let step = 0; node && !node.nextElementSibling && step < 3; step++) {
+    const parent: HTMLElement | null = node.parentElement;
+    if (!parent || parent === document.body || parent.tagName === "MAIN") break;
+    node = parent;
+  }
+  if (!node || !node.nextElementSibling) return;
+
+  const targets: Element[] = [];
+  for (let el: Element | null = node.nextElementSibling; el && targets.length < 12; el = el.nextElementSibling) targets.push(el);
+  playSwap(targets, dir);
+}
+
+/** Which way along `order` the view moved: 1 forward, -1 back, 0 if unknown. */
+function swapDir<T extends string>(order: readonly T[] | undefined, from: T, to: T) {
+  if (!order) return 0;
+  const a = order.indexOf(from);
+  const b = order.indexOf(to);
+  return a < 0 || b < 0 ? 0 : Math.sign(b - a);
+}
+
+/**
+ * One view replacing another in place: Markets' Stocks and IPO bodies, the IPO
+ * status segments. The incoming body arrives on the shared swap movement while
+ * the page holds the height it had, so the change reads as a movement and the
+ * tab row above it does not shift. Under reduced motion it is immediate.
+ *
+ * `view` is the view's identity and `order` is the row it belongs to, which is
+ * what gives the arrival its direction. Re-rendering with the same view (a poll
+ * landing, a countdown ticking) animates nothing.
+ */
+export function ViewSwap<T extends string>({
+  view,
+  order,
+  children,
+  className,
+}: {
+  view: T;
+  order?: readonly T[];
+  children: ReactNode;
+  className?: string;
+}) {
+  const inner = useRef<HTMLDivElement>(null);
+  const shown = useRef(view);
+  useLayoutEffect(() => {
+    if (shown.current === view) return;
+    const dir = swapDir(order, shown.current, view);
+    shown.current = view;
+    playSwap(inner.current ? [inner.current] : [], dir);
+  }, [view, order]);
+  return (
+    <div className={className} data-view-swap="">
+      <div ref={inner}>{children}</div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Chips (UI.md 2.5 filter, 2.6 range): 40px tall, 48px hit area.
 // ---------------------------------------------------------------------------
 
@@ -174,9 +375,31 @@ export function Chip({
   className?: string;
 }) {
   const cls = chipClass({ selected, variant, disabled, className });
+  const router = useRouter();
+  const [, startSwap] = useTransition();
   if (href) {
     return (
-      <Link href={href} aria-current={selected ? "page" : undefined} className={cls} replace scroll={false}>
+      <Link
+        href={href}
+        aria-current={selected ? "page" : undefined}
+        className={cls}
+        replace
+        scroll={false}
+        onClick={(e) => {
+          // Modified clicks and middle clicks stay the browser's business: this
+          // is still a link, and it still opens in a new tab.
+          if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+          e.preventDefault();
+          // Hold the page before anything moves, then do the chip's own work
+          // urgently (a screen that keeps its selection locally swaps right
+          // now), and leave the URL -- a bookmark, not something the user is
+          // waiting on -- to a transition. Marking the navigation non-urgent is
+          // what keeps the swap from being torn across two frames.
+          holdPageHeight();
+          onClick?.();
+          startSwap(() => router.replace(href, { scroll: false }));
+        }}
+      >
         {children}
       </Link>
     );
@@ -219,15 +442,38 @@ export function Segmented<T extends string>({
   size?: "sm" | "md";
 }) {
   const refs = useRef<(HTMLButtonElement | null)[]>([]);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const order = options.map((o) => o.id);
+  const [, startSwap] = useTransition();
+  const shown = useRef(value);
+
+  // Changing a segment swaps a view somewhere below it. The row cannot see that
+  // view, so it holds the page height before the change and plays the arrival
+  // on whatever follows it afterwards: every screen with a segmented row gets
+  // the same movement without knowing it is there.
+  const select = (next: T) => {
+    if (next === value) return;
+    holdPageHeight();
+    startSwap(() => onChange(next));
+  };
+  useLayoutEffect(() => {
+    if (shown.current === value) return;
+    const dir = swapDir(order, shown.current, value);
+    shown.current = value;
+    playSwapAfter(rowRef.current, dir);
+    // `order` is rebuilt every render; `value` is the change worth reacting to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   // A radiogroup is one tab stop: Tab reaches the checked option, the arrows
   // move between options. Matches how the chip row reads out loud.
   const move = (from: number, delta: number) => {
     const next = (from + delta + options.length) % options.length;
-    onChange(options[next].id);
+    select(options[next].id);
     refs.current[next]?.focus();
   };
   return (
-    <div role="radiogroup" aria-label={label} className={cx("flex flex-wrap gap-2", className)}>
+    <div ref={rowRef} role="radiogroup" aria-label={label} className={cx("flex flex-wrap gap-2", className)}>
       {options.map((o, i) => (
         <button
           key={o.id}
@@ -247,7 +493,7 @@ export function Segmented<T extends string>({
               move(i, -1);
             }
           }}
-          onClick={() => onChange(o.id)}
+          onClick={() => select(o.id)}
           className={chipClass({ selected: value === o.id })}
         >
           {o.label}
@@ -303,9 +549,32 @@ export function UnderlineTabs<T extends string>({
     return () => ro.disconnect();
   }, [value, tabs.length]);
 
+  const order = tabs.map((t) => t.id);
+  const [, startSwap] = useTransition();
+  const shown = useRef(value);
+
+  // The panel this row switches between belongs to the screen, not to the row.
+  // So: hold the page height before the change, mark it non-urgent, and once it
+  // has committed play the arrival on the content that follows the row. The
+  // underline slides on the same 200ms and the same curve, so the bar and the
+  // body are one movement.
+  const select = (next: T) => {
+    if (next === value) return;
+    holdPageHeight();
+    startSwap(() => onChange(next));
+  };
+  useLayoutEffect(() => {
+    if (shown.current === value) return;
+    const dir = swapDir(order, shown.current, value);
+    shown.current = value;
+    playSwapAfter(listRef.current, dir);
+    // `order` is rebuilt every render; `value` is the change worth reacting to.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
   const move = (from: number, delta: number) => {
     const next = (from + delta + tabs.length) % tabs.length;
-    onChange(tabs[next].id);
+    select(tabs[next].id);
     refs.current.get(tabs[next].id)?.focus();
   };
 
@@ -337,7 +606,7 @@ export function UnderlineTabs<T extends string>({
               move(tabs.length - 1, 0);
             }
           }}
-          onClick={() => onChange(t.id)}
+          onClick={() => select(t.id)}
           className={cx(
             // -outline-offset keeps the focus ring inside the 48px tab instead
             // of painting over the neighbour and the underline.
@@ -355,7 +624,10 @@ export function UnderlineTabs<T extends string>({
           aria-hidden
           className={cx(
             "absolute -bottom-px h-[3px]",
-            bar.animate && "transition-transform duration-200 ease-out",
+            // Same 200ms and same curve as the body it governs (UI.md 5 asks
+            // for 200ms ease-out; `ease-swap` is that curve as easeOutCubic,
+            // which is what the chart's range tween runs on).
+            bar.animate && "duration-200 ease-swap transition-transform",
             underline === "loss" ? "bg-loss" : "bg-gain",
           )}
           style={{ width: bar.width, transform: `translateX(${bar.left}px)`, left: 0 }}
@@ -922,36 +1194,68 @@ function SearchIcon() {
 // Stepper (UI.md 2.17, 7.7): three steps, one-sentence labels, no green.
 // ---------------------------------------------------------------------------
 
+/**
+ * Where you are in a run of wallet approvals, above the button that does the
+ * current one.
+ *
+ * The rail is markers and connectors only, and the words sit under the whole
+ * rail at full width. The earlier shape gave every step its own column and put
+ * both its title and its sentence inside it, which at phone width is about
+ * 104px of text space per step. One of those titles is an amount the user
+ * typed (`Allow 1,000,000,000.00`), and when an amount is too long to fit, the
+ * column cannot shrink below it: the text ran straight over the next step's
+ * title. Measured at 390px, step 2 of the apply flow overflowed its column by
+ * 5px and collided with "Apply".
+ *
+ * Nothing is truncated and nothing is squeezed now, because nothing is in a
+ * column: a long amount simply wraps across the full width, at body size,
+ * which is the size copy a person reads before signing a transaction should
+ * have been all along. Only the step you are on has a sentence, so one
+ * sentence slot under the rail is also the honest shape for it.
+ *
+ * This is a deliberate departure from UI.md 2.17, which draws the titles under
+ * their markers. 2.17's own example labels are one word ("Enable", "Approve",
+ * "Submit"); the app's are sentences and amounts, and they do not fit.
+ */
 export function Stepper({ steps, current, className }: { steps: { title: string; sub?: string }[]; current: number; className?: string }) {
+  const at = Math.min(Math.max(current, 1), steps.length);
+  const now = steps[at - 1];
   return (
-    <ol className={cx("flex items-start", className)} aria-label="Steps">
-      {steps.map((s, i) => {
-        const n = i + 1;
-        const done = n < current;
-        const now = n === current;
-        return (
-          <li key={s.title} className="flex min-w-0 flex-1 flex-col items-start" aria-current={now ? "step" : undefined}>
-            <span className="flex w-full items-center">
+    <div className={className}>
+      <ol className="flex items-center" aria-label="Steps">
+        {steps.map((s, i) => {
+          const n = i + 1;
+          const done = n < at;
+          return (
+            <li
+              key={s.title}
+              className={cx("flex items-center", i < steps.length - 1 && "flex-1")}
+              aria-current={n === at ? "step" : undefined}
+            >
               <span
                 className={cx(
                   // 1.5px on the current marker against 1px on an upcoming one:
                   // the step you are on is the only one that gains weight.
                   "num flex size-6 shrink-0 items-center justify-center rounded-full text-[13px] leading-none font-medium",
-                  done ? "bg-text text-bg" : now ? "border-[1.5px] border-text text-text" : "border border-line text-text-2",
+                  done ? "bg-text text-bg" : n === at ? "border-[1.5px] border-text text-text" : "border border-line text-text-2",
                 )}
               >
-                {done ? <Check className="size-3.5" strokeWidth={2.5} /> : n}
+                <span aria-hidden>{done ? <Check className="size-3.5" strokeWidth={2.5} /> : n}</span>
+                {/* A row of bare numerals reads as nothing out loud, so each
+                    marker carries its step's name for a screen reader even
+                    though only the current step's name is drawn. */}
+                <span className="sr-only">{`Step ${n} of ${steps.length}: ${s.title}${done ? ", done" : ""}`}</span>
               </span>
               {/* The connector meets both markers on their centre line and
                   carries the done colour only for a segment already walked. */}
               {i < steps.length - 1 && <span aria-hidden className={cx("mx-2 h-px flex-1", done ? "bg-text" : "bg-line")} />}
-            </span>
-            <span className={cx("t-nav-label mt-2 pr-3", now ? "text-text" : "text-text-2")}>{s.title}</span>
-            {s.sub && now && <span className="t-caption mt-1 pr-3">{s.sub}</span>}
-          </li>
-        );
-      })}
-    </ol>
+            </li>
+          );
+        })}
+      </ol>
+      {now && <p className="t-list-title mt-3 text-text">{now.title}</p>}
+      {now?.sub && <p className="t-body mt-1 text-text-2">{now.sub}</p>}
+    </div>
   );
 }
 
@@ -1210,6 +1514,15 @@ export function Details({ title = "Details", children, defaultOpen = false, clas
 export type Column<T> = {
   key: string;
   label: string;
+  /**
+   * Header and cell are always aligned together, so a column can never
+   * disagree with its own heading. Left is the default, which is right for the
+   * first column and almost never right for any other: a value column that
+   * forgets this sits at the left of its cell between neighbours that sit at
+   * the right, and the row stops reading as one system. The house rule is the
+   * identity column left, every column after it right -- a status label with a
+   * number in it ("Under watch ±5%", "Done") counts as a value.
+   */
   align?: "left" | "right";
   width?: string;
   render: (row: T) => ReactNode;
