@@ -21,7 +21,7 @@
 | Scope | Design only; nothing has been built or deployed |
 | Disclaimer | Every exchange rule is an **NSE-inspired mock**: not a regulated product, no regulatory claims. Jurisdiction gates are an extra privacy layer, **not KYC** |
 
-Last updated Fri Nov 6 2026, ~14:00 IST (v3: validated against primary sources, country restrictions added; see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history. The original v1 plan is kept unchanged as [`plan.v1.md`](plan.v1.md), because ETHGlobal's spec-driven rule requires "all spec files, prompts, and planning artifacts".
+Last updated Fri Nov 6 2026, ~14:00 IST (v3: validated against primary sources, country restrictions added; see [`VALIDATION.md`](VALIDATION.md)). Earlier versions live in git history.
 
 ---
 
