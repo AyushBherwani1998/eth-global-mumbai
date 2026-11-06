@@ -206,7 +206,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
  */
 export function originAllowed(origin: string, allowed: readonly string[]): boolean {
   for (const entry of allowed) {
-    if (entry === "*" || entry === origin) return true;
+    if (entry === "*" || entry.toLowerCase() === origin.toLowerCase()) return true;
     if (!entry.includes("*")) continue;
     const re = new RegExp(`^${entry.split("*").map(escapeRegExp).join("[a-z0-9-]+")}$`, "i");
     if (re.test(origin)) return true;

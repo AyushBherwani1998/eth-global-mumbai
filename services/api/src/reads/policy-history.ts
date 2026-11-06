@@ -128,7 +128,7 @@ export function buildPolicyTimeline(input: TimelineInput): Timeline {
     const next = input.applied[i + 1];
     const maxAge = [...input.maxAges].reverse().find((m) => m.time <= a.time)?.maxAge ?? input.fallbackMaxAge;
     const refE2 = p.refSqrtPriceX96 === 0n ? null : price(p.refSqrtPriceX96);
-    const eff = input.listed ? stateAt(a.time, input, input.listed) : null;
+    const eff = input.listed && a.time >= input.listed.time ? stateAt(a.time, input, input.listed) : null;
     const mode = p.mode > 2 ? 0 : p.mode;
     return {
       version: a.version,

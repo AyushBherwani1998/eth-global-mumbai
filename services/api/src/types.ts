@@ -229,7 +229,7 @@ export type ClearingResponse = { ticker: string; auction: Address | null; series
 
 /** mock `Bid` plus owner, points, actions and raw values. */
 export type Bid = {
-  /** Globally unique: `<auction address (EIP-55)>:<bidId>`. Use it for React keys, busy / override maps. */
+  /** Globally unique: `<auction address, lowercase>:<bidId>` (same as the app's `bidKey()`). Use it for React keys, busy / override maps. */
   key: string;
   /** Bid id: unique only within one auction. */
   id: number;

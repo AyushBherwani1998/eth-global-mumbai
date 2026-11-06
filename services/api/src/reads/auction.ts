@@ -315,9 +315,9 @@ async function listingBids(ctx: Ctx, l: Listing, h: Head, owner?: Address): Prom
   );
 }
 
-/** `Bid.key`: bid ids restart at 0 in every auction. */
+/** `Bid.key`: bid ids restart at 0 in every auction. Lowercase, as the app's `bidKey()`. */
 export function bidKey(auction: Address, id: bigint | number): string {
-  return `${getAddress(auction)}:${id}`;
+  return `${auction.toLowerCase()}:${id}`;
 }
 
 /** Where a bid's money is (see `BidStatus`), plus the raw shares still claimable and USDC still to be refunded. */
