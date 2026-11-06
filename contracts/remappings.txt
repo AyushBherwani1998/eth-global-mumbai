@@ -12,3 +12,4 @@ v4-periphery/=lib/v4-periphery/
 @uniswap/v4-periphery/=lib/v4-periphery/
 continuous-clearing-auction/=lib/continuous-clearing-auction/
 liquidity-launcher/=lib/liquidity-launcher/
+solmate/=lib/solmate/
