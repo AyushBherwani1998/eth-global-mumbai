@@ -57,7 +57,7 @@ contract WorldPassFixtureTest is Test {
         );
         deployCodeTo(
             "MockAuction.sol:MockAuction",
-            abi.encode(hookAt, address(token), address(0), uint64(block.number + 1)),
+            abi.encode(hookAt, address(token), address(0), uint64(vm.getBlockNumber() + 1)),
             p.auction
         );
         AuctionValidationHook(hookAt).setAuction(p.auction);
@@ -85,7 +85,7 @@ contract WorldPassFixtureTest is Test {
         for (uint256 i; i < CASES; i++) {
             WorldPassModule module = _wire(i);
             EligibilityPass memory p = _pass(i);
-            vm.roll(block.number + 1);
+            vm.roll(vm.getBlockNumber() + 1);
             vm.warp(p.expiry);
             vm.prank(p.wallet);
             MockAuction(p.auction)

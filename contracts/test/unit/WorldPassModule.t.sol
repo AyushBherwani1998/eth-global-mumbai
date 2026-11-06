@@ -78,7 +78,7 @@ contract WorldPassModuleTest is HookFixture {
             wallet: wallet,
             auction: address(cca),
             cap: CAP,
-            expiry: uint64(block.timestamp + 10 minutes)
+            expiry: uint64(vm.getBlockTimestamp() + 10 minutes)
         });
     }
 
@@ -134,7 +134,7 @@ contract WorldPassModuleTest is HookFixture {
 
     function test_cap_survivesAFreshPassForTheSameHuman() public {
         _bid(alice, 15e6, _signed(_pass(HUMAN_A, alice)));
-        vm.warp(block.timestamp + 1 hours);
+        vm.warp(vm.getBlockTimestamp() + 1 hours);
         bytes memory fresh = _signed(_pass(HUMAN_A, alice));
         vm.expectRevert(_capExceeded(15e6 + 6e6, CAP));
         _bid(alice, 6e6, fresh);
