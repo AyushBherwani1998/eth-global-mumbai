@@ -18,7 +18,7 @@ import { TickerMark } from "@/components/company/logos";
 import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
 import { blockNo, dateTimeIST, lotFixed, shares, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
 import { CONSOLE, CURRENT_BLOCK, OFFER, USDC_ADDRESS, ensName, getClearing, getIpo, getMarket, type Ipo, type Mode, type Policy } from "@/lib/mock";
-import { band, bandDigits } from "@/lib/policy";
+import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
 
 // ---------------------------------------------------------------------------
 // Lifecycle steps. Ids match mock/console.json; the titles are plain English.
@@ -602,7 +602,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
   const ruleNow = policy.halted
     ? "Trading is halted."
     : policy.mode === "directional"
-      ? `Only trades toward ${lotFixed(policy.referencePrice)} go through.`
+      ? `Trades toward ${lotFixed(policy.referencePrice)} go through between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}; moves away from it stop at ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)}.`
       : `Trades allowed between ${lotFixed(lo, d)} and ${lotFixed(hi, d)}.`;
 
   const controls: {
@@ -624,7 +624,7 @@ function ExchangeDesk({ ipo, online, onLog }: { ipo: Ipo; online: boolean; onLog
     },
     {
       label: "One-way day",
-      consequence: "Only trades that move the price toward the reference go through.",
+      consequence: "Trades that push the price further from the reference stop at 5% from it. Trades toward it go through within 20%.",
       onClick: () => setMode("directional"),
     },
     {

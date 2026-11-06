@@ -48,7 +48,7 @@ import {
   type Policy,
   type Rejected,
 } from "@/lib/mock";
-import { band, bandDigits } from "@/lib/policy";
+import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
 import { useApplyForm, ApplySheet } from "./bid-sheet";
 import { TradeSheet, useTradeForm, type TradeSide } from "./trade-sheet";
 import { WorldSheet, type WorldState } from "./world-sheet";
@@ -146,7 +146,8 @@ function rejectSentence(r: Rejected, policy: Policy) {
   if (r.reason === "Halted") return "Trading was halted at the time.";
   const d = bandDigits(policy.referencePrice, policy.bandBps);
   const { lo, hi } = band(policy.referencePrice, policy.bandBps);
-  if (r.reason === "WrongDirection") return `Would have moved the price away from ${lotFixed(policy.referencePrice)}.`;
+  if (r.reason === "DirectionalWidening")
+    return `Would have moved the price to ${r.priceAfter.toFixed(3)}, further from ${lotFixed(policy.referencePrice)} than ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)}.`;
   const above = r.priceAfter > hi;
   return `Would have moved the price to ${r.priceAfter.toFixed(3)}, ${above ? "above" : "below"} today's limit of ${lotFixed(above ? hi : lo, d)}.`;
 }

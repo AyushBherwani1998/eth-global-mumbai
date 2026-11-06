@@ -15,7 +15,7 @@ import { TickerMark } from "@/components/company/logos";
 import { Button, Card, EmptyState, SectionTitle, Table, TextLink, TickerLogo, UnderlineTabs, cx, type Column } from "@/components/ui";
 import { blocksToCountdown, dateTimeIST, lotFixed, shares, shortHash, txUrl, usdc } from "@/lib/format";
 import { BIDS, CURRENT_BLOCK, IPOS, getIpo, getMarket, type Bid, type BidState, type Ipo, type Policy } from "@/lib/mock";
-import { band, bandDigits } from "@/lib/policy";
+import { SURVEILLANCE_BAND_BPS, band, bandDigits, bandText } from "@/lib/policy";
 import { BottomSpacer } from "./common";
 
 // ---------------------------------------------------------------------------
@@ -104,8 +104,8 @@ type OrderRow = {
 function rejectReason(reason: string, detail: string, priceAfter: number, policy: Policy): string {
   const limitInDetail = detail.match(/([\d.]+)\s*$/)?.[1];
   if (reason === "Halted") return "Trading was halted at the time.";
-  if (reason === "WrongDirection")
-    return `Only trades that moved the price toward ${limitInDetail ?? lotFixed(policy.referencePrice)} were allowed then.`;
+  if (reason === "DirectionalWidening")
+    return `This would have moved the price to ${lotFixed(priceAfter, 3)}, further from ${lotFixed(policy.referencePrice)} than the ${bandText(policy.referencePrice, SURVEILLANCE_BAND_BPS)} allowed then.`;
   const d = bandDigits(policy.referencePrice, policy.bandBps);
   const edge = limitInDetail ?? lotFixed(band(policy.referencePrice, policy.bandBps).hi, d);
   const over = detail.includes("above");
