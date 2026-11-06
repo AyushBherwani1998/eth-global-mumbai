@@ -11,7 +11,7 @@
 // - `retry()` re-runs immediately (that is the Retry button).
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ApiFailure, POLL, api, asApiFailure, type BidsResponse, type ListingsResponse, type MarketView, type Portfolio } from "./api";
+import { ApiFailure, POLL, api, asApiFailure, type BidsResponse, type EnsView, type ListingsResponse, type MarketView, type Portfolio } from "./api";
 
 export type Live<T> = {
   data: T | null;
@@ -165,6 +165,16 @@ export function useClearing(ticker: string | null) {
 /** This wallet's applications. Null owner (signed out) stands the poll down. */
 export function useBids(owner: string | null, ticker?: string): Live<BidsResponse> {
   return useLive(owner ? `bids:${owner}:${ticker ?? "all"}` : null, () => api.bids({ owner: owner as string, ticker }), POLL.bids);
+}
+
+/** Every application in one listing, from every wallet (the issuer console). */
+export function useTickerBids(ticker: string | null): Live<BidsResponse> {
+  return useLive(ticker ? `bids:*:${ticker}` : null, () => api.bids({ ticker: ticker as string }), POLL.bids);
+}
+
+/** The listing's ENS name as resolved, and whether its records match the deployment. */
+export function useEns(ticker: string | null): Live<EnsView> {
+  return useLive(ticker ? `ens:${ticker}` : null, () => api.ens(ticker as string), POLL.issuer);
 }
 
 export function useEligibility(ticker: string | null, address: string | null) {
