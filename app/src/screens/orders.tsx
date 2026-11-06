@@ -1,9 +1,10 @@
 "use client";
 
-// Orders (UX.md 3.7): everything the wallet has asked the market to do.
-// Two tabs: IPO applications (grouped by company, plain state words and the
-// verbs Refund / Collect shares / Settle) and Trades (including rejected
-// attempts with a one-sentence reason). Desktop renders the same data as tables.
+// Orders (UX.md 3.7). Two tabs: IPO applications (this wallet's bids, grouped
+// by company, plain state words and the verbs Refund / Collect shares / Settle)
+// and Market trades (every trade and rejected attempt in the listed pools, not
+// filtered to this wallet: per-wallet trade history isn't indexed yet).
+// Desktop renders the same data as tables.
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -87,7 +88,7 @@ function groupSub(ipo: Ipo) {
 }
 
 // ---------------------------------------------------------------------------
-// Trades and rejected attempts, newest first.
+// Market trades and rejected attempts across all wallets, newest first.
 // ---------------------------------------------------------------------------
 
 type OrderRow = {
@@ -123,7 +124,7 @@ function useOrderRows(): OrderRow[] {
           id: `${ipo.ticker}-t-${t.tx}`,
           ipo,
           at: t.time * 1000,
-          title: `${t.side === "buy" ? "Bought" : "Sold"} ${shares(t.shares)} shares at ${lotFixed(t.price)}`,
+          title: `${t.side === "buy" ? "Buy" : "Sell"} · ${shares(t.shares)} shares at ${lotFixed(t.price)}`,
           rejected: false,
           tx: t.tx,
         });
@@ -153,7 +154,7 @@ type Override = Partial<Record<number, BidState>>;
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "applications", label: "IPO applications" },
-  { id: "trades", label: "Trades" },
+  { id: "trades", label: "Market trades" },
 ];
 
 export function OrdersScreen() {
@@ -187,7 +188,7 @@ export function OrdersScreen() {
         <AppBar title="Orders" />
         <OfflineStrip className="-mx-5" />
         <main>
-          <EmptyState title="Sign in to see your orders" body="Your IPO applications and your trades show up here." />
+          <EmptyState title="Sign in to see your orders" body="Your IPO applications show up here, with recent trades across the market." />
           <Button className="mt-1" onClick={connect}>
             Sign in
           </Button>
@@ -300,15 +301,12 @@ export function OrdersScreen() {
         ) : (
           <>
             {trades.length === 0 ? (
-              <EmptyState
-                title="No trades yet"
-                body="Buy or sell on a company page and the order shows up here."
-                action={{ label: "See companies", href: "/" }}
-              />
+              <EmptyState title="No market trades yet" body="Trades in listed companies show up here." action={{ label: "See companies", href: "/" }} />
             ) : (
               <>
+                <p className="t-label mt-4">Everyone&apos;s trades in these companies, not only yours. Your own trade history isn&apos;t available yet.</p>
                 <div className="lg:hidden">
-                  <SectionTitle>Recent orders</SectionTitle>
+                  <SectionTitle>All market trades</SectionTitle>
                   <div className="divide-y divide-line">
                     {trades.map((t) => (
                       <TradeRow key={t.id} row={t} />
@@ -316,7 +314,7 @@ export function OrdersScreen() {
                   </div>
                 </div>
                 <div className="hidden lg:block">
-                  <SectionTitle>Recent orders</SectionTitle>
+                  <SectionTitle>All market trades</SectionTitle>
                   <TradeTable rows={trades} />
                 </div>
               </>
