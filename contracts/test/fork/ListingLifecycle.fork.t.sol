@@ -3,12 +3,15 @@ pragma solidity 0.8.26;
 
 import {AuctionValidationHook} from "../../src/AuctionValidationHook.sol";
 import {ListingHook} from "../../src/ListingHook.sol";
+import {ListingPolicyReceiver} from "../../src/ListingPolicyReceiver.sol";
 import {MockSME} from "../../src/MockSME.sol";
 import {IListingHook, ListingHookConfig} from "../../src/interfaces/IListingHook.sol";
+import {ListingPolicy} from "../../src/interfaces/IListingPolicy.sol";
 import {ListingDay, Sepolia} from "../../src/libraries/Constants.sol";
 import {ListingPrice} from "../../src/libraries/ListingPrice.sol";
 import {MockListingPolicy} from "../../src/mocks/MockListingPolicy.sol";
 import {AllowAllModule} from "../../src/modules/AllowAllModule.sol";
+import {CreReports} from "../utils/CreReports.sol";
 import {HookFixture} from "../utils/HookFixture.sol";
 import {PoolActions} from "../utils/PoolActions.sol";
 import {SepoliaForkTest} from "../utils/SepoliaForkTest.sol";
@@ -60,8 +63,9 @@ interface IPositionManagerExit {
 /// @notice Gate 0 lifecycle on a Sepolia fork, entirely through the deployed Uniswap contracts:
 ///         MockSME -> LiquidityLauncher multicall (depositToken + distributeToken) -> LBPStrategy v3.3.0 -> CCA
 ///         (factory v2.1.0) -> `setAuction` -> real Sepolia USDC bids via Permit2 -> clearing -> exits / claims
-///         / sweeps -> `migrate()` into a v4 pool behind a mined ListingHook -> swaps through the hook.
-contract ListingLifecycleForkTest is SepoliaForkTest, HookFixture, PoolActions {
+///         / sweeps -> `migrate()` into a v4 pool behind a mined ListingHook -> swaps through the hook -> CRE
+///         reports through the live mock forwarder halting and reopening the pool.
+contract ListingLifecycleForkTest is SepoliaForkTest, HookFixture, PoolActions, CreReports {
     using StateLibrary for IPoolManager;
     using PoolIdLibrary for PoolKey;
 
@@ -497,5 +501,50 @@ contract ListingLifecycleForkTest is SepoliaForkTest, HookFixture, PoolActions {
         assertEq(posm.getPositionLiquidity(tokenId), liquidity - liquidity / 2, "liquidity removed while halted");
         assertGt(usdc.balanceOf(treasury), usdcBefore, "USDC back to the LP");
         assertGt(token.balanceOf(treasury), sharesBefore, "shares back to the LP");
+    }
+
+    /// @dev Chunk 4 on the real stack: the issuer switches the hook from the stub to `ListingPolicyReceiver`,
+    ///      then CRE reports sent through the live Sepolia MockKeystoneForwarder (as `cre workflow simulate
+    ///      --broadcast` does) halt and reopen the migrated pool. A spoofed halt from another EOA is ignored.
+    function test_fork_creReceiver_haltAndResumeThroughLiveMockForwarder() public {
+        _graduateAt110AndMigrate();
+        address broadcaster = makeAddr("creBroadcaster");
+        ListingPolicyReceiver receiver = new ListingPolicyReceiver(
+            issuer, Sepolia.CRE_MOCK_FORWARDER, broadcaster, Sepolia.CRE_CHAIN_SELECTOR, 1 days
+        );
+        vm.prank(issuer);
+        listingHook.setPolicySource(receiver);
+
+        deal(Sepolia.USDC, trader, 10e6);
+        vm.startPrank(trader);
+        usdc.approve(address(swapRouter), type(uint256).max);
+        token.approve(address(swapRouter), type(uint256).max);
+        vm.stopPrank();
+        bytes memory halted = _hookRevert(
+            address(listingHook), IHooks.beforeSwap.selector, abi.encodeWithSelector(IListingHook.Halted.selector)
+        );
+
+        ListingPolicy memory p = _freshPolicy();
+        p.halted = true;
+        assertFalse(
+            _deliver(Sepolia.CRE_MOCK_FORWARDER, address(receiver), attacker, _encodeReport(p, ""), 1_500_000),
+            "spoofed halt"
+        );
+        _swapTo(swapRouter, manager, key, trader, ListingPrice.pointsToSqrtPriceX96(112, true));
+
+        assertTrue(
+            _deliver(Sepolia.CRE_MOCK_FORWARDER, address(receiver), broadcaster, _encodeReport(p, ""), 1_500_000),
+            "CRE halt"
+        );
+        _swapTo(swapRouter, manager, key, trader, ListingPrice.pointsToSqrtPriceX96(111, true), halted);
+
+        vm.warp(vm.getBlockTimestamp() + 1);
+        p = _freshPolicy();
+        assertTrue(
+            _deliver(Sepolia.CRE_MOCK_FORWARDER, address(receiver), broadcaster, _encodeReport(p, ""), 1_500_000),
+            "CRE resume"
+        );
+        _swapTo(swapRouter, manager, key, trader, ListingPrice.pointsToSqrtPriceX96(111, true));
+        assertApproxEqAbs(listingHook.currentPointsE2(), 11_100, 1);
     }
 }

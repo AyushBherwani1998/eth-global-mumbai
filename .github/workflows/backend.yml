@@ -1,0 +1,39 @@
+name: backend
+
+on:
+  pull_request:
+    paths: ["services/**", "cre/**", ".github/workflows/backend.yml"]
+  push:
+    branches: [main]
+    paths: ["services/**", "cre/**", ".github/workflows/backend.yml"]
+
+jobs:
+  mock-exchange:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: services/mock-exchange
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+
+  cre-workflow:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: cre/listing-policy
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.4.4"
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+      - name: Compile to WASM (cre-compile)
+        run: bun run build
