@@ -8,3 +8,4 @@ broadcast/**/dry-run/
 deployments/sepolia-fork.json
 deployments/sepolia-ens-fork.json
 deployments/anvil.json
+deployments/anvil-*.json
