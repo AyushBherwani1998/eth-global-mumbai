@@ -3,7 +3,7 @@
 # `forge script --broadcast` process (as on Sepolia), blocks are mined instead of waited for, and the export
 # collects real tx hashes. Uses throwaway keys funded through anvil cheats; nothing touches Sepolia.
 # `make -e`: these throwaway keys win over a .env the Makefile would otherwise load.
-#   SEPOLIA_RPC_URL=<rpc> script/demo/anvil-rehearsal.sh      (or: make demo-anvil)
+#   SEPOLIA_RPC_URL=<rpc> script/demo/anvil-rehearsal.sh      (or: make demo-anvil; KEEP_ANVIL=1 leaves it running)
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 
@@ -45,5 +45,23 @@ echo "funder $funder USDC: $(cast call "$usdc" 'balanceOf(address)(uint256)' "$f
 make -e fund RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
 make -e demo-sepolia RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
 make -e resume RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
+
+# ENSv2 ticker namespace after the demo: the "exchange" owns listingday.eth, the deployer is the issuer. The
+# receiver already holds a status from the resume report, so EnsStatusRole mirrors it with syncStatus().
+export ENS_OWNER_KEY="$(key exchange)"
+export ISSUER_KEY="$PRIVATE_KEY"
+cast rpc anvil_setBalance "$(cast wallet address "$ENS_OWNER_KEY")" 0x8AC7230489E80000 --rpc-url "$RPC_URL" > /dev/null
+registrar=0xf633e7FC17e2bbE0D0965D18ec1821dcB754a3d3
+if [[ "$(cast call "$registrar" 'isAvailable(string)(bool)' listingday --rpc-url "$RPC_URL")" != "true" ]]; then
+  export ENS_PARENT_LABEL="listingday-anvil" # the real name is already registered on the forked chain
+fi
+make -e ens-sepolia RPC_URL="$RPC_URL" DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE" ENS_READ_STRICT=true
+status="$(jq -r '.ens.records["listingday.status"]' "$DEPLOYMENTS_FILE")"
+[[ "$status" == "listed" ]] || { echo "expected listingday.status = listed, got '$status'" >&2; exit 1; }
+
 make -e export-json DEPLOYMENTS_FILE="$DEPLOYMENTS_FILE"
 echo "anvil rehearsal done: $DEPLOYMENTS_FILE"
+if [[ "${KEEP_ANVIL:-0}" == "1" ]]; then
+  echo "KEEP_ANVIL=1: anvil keeps running at $RPC_URL (e.g. point the frontend at it); Ctrl-C to stop"
+  wait "$anvil_pid"
+fi

@@ -201,6 +201,7 @@ contract DemoDeploy is DemoBase {
         vm.serializeString(root, "results", "{}");
         vm.serializeString(root, "trade", "{}");
         vm.serializeString(root, "halt", "{}");
+        vm.serializeString(root, "ens", "{}");
         root = vm.serializeString(root, "txs", "{}");
         _ensureParentDir(path);
         vm.writeJson(root, path);

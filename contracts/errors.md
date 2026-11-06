@@ -157,8 +157,10 @@ Admin calls (direct, not wrapped):
 | `InvalidMaxAge()` | `0x8974d2a4` | constructor, `setMaxAge` | `maxAge == 0` |
 
 ENS mirror failures never revert: they emit `StatusMirrorFailed(resolver, status, reason)`, where `reason` is the
-resolver's revert data. With `MockStatusResolver` it is `Unauthorized(address writer)` (`0x8e4a23d6`) or
-`ForcedFailure()` (`0xcf70b534`); it is empty for out-of-gas or a resolver without code. `syncStatus()` retries.
+resolver's revert data. With the issuer's ENSv2 `PermissionedResolver` it is `EACUnauthorizedAccountRoles`
+(`0x4b27a133`) if the receiver's scoped `listingday.status` role is missing (run `make ens-status-role`); with
+`MockStatusResolver` it is `Unauthorized(address writer)` (`0x8e4a23d6`) or `ForcedFailure()` (`0xcf70b534`); it is
+empty for out-of-gas or a resolver without code. `syncStatus()` retries.
 
 A **stale** policy (older than `maxAge`) is not an error at the receiver. `policy()` reports it as `halted`, so swaps
 revert with the hook's `Halted()` until a fresh report lands. Show "Trading halted: policy feed stale" when
@@ -179,10 +181,64 @@ reserve to the treasury. Check for `Migrated`, or `ListingHook.listed()`, rather
 | `InvalidTokensRecipient(address actual)` | `0x8230db09` | Launch time: auction `tokensRecipient` is the strategy |
 | `InvalidEndBlock(uint256 endBlock, uint256 migrationBlock)` | `0x241ff33e` | Launch time: `migrationBlock <= endBlock` |
 
+## ENSv2 ticker namespace (`acme.listingday.eth`)
+
+The app only **reads** ENS (through the Universal Resolver), so most of these appear in the ENS scripts, not the UI.
+They are ENSv2 errors (contracts-v2 tag `v2-mainnet-deployment-1`), decodable with the ABIs in `abis/ensv2/`.
+
+Reads (viem `getEnsText` / `getEnsAddress` → `UniversalResolver.resolveWithGateways`):
+
+| Error | Selector | When | Suggested UI copy |
+|---|---|---|---|
+| `ResolverNotFound(bytes name)` | `0x77209fe8` | No resolver for the name: the ticker isn't registered, was delisted (`unregister`), or expired. viem returns `null` | "Not listed" |
+| `ResolverError(bytes errorData)` | `0x95c0c752` | The issuer's resolver reverted (e.g. a profile it doesn't support) | Treat as missing record |
+
+A record that was never set resolves to `""` (text) / the zero address (`addr`), not to an error. An empty
+`listingday.status` means no CRE report has landed yet: show "draft".
+
+Registration (`ETHRegistrar`, `EnsName.s.sol`):
+
+| Error | Selector | When |
+|---|---|---|
+| `CommitmentTooNew(bytes32 commitment, uint64 validFrom, uint64 blockTimestamp)` | `0x6be614e3` | `register` less than 60 s (`MIN_COMMITMENT_AGE`) after `commit`. `make ens-name` waits for it |
+| `CommitmentTooOld(bytes32 commitment, uint64 validTo, uint64 blockTimestamp)` | `0x0cb9df3f` | More than 24 h after `commit`; `EnsName` commits again |
+| `UnexpiredCommitmentExists(bytes32 commitment)` | `0x0a059d71` | `commit` of a commitment that is still pending |
+| `NameNotAvailable(string label)` | `0x477707e8` | The `.eth` name is taken (also from `getRegisterPrice`) |
+| `DurationTooShort(uint64 duration, uint64 minDuration)` | `0xa096b844` | `ENS_DURATION` < 28 days |
+| `PaymentTokenNotSupported(address paymentToken)` | `0x02e2ae9e` | Payment token not accepted by the rent oracle (ENS MockUSDC / MockDAI and Circle USDC are) |
+| `ERC20InsufficientAllowance` / `ERC20InsufficientBalance` | `0xfb8f41b2` / `0xe450d38c` | MockUSDC not approved / minted for the price (`EnsName` mints and approves it) |
+
+Registry and resolver (`UserRegistry` for `listingday.eth`, the issuer's `PermissionedResolver`):
+
+| Error | Selector | When |
+|---|---|---|
+| `TransferDisallowed(uint256 tokenId, address from)` | `0xe58f6d5a` | `unsafeTransfer` of a ticker: the issuer has no `ROLE_CAN_TRANSFER_ADMIN`, so tickers can't move mid-IPO |
+| `TransferUnsafeUntilRegistryIsEmancipated()` | `0x54838f98` | `safeTransferFrom` of a ticker: checked first, because the exchange keeps `ROLE_UNREGISTER` at the registry root |
+| `EACUnauthorizedAccountRoles(uint256 resource, uint256 roleBitmap, address account)` | `0x4b27a133` | Missing role. E.g. the receiver writing any text key but `listingday.status` (`resource` = `uint256(keccak256(key))`, `roleBitmap` = `ROLE_SET_TEXT` = `0x10`), the exchange calling `setResolver` on a ticker, the issuer calling `register` |
+| `EACCannotGrantRoles(uint256 resource, uint256 roleBitmap, address account)` | `0xd1a3b355` | Granting without the admin role: the exchange or the issuer granting roles on a ticker (token admin roles exist only at registration), anyone calling `PermissionedResolver.grantRoles` (disabled: use `grantSetterRoles`) |
+| `LabelAlreadyRegistered(string label)` | `0xdef545a4` | Registering a ticker that is already registered |
+| `LabelExpired(uint256 tokenId)` | `0xc44e2374` | Using an expired name (the ticker expires with `listingday.eth`) |
+| `InvalidName(string name)` | `0x7f19f48d` | Our `EnsNames.dnsEncode` on an empty label (`"acme..eth"`) |
+
+**Token ids change.** A role grant or revoke on a name burns its ERC-1155 token and re-mints it under a new id
+(`TokenRegenerated(oldTokenId, newTokenId)`); unregister + register does too. A stale id returns `ownerOf = 0x0`.
+Always look ids up by label with `findTokenId(label)`, and key app state on the label or namehash, never the id.
+
 ## Events
 
 | Event | Topic 0 | Source |
 |---|---|---|
+| `CommitmentMade(bytes32 commitment)` | `0x561eb038a114723afa3c72b445add7b8602de546264da1e7e826af628316dbcb` | ENS `ETHRegistrar` |
+| `NameRegistered(uint256 indexed tokenId, string label, address owner, IRegistry subregistry, address resolver, uint64 duration, address paymentToken, bytes32 indexed referrer, uint256 base, uint256 premium)` | `0xebd3982eafd13b820e3edb2a4abd57a82ce3b8802e0cd45637a5de51383f9fac` | ENS `ETHRegistrar` (`listingday.eth`) |
+| `LabelRegistered(uint256 indexed tokenId, bytes32 indexed labelHash, string label, address owner, uint64 expiry, address indexed sender)` | `0x2fe093918572373e9f1f0368f414dffd0043a74ae8c9fd7b0e390b26a0d20b6e` | ENS registries. On the `listingday.eth` UserRegistry: a ticker was listed (the IPO list) |
+| `LabelUnregistered(uint256 indexed tokenId, address indexed sender)` | `0x5293e83951c7b759c1ef192ceed240dc2caa652e29ddbd95cafe1d88e5a9cea8` | UserRegistry: a ticker was delisted |
+| `TokenRegenerated(uint256 indexed oldTokenId, uint256 indexed newTokenId)` | `0x4adeae13ec8831392865da923fda1c23d6894f7acb41defa2472480cd4b47d58` | ENS registries: roles changed, the token id moved |
+| `SubregistryUpdated(uint256 indexed tokenId, IRegistry indexed subregistry, address indexed sender)` | `0xca9c8d517128edd416adf5719242ca6ff93ce234442d95234da53c0ae8a10540` | ENS registries |
+| `ResolverUpdated(uint256 indexed tokenId, address indexed resolver, address indexed sender)` | `0x9b6b420ff87c91604d447e507cbeedda5df2fa669a6b6534375e41fd3905a8d5` | ENS registries |
+| `ParentUpdated(IRegistry indexed parent, string label, address indexed sender)` | `0xe49f02c945e0ee4a8d961a371289bd054aa21d9ca1b73250ffd4880eb708cff4` | UserRegistry (canonical parent set) |
+| `TextUpdated(uint256 indexed recordId, string indexed keyHash, string key, string value)` | `0x14cf4389d9a790cb32a054e033d7e3d3b78119dee4fea3c0983aac1db3f54015` | Issuer's `PermissionedResolver`: a text record changed (e.g. `listingday.status` from the receiver) |
+| `AddressUpdated(uint256 indexed recordId, uint256 coinType, bytes addressBytes)` | `0x5856fffa4d8f7605f45813e1cc223ac63a6fa1f09ca60f0e6a6525317bc7fa41` | Issuer's `PermissionedResolver` |
+| `ProxyDeployed(address indexed sender, address indexed proxyAddress, uint256 salt, address implementation)` | `0x0a2c575ff341b41da136c9ccae74ec230a927a024d18f0dccf46d123f28f5f54` | ENS `VerifiableFactory` (UserRegistry and resolver proxies) |
 | `AuctionSet(address indexed auction)` | `0x4da9b3b7ca08b559bc11eb42bb6961e0813372ed0b55f0e9b68b76cf0207fce8` | `AuctionValidationHook` |
 | `BudgetCommitted(address indexed owner, uint128 amount, uint256 total)` | `0xdcf8d4699e0d58f02a056a45185d9fcb9b0146943452ac620b0cd3281acb56aa` | `AllowAllModule` |
 | `BidSubmitted(uint256 indexed id, address indexed owner, uint256 priceQ96, uint128 amount)` | `0x650baad5cd8ca09b8f580be220fa04ce2ba905a041f764b6a3fe2c848eb70540` | CCA |

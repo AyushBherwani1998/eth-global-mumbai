@@ -1,9 +1,10 @@
 # Deploying the Listing Day demo to Sepolia
 
 > **Manual step for the owner.** The real `--broadcast` run needs a funded deployer key and Circle Sepolia USDC,
-> which CI and the build VM don't have. Everything below has been rehearsed on a Sepolia fork (`make demo-fork`, also
-> run in CI) and as separate broadcast processes against a local anvil fork of Sepolia (`make demo-anvil`), but
-> **nothing has been broadcast to Sepolia yet**. `deployments/sepolia.json` appears after you run it.
+> which CI and the build VM don't have. Everything below, including the ENSv2 steps (section 5), has been rehearsed on
+> a Sepolia fork (`make demo-fork` / `make ens-fork`, also run in CI) and as separate broadcast processes against a
+> local anvil fork of Sepolia (`make demo-anvil`), but **nothing has been broadcast to Sepolia yet** and
+> `listingday.eth` is not registered. `deployments/sepolia.json` appears after you run it.
 
 All commands run from `contracts/`. Every step is a `forge script` that reads and updates
 `deployments/sepolia.json`, skips whatever is already done, and can be re-run after a failure (RPC hiccup, a wallet
@@ -23,6 +24,8 @@ links.
 | `CRE_BROADCASTER_KEY` | no | The key the receiver accepts reports from (`tx.origin` guard). **Use the same key as `CRE_ETH_PRIVATE_KEY` in `../cre/.env`** so the CRE workflow can also update the policy. Default `PRIVATE_KEY` |
 | `FUNDER_KEY` | no | Who pays for `make fund`. Default `PRIVATE_KEY` |
 | `DEMO_LABEL` | no | CREATE2 salt namespace, default `acme-v1`. Change it (e.g. `acme-v2`) to deploy a fresh listing next to an old one |
+| `ENS_OWNER_KEY` | no | ENS step 5: the exchange key that owns `listingday.eth` and the UserRegistry root roles. Default `PRIVATE_KEY` |
+| `ISSUER_KEY` | no | ENS step 5: owns `acme.listingday.eth` and its resolver, writes the records. Default `PRIVATE_KEY` (the deployer is the issuer) |
 
 Copy `.env.example` to `.env` and fill it in; the Makefile loads it. Never commit `.env`.
 
@@ -43,6 +46,11 @@ Optional tuning (defaults are the plan.md §4/§12 demo):
 | `LP_REMOVE_BPS` | 1000 | halt: share of the LP removed while halted (10%) |
 | `FUND_USDC` / `FUND_ETH` | 20 USDC / 0.02 ETH | fund: target balance per demo wallet (only the shortfall is sent) |
 | `DEPLOYMENTS_FILE` | `deployments/sepolia.json` | every step |
+| `ENS_PARENT_LABEL` / `ENS_TICKER` | `listingday` / `acme` | ENS: the names |
+| `ENS_DURATION` | 31536000 (1 year) | ENS: `listingday.eth` registration, at least 2419200 (28 days); about 8.0 MockUSDC per year |
+| `ENS_ELIGIBILITY` | `open` | ENS records: `listingday.eligibility` (`human` once the World ID module is live) |
+| `ENS_DESCRIPTION` / `ENS_URL` / `ENS_AVATAR` | MockSME name + summary / the repo / inline SVG | ENS records |
+| `ENS_SECRET` | derived from `ENS_OWNER_KEY` | ENS: commit secret (deterministic so the reveal run recomputes it) |
 
 ### Balances
 
@@ -73,11 +81,14 @@ Tools: Foundry 1.x (`foundryup`), `jq`, `make`, `bash`. From the repo root, `git
 ```bash
 export SEPOLIA_RPC_URL=https://ethereum-sepolia-rpc.publicnode.com
 make demo-fork     # whole flow in one process on a fork, every step twice, asserts after each step
-make demo-anvil    # every step as its own --broadcast process against a local anvil fork (needs anvil)
+make ens-fork      # the ENSv2 steps in one process on a fork (deploy + launch, listingday.eth, acme, records, status)
+make demo-anvil    # every step, ENS included, as its own --broadcast process against a local anvil fork (needs anvil)
 ```
 
-`make demo-fork` ends with `DemoFork: all steps passed; wrote deployments/sepolia-fork.json`. `make demo-anvil` ends
-with `anvil rehearsal done: deployments/anvil.json`. Both files are git-ignored and show the shape of the real one.
+`make demo-fork` ends with `DemoFork: all steps passed; wrote deployments/sepolia-fork.json`, `make ens-fork` with
+`EnsFork: all steps passed; wrote deployments/sepolia-ens-fork.json`. `make demo-anvil` ends with
+`anvil rehearsal done: deployments/anvil.json` (`KEEP_ANVIL=1` leaves the chain running at `http://127.0.0.1:8546`
+to point the frontend at). The files are git-ignored and show the shape of the real one.
 
 ## 3. The real run
 
@@ -86,6 +97,7 @@ cp .env.example .env && $EDITOR .env    # PRIVATE_KEY, DEMO_WALLET_KEYS, SEPOLIA
 make balances                            # read-only: funder and wallet balances + faucet links
 make fund                                # USDC + ETH to the demo wallets (skip if they're already funded)
 make demo-sepolia                        # deploy, launch, wait, bids, wait, settle, trade, halt
+make ens-sepolia                         # section 5; best run right after `make launch`, see there
 ```
 
 `make demo-sepolia` takes about 15 minutes: the auction opens 10 blocks after the launch, the bid window is 30
@@ -180,12 +192,73 @@ forge verify-contract $(jq -r .contracts.listingPolicyReceiver deployments/sepol
   - `results`: `graduated`, `currencyRaised`, `clearingPriceQ96`, `clearingPoints`, `totalCleared`, `unsoldSwept`, `migrated`, `listingSqrtPriceX96`, `listingPointsE2`, `listedAt`, `listingDayEndsAt`, `poolLiquidity`, `treasuryUsdc`, `treasuryShares`, `lpTokenId`
   - `trade`: `swapRouter` (PoolSwapTest), `trader`, the in-band result, the out-of-band error, revert data, band, and the `cast` command
   - `halt`: `halted`, `policyVersion`, `lastExecutionId`, `haltedSwapRevertData`, `lpTokenId`, `lpLiquidityBefore`, `lpRemovedLiquidity`
-  - `txs`: per step (`fund`, `deploy`, `launch`, `bids`, `settle`, `trade`, `halt`) a list of `{hash, block, status, label}`
+  - `ens` (section 5): `external` (ENSv2 addresses), `parent` (`listingday.eth`: `owner`, `tokenId`, `expiry`, `subregistry`, `dnsName`, `node`, `commit`), `userRegistry` (`address`, `rootAccount`, `rootRoles`, `emancipated`), `ticker` (`acme.listingday.eth`: `owner`, `tokenId`, `resolver`, `ownerRoles`, `transferable`, `dnsName`, `node`), `resolver` (`address`, `owner`), `records` (`addr60` and every text key, as read from the resolver), `statusRole` (`receiver`, `granted`, `mirrorResolver`, `mirrorName`, `receiverStatus`). Token ids change on role changes: the app should use `findTokenId(label)`, the file only shows the latest one
+  - `txs`: per step (`fund`, `deploy`, `launch`, `bids`, `settle`, `trade`, `halt`, `ensName`, `ensRegistry`, `ensTicker`, `ensRecords`, `ensStatusRole`) a list of `{hash, block, status, label}`
 
   Numbers above 2^53 (token amounts in wei, sqrt prices, the chain selector) are JSON strings.
 - **`abis/*.json`**: plain ABI arrays (`make abis` regenerates them from the build; CI checks they're current). Ours:
   `MockSME`, `AllowAllModule`, `AuctionValidationHook`, `ListingHook`, `ListingPolicyReceiver` and their interfaces
   `IListingHook`, `IListingPolicyReceiver`, `IAuctionValidationHook`, `IEligibilityModule`. External:
   `IContinuousClearingAuction`, `ILBPStrategy`, `ILiquidityLauncher`, `IAllowanceTransfer` (Permit2), `IPoolManager`,
-  `IPositionManager`, `IStateView`, `IV4Quoter`, `PoolSwapTest`, `IERC20Metadata`.
+  `IPositionManager`, `IStateView`, `IV4Quoter`, `PoolSwapTest`, `IERC20Metadata`. ENSv2 (official, from the
+  contracts-v2 tag): `abis/ensv2/` `ETHRegistrar`, `ETHRegistry`, `UserRegistryImpl` (the `listingday.eth` registry),
+  `PermissionedResolverImpl` (the issuer's resolver), `VerifiableFactory`, `UniversalResolverV2`,
+  `StandardRentPriceOracle`, `MockUSDC`.
+- ENS reads: the [frontend read guide](README.md#frontend-read-guide) (viem `getEnsAddress` / `getEnsText`, `ccipRead: false`).
 - Error selectors and event topics: [`errors.md`](errors.md).
+
+## 5. ENSv2 ticker namespace (chunk 6)
+
+> **Manual step.** Registering `listingday.eth` and the ticker is a live `--broadcast` on Sepolia ENSv2 with funded
+> keys, so it is not done here. It is rehearsed on a fork (`make ens-fork`, `EnsNamespace.fork.t.sol`, both in CI)
+> and as broadcasts against anvil (`make demo-anvil`). Design and records: [README](README.md#ensv2-ticker-namespace-chunk-6).
+
+**When.** Steps 1 and 2 (`listingday.eth`, the UserRegistry) don't depend on the listing and can run any time. Steps 3
+to 5 read `deployments/sepolia.json`, so run them after `make deploy`. Best: right after `make launch` (so
+`listingday.auction` is set) and before `make halt` (so the halt report lands in `listingday.status` live). Running
+later is fine too: `ens-status-role` then mirrors the receiver's current status with `syncStatus()`.
+
+**Keys.** `ENS_OWNER_KEY` (the exchange; default `PRIVATE_KEY`) and `ISSUER_KEY` (default `PRIVATE_KEY`) each need
+Sepolia ETH (0.05 is plenty, gas below). ENS MockUSDC is minted by the script (public `mint`, ~8.0 per year), no faucet. `PRIVATE_KEY` must be the
+receiver owner (the deployer) for `setStatusMirror`.
+
+```bash
+make ens-sepolia      # = ens-name ens-registry ens-ticker ens-records ens-status-role ens-read
+```
+
+| Target | Script | What it does | Expected output (last lines) |
+|---|---|---|---|
+| `make ens-name` | `EnsName.s.sol`, `wait-for-commit.sh`, `EnsName.s.sol` | Run 1: mint the MockUSDC shortfall, `approve(ETHRegistrar, price)`, `commit`. Wait until 60 s after the commit was mined (reads `commitmentAt` from chain, ~1–2 min). Run 2: `register` | run 1: `committed 0x...`; wait: `ready to register`; run 2: `registered listingday.eth to 0x...`, `paid (ENS MockUSDC, 6 dec) 8000021`, `expiry ...` |
+| `make ens-registry` | `EnsRegistry.s.sol` | `VerifiableFactory.deployProxy(UserRegistryImpl, ...)` with our root roles, `setParent`, `ETHRegistry.setSubregistry` | `UserRegistry 0x...`, `root roles of 0x... 0x...1101` |
+| `make ens-ticker` | `EnsTicker.s.sol` | Issuer: PermissionedResolver proxy. Exchange: `register("acme", issuer, 0, resolver, SET_RESOLVER\|RENEW, parentExpiry)` | `ticker acme.listingday.eth`, `owner (issuer) 0x...`, `tokenId ...`, `resolver (issuer's PermissionedResolver) 0x...` |
+| `make ens-records` | `EnsRecords.s.sol` | One issuer `multicall` with the records that differ | `set addr(60) = 0x...` ... `set avatar = data:image/svg+xml;base64,...`, `tx: PermissionedResolver.multicall(9 setters)`; on a re-run `records already up to date` |
+| `make ens-status-role` | `EnsStatusRole.s.sol` | Issuer `grantSetterRoles(setText(name, "listingday.status", ""), receiver)`; receiver owner `setStatusMirror(resolver, dnsName)`; `syncStatus()` if a report already landed | `receiver 0x... may set listingday.status`, `mirror 0x... 0x0461636d650a6c697374696e676461790365746800`, `listingday.status now: <empty or listed>` |
+| `make ens-read` | `EnsRead.s.sol` | Read-only: all records through the Universal Resolver, compared with the deployments file | `resolver 0x...`, `addr(60) 0x...`, one line per key, `records match the deployments file` |
+
+Every target ends with `make export-json` (tx hashes into `.txs.ens*`) and rewrites `.ens` from chain state. A
+re-run of any target sends nothing that is already in place. Gas, measured on the anvil rehearsal:
+
+| Signer | Transactions | Gas |
+|---|---|---|
+| `ENS_OWNER_KEY` | `mint` 141k, `approve` 128k, `commit` 127k, `register` 654k, registry `deployProxy` 903k, `setParent` 252k, `setSubregistry` 140k, ticker `register` 498k | ~2.85M |
+| `ISSUER_KEY` | resolver `deployProxy` 791k, records `multicall` 4.36M (the avatar SVG is most of it), `grantSetterRoles` 259k | ~5.41M |
+| `PRIVATE_KEY` | `setStatusMirror` 242k, `syncStatus` 275k (only if a report already landed) | ~0.52M |
+
+These are Sepolia's current gas costs: anvil forks it with the live schedule, and a MockUSDC `approve` estimates the
+same 128k on Sepolia itself. At 1–2 gwei that is about 0.003–0.006 ETH for the exchange and 0.006–0.011 ETH for the
+issuer; fund each with 0.05 ETH to be safe. A halt or resume report with the mirror costs 351k / 241k gas, which the
+CRE broadcaster pays, well under the workflow's 1.8M `gasLimit`.
+
+After a fresh listing (`DEMO_LABEL=acme-v2 make deploy launch`), run `make ens-records ens-status-role` again. That
+re-points the records and the mirror at the new contracts and grants the new receiver the status role. The old
+receiver keeps its role until the issuer revokes it:
+`cast send <resolver> "revokeRoles(uint256,uint256,address)" $(cast keccak listingday.status) 0x10 <old receiver> --private-key $ISSUER_KEY --rpc-url $SEPOLIA_RPC_URL`.
+
+| Symptom | Fix |
+|---|---|
+| `listingday.eth is not available` | Someone else holds it: set `ENS_PARENT_LABEL` to another label (all steps use it) |
+| `commitment too new` | The wait was cut short: run `make ens-name` again (it reuses the pending commitment) |
+| `UserRegistry not wired under the parent name` / `ticker not registered` | Run the earlier ENS target first |
+| `... is owned by someone other than ISSUER_KEY` | The ticker belongs to another issuer key: use that key, or another `ENS_TICKER` |
+| `PRIVATE_KEY is not the receiver owner` | `setStatusMirror` is owner-only: `PRIVATE_KEY` must be the deployer |
+| `listingday.status` didn't change after a report | Check the receiver's `StatusMirrorFailed` event; `EACUnauthorizedAccountRoles` means the role is missing (`make ens-status-role`). `syncStatus()` retries |

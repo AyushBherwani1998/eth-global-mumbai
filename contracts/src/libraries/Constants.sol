@@ -42,6 +42,36 @@ library Sepolia {
     uint64 internal constant CRE_CHAIN_SELECTOR = 16_015_286_601_757_825_753;
 }
 
+/// @title SepoliaEns
+/// @notice ENSv2 on Sepolia (plan.md §7, §17), from `ensdomains/contracts-v2` tag `v2-mainnet-deployment-1`
+///         (commit 62778d8, `contracts/deployments/sepolia/addresses.md`).
+/// @dev Checked onchain at Sepolia block ~12,076,285: code at every address, `RootRegistry.getSubregistry("eth")
+///      == ETH_REGISTRY`, `ETH_REGISTRAR.ETH_REGISTRY() == ETH_REGISTRY` (and the registrar holds `ROLE_REGISTRAR`
+///      there), both impls' `LABEL_STORE() == LABEL_STORE`, `UNIVERSAL_RESOLVER.implementation() ==
+///      MANAGED_UNIVERSAL_RESOLVER_PROXY`, whose `implementation() == UNIVERSAL_RESOLVER_V2`, whose
+///      `ROOT_REGISTRY() == ROOT_REGISTRY`. `SepoliaAddresses.fork.t.sol` re-checks all of it.
+library SepoliaEns {
+    address internal constant ROOT_REGISTRY = 0xB458D6a3a77919449d03e7A6903C26827c1eC43f;
+    // The .eth PermissionedRegistry: owns `listingday`.
+    address internal constant ETH_REGISTRY = 0xD4eBcbBdF463C9c45784603Db0dDD499BC44A8B4;
+    // Commit-reveal .eth registrar: MIN_COMMITMENT_AGE 60 s, MAX_COMMITMENT_AGE 1 day, MIN_REGISTER_DURATION 28 days.
+    address internal constant ETH_REGISTRAR = 0xf633e7FC17e2bbE0D0965D18ec1821dcB754a3d3;
+    address internal constant RENT_PRICE_ORACLE = 0x8196665D4ca7488B6474a9EC8E7d2719FB42263A;
+    address internal constant LABEL_STORE = 0xed8246FF02203a4d4cb262bD78bEAA7408A57cAE;
+    // `deployProxy(impl, salt, initData)`; proxy address depends on (msg.sender, salt) only.
+    address internal constant VERIFIABLE_FACTORY = 0xDa70306C98E97eCe36F997a21368e53298572991;
+    address internal constant USER_REGISTRY_IMPL = 0x9BD8a88719068D09ecee662f36C0E3856708366a;
+    address internal constant PERMISSIONED_RESOLVER_IMPL = 0x115eb53F0c60696633855F90b138178Fb40b2b2C;
+    // What viem's `sepolia` chain uses as `ensUniversalResolver`. Two static-call hops: this proxy ->
+    // MANAGED_UNIVERSAL_RESOLVER_PROXY -> UNIVERSAL_RESOLVER_V2.
+    address internal constant UNIVERSAL_RESOLVER = 0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe;
+    address internal constant MANAGED_UNIVERSAL_RESOLVER_PROXY = 0x6d80F2172CFdEc5730fE683860C33d26fC42e6F1;
+    address internal constant UNIVERSAL_RESOLVER_V2 = 0x24E1D8e068620B647CA097f961A61055f4f42D72;
+    // ENS test payment token for .eth registration (6 decimals, public `mint`). NOT Circle USDC (`Sepolia.USDC`).
+    address internal constant ENS_MOCK_USDC = 0x240b0316Df57887DBBE58b586508b19e633a14aa;
+    address internal constant ENS_MOCK_DAI = 0xF6faC8A58a0BE13b9197f27C41B73162Fe32572b;
+}
+
 /// @title ListingDay
 /// @notice Demo IPO parameters (plan.md §4). Prices live in `ListingPrice`.
 library ListingDay {

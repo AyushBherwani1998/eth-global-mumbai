@@ -6,4 +6,5 @@ broadcast/**/dry-run/
 
 # Demo rehearsals (fork simulation, local anvil); deployments/sepolia.json is the real one and is committed.
 deployments/sepolia-fork.json
+deployments/sepolia-ens-fork.json
 deployments/anvil.json

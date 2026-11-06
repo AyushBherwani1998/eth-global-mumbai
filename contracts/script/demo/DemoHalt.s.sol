@@ -4,10 +4,9 @@ pragma solidity 0.8.26;
 import {IListingHook} from "../../src/interfaces/IListingHook.sol";
 import {ListingPolicy} from "../../src/interfaces/IListingPolicy.sol";
 import {Sepolia} from "../../src/libraries/Constants.sol";
-import {DemoBase, IKeystoneForwarder, IPositionManagerLike} from "./DemoBase.sol";
+import {DemoBase, IPositionManagerLike} from "./DemoBase.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {console2} from "forge-std/Script.sol";
-import {Vm} from "forge-std/Vm.sol";
 import {IPoolManager} from "v4-core/src/interfaces/IPoolManager.sol";
 import {StateLibrary} from "v4-core/src/libraries/StateLibrary.sol";
 import {PoolKey} from "v4-core/src/types/PoolKey.sol";
@@ -31,11 +30,6 @@ import {Actions} from "v4-periphery/src/libraries/Actions.sol";
 /// swallows receiver reverts). The report call has a fixed gas limit for the same reason.
 contract DemoHalt is DemoBase {
     using StateLibrary for IPoolManager;
-
-    bytes32 internal constant SIM_WORKFLOW_CID = 0x1111111111111111111111111111111111111111111111111111111111111111;
-    bytes10 internal constant SIM_WORKFLOW_NAME = bytes10("bb40b1888a");
-    address internal constant SIM_WORKFLOW_OWNER = 0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa;
-    bytes2 internal constant REPORT_ID = 0x0001;
 
     struct Result {
         bool halted;
@@ -80,48 +74,10 @@ contract DemoHalt is DemoBase {
         _save(r);
     }
 
-    function _sendReport(Deployment memory d, bool halt) internal returns (bytes32 executionId) {
-        uint256 key = _broadcasterKey();
-        require(vm.addr(key) == d.receiver.broadcaster(), "CRE_BROADCASTER_KEY is not the receiver's broadcaster");
+    function _sendReport(Deployment memory d, bool halt) internal returns (bytes32) {
         ListingPolicy memory p;
-        p.chainSelector = Sepolia.CRE_CHAIN_SELECTOR;
-        p.asOf = uint64(block.timestamp);
-        uint64 last = d.receiver.latestPolicy().asOf;
-        if (p.asOf <= last) p.asOf = last + 1;
         p.halted = halt;
-        executionId = keccak256(abi.encode("listing-day/DemoHalt", address(d.receiver), p.asOf, halt));
-        bytes memory raw = abi.encodePacked(
-            uint8(1),
-            executionId,
-            uint32(block.timestamp),
-            uint32(1),
-            uint32(1),
-            abi.encodePacked(SIM_WORKFLOW_CID, SIM_WORKFLOW_NAME, SIM_WORKFLOW_OWNER, REPORT_ID),
-            abi.encode(p, "")
-        );
-
-        vm.startBroadcast(key);
-        vm.recordLogs();
-        _tx(string.concat("MockKeystoneForwarder.report(receiver, halted = ", halt ? "true" : "false", ")"));
-        IKeystoneForwarder(Sepolia.CRE_MOCK_FORWARDER).report{gas: REPORT_GAS}(
-            address(d.receiver), raw, "", new bytes[](0)
-        );
-        vm.stopBroadcast();
-
-        Vm.Log[] memory logs = vm.getRecordedLogs();
-        bool found;
-        for (uint256 i; i < logs.length; i++) {
-            if (
-                logs[i].emitter == Sepolia.CRE_MOCK_FORWARDER
-                    && logs[i].topics[0] == IKeystoneForwarder.ReportProcessed.selector
-                    && logs[i].topics[2] == executionId
-            ) {
-                require(abi.decode(logs[i].data, (bool)), "ReportProcessed.result == false: receiver rejected it");
-                found = true;
-            }
-        }
-        require(found, "ReportProcessed not emitted");
-        console2.log("ReportProcessed.result = true, policy version", d.receiver.latestPolicy().version);
+        return _sendPolicyReport(d.receiver, p, "", "listing-day/DemoHalt");
     }
 
     function _expectHaltedSwap(Deployment memory d) internal returns (bytes memory revertData) {
