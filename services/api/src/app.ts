@@ -311,13 +311,21 @@ export function createApp(ctx: Ctx): Hono {
     return json(c, { listings });
   });
 
-  // Get next deployment step for a listing creation
-  app.get("/v1/listings/creation/:id/next-step", async (c) => {
+  // Get next deployment step for a listing creation - REQUIRES AUTH
+  app.post("/v1/listings/creation/:id/next-step", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
+    
     const id = c.req.param("id");
     const listing = listingStorage.get(id);
     
     if (!listing) {
       return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+    
+    // Verify requester is the listing issuer
+    if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 403);
     }
 
     // Determine current deployment state from listing
@@ -392,11 +400,14 @@ export function createApp(ctx: Ctx): Hono {
     }
   });
 
-  // Submit transaction hash after browser signs deployment
+  // Submit transaction hash after browser signs deployment - REQUIRES AUTH
   app.post("/v1/listings/creation/:id/submit-tx", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
+    
     const id = c.req.param("id");
-    const body = await c.req.json();
-    const { txHash, step } = body;
+    const payload = signedReq.payload as Record<string, unknown>;
+    const { txHash, step, expectedTo, expectedData } = payload;
 
     if (!txHash || typeof txHash !== "string") {
       throw badRequest("Missing txHash");
@@ -409,8 +420,34 @@ export function createApp(ctx: Ctx): Hono {
     if (!listing) {
       return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
     }
+    
+    // Verify requester is the listing issuer
+    if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 403);
+    }
 
     try {
+      // Fetch and validate transaction
+      const tx = await ctx.client.getTransaction({ hash: txHash as Hex });
+      
+      // Validate transaction parameters
+      if (tx.from.toLowerCase() !== issuerAddress.toLowerCase()) {
+        throw new Error(`Transaction from ${tx.from}, expected ${issuerAddress}`);
+      }
+      
+      if (tx.chainId !== ctx.config.chainId) {
+        throw new Error(`Transaction on chain ${tx.chainId}, expected ${ctx.config.chainId}`);
+      }
+      
+      // If expected params provided, validate them
+      if (expectedTo && tx.to && tx.to.toLowerCase() !== (expectedTo as string).toLowerCase()) {
+        throw new Error(`Transaction to ${tx.to}, expected ${expectedTo}`);
+      }
+      
+      if (expectedData && tx.input !== expectedData) {
+        throw new Error("Transaction data mismatch");
+      }
+      
       // Wait for transaction receipt
       const receipt = await ctx.client.waitForTransactionReceipt({
         hash: txHash as Hex,
@@ -426,9 +463,30 @@ export function createApp(ctx: Ctx): Hono {
       }
 
       // Extract deployed address from receipt
-      const deployedAddress = receipt.contractAddress;
+      // For CREATE2 via factory, contractAddress will be null
+      let deployedAddress = receipt.contractAddress;
+      
+      // If no contractAddress (CREATE2 factory case), derive from tx data
+      if (!deployedAddress && step === 1) {
+        // For CREATE2, we need to compute the address from salt + initCode
+        // This should match the predictedAddress from next-step
+        // For now, require it to be provided in the submission
+        const providedAddress = payload.predictedAddress as string | undefined;
+        if (!providedAddress) {
+          throw new Error("CREATE2 deployment requires predictedAddress in submission");
+        }
+        
+        // Verify the predicted address has code
+        const code = await ctx.client.getBytecode({ address: providedAddress as Address });
+        if (!code || code === "0x") {
+          throw new Error(`No code deployed at predicted address ${providedAddress}`);
+        }
+        
+        deployedAddress = providedAddress as Address;
+      }
+      
       if (!deployedAddress) {
-        throw new Error("No contract address in receipt");
+        throw new Error("No contract address in receipt and no predictedAddress provided");
       }
 
       // Update listing with deployed address
