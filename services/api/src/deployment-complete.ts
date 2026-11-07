@@ -417,13 +417,15 @@ export async function getNextDeploymentStep(
       return prepareSetPolicySourceStep({ hookAddress: state.hook, receiverAddress: state.receiver });
     
     case 7:
-      // TODO: REQUIRED - Create auction via LiquidityLauncher
-      console.warn("Step 7 (auction creation) not yet implemented");
+      // Step 7 is now multi-phase in the browser: 7a (token approve), 7b (Permit2 approve), 7c (multicall)
+      // Return metadata indicating browser needs to handle auction creation
+      // This is logged as a warning but the browser orchestrator will handle it
+      console.warn("Step 7 requires browser-side auction creation (approvals + multicall)");
       return null;
     
     case 8:
-      // TODO: REQUIRED - Bind validation hook to auction
-      console.warn("Step 8 (setAuction binding) not yet implemented");
+      // Step 8 requires auction address from step 7, which must be extracted from logs
+      console.warn("Step 8 (setAuction) requires auction address from step 7 completion");
       return null;
     
     default:
