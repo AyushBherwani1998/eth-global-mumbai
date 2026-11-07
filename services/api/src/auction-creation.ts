@@ -110,9 +110,9 @@ export function prepareLauncherPermit2Approval(params: {
     args: [
       params.tokenAddress,
       params.liquidityLauncher,
-      params.totalSupply as unknown as bigint, // cast to uint160
-      params.expiry as unknown as bigint, // cast to uint48
-    ],
+      params.totalSupply,
+      Number(params.expiry),
+    ] as const,
   });
   
   return {
