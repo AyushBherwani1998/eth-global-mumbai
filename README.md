@@ -103,6 +103,14 @@ Then the rule goes up. A Chainlink CRE workflow reads the exchange calendar and
 writes a signed report on chain carrying the reference price, the band, the mode
 and whether trading is halted.
 
+[Report v5](https://sepolia.etherscan.io/tx/0x30a750da538448312d0cffa756f5dc6d27d19ce7fd4aab38ed01b2fa12a35375) is one of those, live on Sepolia. It arrived through the
+[Chainlink forwarder](https://sepolia.etherscan.io/address/0x15fC6AE953E024d975e77382EeEC56a9101F9F88), which is the only address the receiver accepts. It
+set the normal band to 20 percent and the surveillance band to 5 percent, left the
+mode at normal and the market open, and in the same call the
+[policy receiver](#the-contracts-we-wrote) wrote `listed` to the
+[Permissioned Resolver](#the-ens-names) as `listingday.status`. One transaction,
+the whole path: report in, policy stored, name updated.
+
 The ICO itself is a Uniswap Continuous Clearing Auction. Applications come in,
 everyone who fills pays the same clearing price, bids above 190 percent of the
 issue price are refused by a validation hook, and each wallet has a cap.
@@ -181,7 +189,7 @@ that name.
 | | What for |
 |---|---|
 | **Uniswap v4 + Continuous Clearing Auction** | Price discovery at one clearing price, then a pool whose hook is the rulebook |
-| **Chainlink CRE** | The notice board. A workflow joins the exchange calendar to the chain and publishes the rule and halts |
+| **Chainlink CRE** | The notice board. A workflow joins the exchange calendar to the chain and publishes the rule and halts. [See a live report](https://sepolia.etherscan.io/tx/0x30a750da538448312d0cffa756f5dc6d27d19ce7fd4aab38ed01b2fa12a35375) |
 | **ENSv2** | The ticker registry. Subnames, a Permissioned Resolver, and a role scoped to one record |
 | **Privy** | Sign in with an email and get an embedded wallet, or bring your own |
 | **Circle USDC + Permit2** | Settlement, and the approval path a CCA bid needs |
