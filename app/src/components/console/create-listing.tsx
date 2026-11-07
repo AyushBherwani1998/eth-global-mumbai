@@ -102,8 +102,6 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
 
       // Compute payload hash for binding
       const payloadJson = JSON.stringify(payload);
-      // In browser, we don't have keccak256, so we'll send the full payload
-      // and let the server verify it matches the hash in the signed message
       
       const message = JSON.stringify({
         domain,
@@ -145,13 +143,49 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
       }
 
       const result = await response.json();
-      setCreationId(result.listing.id);
+      const listingId = result.listing.id;
+      setCreationId(listingId);
       
-      setDeploymentStatus("Listing creation initiated!");
+      setDeploymentStatus("Starting deployment...");
+      
+      // Execute 5-step deployment
+      const { executeDeployment } = await import("./deploy-orchestrator");
+      
+      // Create wallet client compatible with orchestrator
+      const walletClient = {
+        sendTransaction: async (tx: { to?: string; data: string; value?: string }) => {
+          // @ts-expect-error - wallet provider methods
+          const provider = await wallet.getEthersProvider();
+          const signer = provider.getSigner();
+          
+          const txRequest: any = {
+            to: tx.to || null,
+            data: tx.data,
+            value: tx.value || "0x0",
+          };
+          
+          const txResponse = await signer.sendTransaction(txRequest);
+          return txResponse.hash;
+        },
+      };
+      
+      const deployResult = await executeDeployment(
+        listingId,
+        walletClient,
+        API_URL,
+        (step, status) => {
+          setDeploymentStatus(`Step ${step}/5: ${status}`);
+        }
+      );
+      
+      if (!deployResult.success) {
+        throw new Error(deployResult.error || "Deployment failed");
+      }
+      
+      setDeploymentStatus("Listing deployed successfully!");
       setStep("complete");
       
-      // Poll for deployment status
-      pollDeploymentStatus(result.listing.id);
+      if (onComplete) onComplete();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to create listing");
       setStep("review");
