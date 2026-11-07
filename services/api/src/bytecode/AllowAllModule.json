@@ -1,0 +1,5 @@
+{
+  "contractName": "AllowAllModule",
+  "extractedAt": "2026-11-07T00:33:19.803Z",
+  "source": "forge broadcast DemoDeploy.s.sol"
+}
