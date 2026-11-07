@@ -78,6 +78,11 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
       setError(null);
       setDeploymentStatus("Signing request...");
 
+      // Check if wallet supports signing
+      if (!wallet.signMessage) {
+        throw new Error("Your wallet does not support message signing. Please use a different wallet.");
+      }
+
       // Construct signed request with nonce and domain
       const timestamp = Math.floor(Date.now() / 1000);
       const chainId = 11155111; // Sepolia
@@ -117,7 +122,6 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
       setDeploymentStatus("Waiting for wallet signature...");
       
       // Sign message with wallet
-      // @ts-expect-error - wallet.signMessage exists in Privy
       const signature = await wallet.signMessage(message);
 
       setDeploymentStatus("Creating listing...");
@@ -151,10 +155,17 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
       // Execute 8-step deployment
       const { executeDeployment } = await import("./deploy-orchestrator");
       
+      // Check if wallet has required capabilities
+      if (!wallet.signMessage || !wallet.getEthersProvider) {
+        throw new Error("Your wallet does not support required signing operations. Please use a different wallet.");
+      }
+      
       // Create wallet client compatible with orchestrator
       const walletClient = {
         sendTransaction: async (tx: { to?: string; data: string; value?: string }) => {
-          // @ts-expect-error - wallet provider methods
+          if (!wallet.getEthersProvider) {
+            throw new Error("Wallet does not support transactions");
+          }
           const provider = await wallet.getEthersProvider();
           const signer = provider.getSigner();
           
@@ -168,7 +179,9 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
           return txResponse.hash;
         },
         signMessage: async (message: string) => {
-          // @ts-expect-error - wallet.signMessage exists in Privy
+          if (!wallet.signMessage) {
+            throw new Error("Wallet does not support message signing");
+          }
           return await wallet.signMessage(message);
         },
       };

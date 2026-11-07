@@ -51,7 +51,9 @@ export function PolicyControls({ ticker, policy }: { ticker: string; policy: Pol
       });
 
       // Sign message with wallet
-      // @ts-expect-error - wallet.signMessage exists in Privy
+      if (!wallet.signMessage) {
+        throw new Error("Your wallet does not support message signing");
+      }
       const signature = await wallet.signMessage(message);
 
       // Send signed request to API
