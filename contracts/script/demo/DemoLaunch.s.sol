@@ -154,7 +154,7 @@ contract DemoLaunch is DemoBase {
             token: address(d.token),
             currency: Sepolia.USDC,
             migrationBlock: endBlock + 1,
-            reservedTokenAmountForLP: _lpReserve(),
+            reservedTokenAmountForLP: uint128(_lpReserve()),
             recipient: d.treasury,
             positionRecipient: d.treasury,
             poolParameters: PoolParameters({fee: POOL_FEE, tickSpacing: POOL_TICK_SPACING, hook: address(d.hook)}),

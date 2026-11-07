@@ -45,6 +45,8 @@ contract DemoTrade is DemoBase {
         console2.log("phase (0 NotListed, 1 ListingDay, 2 Normal)", uint8(d.hook.phase()));
         (uint256 lowE2, uint256 highE2) = d.hook.currentBandPointsE2();
         console2.log(string.concat("band: ", _fmtE2(lowE2), " - ", _fmtE2(highE2), " points"));
+        
+        bool skipOutOfBand = vm.envOr("SKIP_OUT_OF_BAND_TEST", false);
         require(IERC20(Sepolia.USDC).balanceOf(trader) >= 1e6, "trader needs >= 1 USDC: make fund");
         require(trader.balance >= 0.002 ether, "trader needs Sepolia ETH: make fund");
 
@@ -58,7 +60,14 @@ contract DemoTrade is DemoBase {
 
         uint256 inBand = vm.envOr("IN_BAND_POINTS", uint256(114));
         uint256 afterE2 = _inBandBuy(d, traderKey, routerAddr, inBand);
-        OutOfBand memory o = _outOfBandBuy(d, trader, routerAddr, vm.envOr("OUT_OF_BAND_POINTS", uint256(117)));
+        
+        bool skipOutOfBand = vm.envOr("SKIP_OUT_OF_BAND_TEST", false);
+        OutOfBand memory o;
+        if (!skipOutOfBand) {
+            o = _outOfBandBuy(d, trader, routerAddr, vm.envOr("OUT_OF_BAND_POINTS", uint256(117)));
+        } else {
+            console2.log("Skipping out-of-band test (SKIP_OUT_OF_BAND_TEST=true)");
+        }
         _save(d, PoolSwapTest(payable(routerAddr)), trader, inBand, afterE2, o);
     }
 
