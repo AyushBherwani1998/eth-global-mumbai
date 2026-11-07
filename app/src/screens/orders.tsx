@@ -126,7 +126,7 @@ const TABS: { id: Tab; label: string }[] = [
 ];
 
 export function OrdersScreen() {
-  const { connected, connect, address, runTx, notify, txBusy } = useApp();
+  const { connected, address, runTx, notify, txBusy } = useApp();
   const [over, setOver] = useState<Override>({});
   const [busy, setBusy] = useState<string | "all" | null>(null);
   const [tab, setTab] = useState<Tab>("applications");

@@ -373,7 +373,7 @@ type ListedTab = "overview" | "trades" | "rejected" | "details";
 
 function ListedCompany({ listing }: { listing: ListingDetail }) {
   const params = useSearchParams();
-  const { connected, address, portfolio } = useApp();
+  const { connected, portfolio } = useApp();
   const marketRead = useMarket(listing.ticker);
   const { error, loading, retry, refreshing } = marketRead;
 
