@@ -310,5 +310,280 @@ describe("Auth", () => {
         /nonce already used|replay/i
       );
     });
+
+    it("should prevent cross-action replay (same nonce, different action)", async () => {
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const nonceStore = new (await import("../src/auth.ts")).NonceStore();
+      
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_crossaction`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
+      // Sign for action1
+      const message1 = JSON.stringify({
+        domain: "listing-day.api",
+        action: "create_listing",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: null,
+        payloadHash,
+      });
+      const signature1 = await testAccount.signMessage({ message: message1 });
+      
+      const request1 = {
+        domain: "listing-day.api",
+        action: "create_listing",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        payload,
+        signature: signature1,
+      };
+
+      // First request succeeds
+      await verifySignedRequest(request1, config, 11155111, nonceStore);
+
+      // Try to replay with different action but same nonce - should fail (nonce consumed)
+      const message2 = JSON.stringify({
+        domain: "listing-day.api",
+        action: "relay_policy",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: null,
+        payloadHash,
+      });
+      const signature2 = await testAccount.signMessage({ message: message2 });
+      
+      const request2 = {
+        domain: "listing-day.api",
+        action: "relay_policy",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        payload,
+        signature: signature2,
+      };
+
+      await assert.rejects(
+        async () => {
+          await verifySignedRequest(request2, config, 11155111, nonceStore);
+        },
+        /nonce already used|replay/i
+      );
+    });
+
+    it("should prevent cross-chain replay (same nonce, different chain)", async () => {
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const nonceStore = new (await import("../src/auth.ts")).NonceStore();
+      
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_crosschain`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
+      // Sign for chain 11155111
+      const message1 = JSON.stringify({
+        domain: "listing-day.api",
+        action: "test_action",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: null,
+        payloadHash,
+      });
+      const signature1 = await testAccount.signMessage({ message: message1 });
+      
+      const request1 = {
+        domain: "listing-day.api",
+        action: "test_action",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        payload,
+        signature: signature1,
+      };
+
+      // Request on chain 11155111 succeeds
+      await verifySignedRequest(request1, config, 11155111, nonceStore);
+
+      // Try to use same signature on chain 1 - should fail (signature won't verify for different chain)
+      await assert.rejects(
+        async () => {
+          await verifySignedRequest(
+            { ...request1, chainId: 1 },
+            config,
+            1,
+            nonceStore
+          );
+        },
+        /Invalid chain ID|Invalid signature/i
+      );
+    });
+
+    it("should prevent cross-ticker replay (same nonce, different ticker)", async () => {
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const nonceStore = new (await import("../src/auth.ts")).NonceStore();
+      
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_crossticker`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
+      // Sign for ticker "ACME"
+      const message1 = JSON.stringify({
+        domain: "listing-day.api",
+        action: "relay_policy",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: "ACME",
+        payloadHash,
+      });
+      const signature1 = await testAccount.signMessage({ message: message1 });
+      
+      const request1 = {
+        domain: "listing-day.api",
+        action: "relay_policy",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: "ACME",
+        payload,
+        signature: signature1,
+      };
+
+      // First request succeeds
+      await verifySignedRequest(request1, config, 11155111, nonceStore);
+
+      // Try to use same nonce with different ticker - should fail (nonce consumed)
+      const message2 = JSON.stringify({
+        domain: "listing-day.api",
+        action: "relay_policy",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: "TEST",
+        payloadHash,
+      });
+      const signature2 = await testAccount.signMessage({ message: message2 });
+      
+      const request2 = {
+        domain: "listing-day.api",
+        action: "relay_policy",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: "TEST",
+        payload,
+        signature: signature2,
+      };
+
+      await assert.rejects(
+        async () => {
+          await verifySignedRequest(request2, config, 11155111, nonceStore);
+        },
+        /nonce already used|replay/i
+      );
+    });
+
+    it("should detect payload tampering (changed payload after signing)", async () => {
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_tamper`;
+      const originalPayload = { amount: 100, recipient: ISSUER1 };
+      const tamperedPayload = { amount: 999999, recipient: UNAUTHORIZED };
+      const originalPayloadHash = "0x" + Buffer.from(JSON.stringify(originalPayload)).toString("hex");
+      
+      // Sign the original payload
+      const message = JSON.stringify({
+        domain: "listing-day.api",
+        action: "transfer",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: null,
+        payloadHash: originalPayloadHash,
+      });
+      const signature = await testAccount.signMessage({ message });
+      
+      // Try to submit with tampered payload - signature won't verify because hash mismatches
+      const request = {
+        domain: "listing-day.api",
+        action: "transfer",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        payload: tamperedPayload,
+        signature,
+      };
+
+      await assert.rejects(
+        async () => {
+          await verifySignedRequest(request, config, 11155111);
+        },
+        /Invalid signature/i
+      );
+    });
+
+    it("should persist and reload nonce store across restarts", async () => {
+      const { tmpdir } = await import("node:os");
+      const { mkdtempSync, rmSync } = await import("node:fs");
+      const { join } = await import("node:path");
+      
+      const tempDir = mkdtempSync(join(tmpdir(), "auth-test-"));
+      const storePath = join(tempDir, "nonces.json");
+      
+      try {
+        const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+        
+        // Create first store and consume a nonce
+        const store1 = new (await import("../src/auth.ts")).NonceStore(storePath);
+        const timestamp = Math.floor(Date.now() / 1000);
+        const nonce = `${timestamp}_persist`;
+        const payload = { test: "data" };
+        const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+        
+        const message = JSON.stringify({
+          domain: "listing-day.api",
+          action: "test_action",
+          chainId: 11155111,
+          timestamp,
+          nonce,
+          ticker: null,
+          payloadHash,
+        });
+        const signature = await testAccount.signMessage({ message });
+        
+        const request = {
+          domain: "listing-day.api",
+          action: "test_action",
+          chainId: 11155111,
+          timestamp,
+          nonce,
+          payload,
+          signature,
+        };
+
+        // First verification succeeds
+        await verifySignedRequest(request, config, 11155111, store1);
+
+        // Create new store (simulating restart) - should reload persisted nonces
+        const store2 = new (await import("../src/auth.ts")).NonceStore(storePath);
+
+        // Replay should fail even after "restart"
+        await assert.rejects(
+          async () => {
+            await verifySignedRequest(request, config, 11155111, store2);
+          },
+          /nonce already used|replay/i
+        );
+      } finally {
+        rmSync(tempDir, { recursive: true, force: true });
+      }
+    });
   });
 });

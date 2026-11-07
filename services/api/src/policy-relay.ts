@@ -150,6 +150,12 @@ export async function relayPolicyReport(
   validatePolicyParams(payload);
   const operation = payload.operation as string;
 
+  // Verify broadcaster address matches authorized address
+  const authorizedBroadcaster = process.env.POLICY_BROADCASTER_ADDRESS;
+  if (authorizedBroadcaster && account.address.toLowerCase() !== authorizedBroadcaster.toLowerCase()) {
+    console.warn(`[policy-relay] Broadcaster address mismatch: using ${account.address}, authorized is ${authorizedBroadcaster}`);
+  }
+
   try {
     // 1. Read current policy from mock exchange
     const policyResponse = await fetch(`${mockExchangeUrl}/policy`);
@@ -244,20 +250,68 @@ export async function relayPolicyReport(
       };
     }
 
+    // Check for ReportProcessed event from forwarder (result must be true)
+    const reportProcessedAbi = [
+      {
+        type: "event",
+        name: "ReportProcessed",
+        inputs: [
+          { name: "receiver", type: "address", indexed: true },
+          { name: "result", type: "bool", indexed: false },
+        ],
+      },
+    ];
+    
+    let reportProcessedOk = false;
+    for (const log of receipt.logs) {
+      try {
+        const decoded = decodeEventLog({
+          abi: reportProcessedAbi,
+          data: log.data,
+          topics: log.topics,
+        });
+        if (decoded.eventName === "ReportProcessed") {
+          if (!decoded.args.result) {
+            return {
+              success: false,
+              error: "ReportProcessed event found but result=false (receiver rejected report)",
+              txHash: hash,
+              blockNumber: receipt.blockNumber,
+            };
+          }
+          reportProcessedOk = true;
+          break;
+        }
+      } catch {
+        // Not this event, continue
+      }
+    }
+
+    if (!reportProcessedOk) {
+      return {
+        success: false,
+        error: "ReportProcessed(result=true) event not found",
+        txHash: hash,
+        blockNumber: receipt.blockNumber,
+      };
+    }
+
     // Check for PolicyApplied event from receiver
+    const policyAppliedAbi = [
+      {
+        type: "event",
+        name: "PolicyApplied",
+        inputs: [
+          { name: "version", type: "uint32", indexed: true },
+          { name: "asOf", type: "uint64", indexed: false },
+        ],
+      },
+    ];
+    
     const policyAppliedEvents = receipt.logs.filter(log => {
       try {
         const decoded = decodeEventLog({
-          abi: [
-            {
-              type: "event",
-              name: "PolicyApplied",
-              inputs: [
-                { name: "version", type: "uint32", indexed: true },
-                { name: "asOf", type: "uint64", indexed: false },
-              ],
-            },
-          ],
+          abi: policyAppliedAbi,
           data: log.data,
           topics: log.topics,
         });
@@ -270,10 +324,21 @@ export async function relayPolicyReport(
     if (policyAppliedEvents.length === 0) {
       return {
         success: false,
-        error: "Transaction succeeded but PolicyApplied event not found",
+        error: "ReportProcessed ok but PolicyApplied event not found from receiver",
         txHash: hash,
         blockNumber: receipt.blockNumber,
       };
+    }
+    
+    // Verify PolicyApplied has expected asOf (should be monotonic and match our report)
+    const policyAppliedDecoded = decodeEventLog({
+      abi: policyAppliedAbi,
+      data: policyAppliedEvents[0].data,
+      topics: policyAppliedEvents[0].topics,
+    });
+    
+    if (policyAppliedDecoded.args.asOf !== BigInt(asOf)) {
+      console.warn(`[policy-relay] PolicyApplied asOf mismatch: expected ${asOf}, got ${policyAppliedDecoded.args.asOf}`);
     }
 
     return {
