@@ -58,7 +58,7 @@ function loadBytecode(contractName: string): Hex {
 export type UnsignedDeployTx = {
   to: null;
   data: Hex;
-  value: "0";
+  value: `0x${string}`;
   gasLimit?: string;
 };
 
@@ -148,7 +148,7 @@ export function prepareTokenDeployment(params: {
     unsignedTx: {
       to: null,
       data: deployData, // Browser will need to wrap this in CREATE2 factory call
-      value: "0" as const,
+      value: "0x0",
     },
     salt,
   };
