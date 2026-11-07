@@ -35,7 +35,7 @@ export function ConsoleListScreen() {
 
   if (!ready) return <SkeletonList rows={4} className="pt-6" />;
   if (!connected) return <ConsoleSignIn />;
-  if (listings.length === 0) return <NotTheOwner />;
+  if (listings.length === 0 && !apiConfigured()) return <NotTheOwner />;
 
   if (!apiConfigured())
     return (
