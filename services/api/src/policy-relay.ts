@@ -271,7 +271,8 @@ export async function relayPolicyReport(
           topics: log.topics,
         });
         if (decoded.eventName === "ReportProcessed") {
-          if (!decoded.args.result) {
+          const args = decoded.args as unknown as { receiver: string; result: boolean };
+          if (!args.result) {
             return {
               success: false,
               error: "ReportProcessed event found but result=false (receiver rejected report)",
@@ -333,12 +334,13 @@ export async function relayPolicyReport(
     // Verify PolicyApplied has expected asOf (should be monotonic and match our report)
     const policyAppliedDecoded = decodeEventLog({
       abi: policyAppliedAbi,
-      data: policyAppliedEvents[0].data,
-      topics: policyAppliedEvents[0].topics,
+      data: policyAppliedEvents[0]!.data,
+      topics: policyAppliedEvents[0]!.topics,
     });
     
-    if (policyAppliedDecoded.args.asOf !== BigInt(asOf)) {
-      console.warn(`[policy-relay] PolicyApplied asOf mismatch: expected ${asOf}, got ${policyAppliedDecoded.args.asOf}`);
+    const policyArgs = policyAppliedDecoded.args as unknown as { version: number; asOf: bigint };
+    if (policyArgs.asOf !== BigInt(asOf)) {
+      console.warn(`[policy-relay] PolicyApplied asOf mismatch: expected ${asOf}, got ${policyArgs.asOf}`);
     }
 
     return {

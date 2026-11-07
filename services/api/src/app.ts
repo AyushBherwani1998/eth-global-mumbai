@@ -239,6 +239,19 @@ export function createApp(ctx: Ctx): Hono {
       throw badRequest("Invalid action for this endpoint");
     }
 
+    // Check if contracts are compiled (required for deployment)
+    const { isCompiled } = await import("./contract-bytecode.ts");
+    if (!isCompiled()) {
+      return json(c, {
+        error: {
+          code: "CONTRACTS_NOT_COMPILED",
+          message: "Contract bytecode not available. Deployment requires compiled contracts.",
+          details: "Run 'cd contracts && forge build' to compile contract bytecode before attempting deployment.",
+          prerequisite: "forge build",
+        }
+      }, 503);
+    }
+
     const payload = signedReq.payload as Record<string, unknown>;
     const ticker = payload.ticker;
     const tokenName = payload.tokenName;
