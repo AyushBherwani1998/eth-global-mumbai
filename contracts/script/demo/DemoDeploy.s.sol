@@ -179,11 +179,13 @@ contract DemoDeploy is DemoBase {
         string memory contracts = _contractsJson(c);
         string memory pool = _poolJson(c);
         string memory receiver = _receiverJson(c);
+        string memory metadata = _metadataJson();
 
         if (sameListing) {
             _writeSection("contracts", contracts);
             _writeSection("pool", pool);
             _writeSection("receiverConfig", receiver);
+            _writeSection("metadata", metadata);
             vm.writeJson(string.concat("\"", vm.toString(broadcaster), "\""), path, ".creBroadcaster");
             console2.log("updated", path);
             return;
@@ -202,6 +204,7 @@ contract DemoDeploy is DemoBase {
         vm.serializeString(root, "pool", pool);
         vm.serializeString(root, "receiverConfig", receiver);
         vm.serializeString(root, "params", _paramsJson());
+        vm.serializeString(root, "metadata", metadata);
         vm.serializeString(root, "auction", "{}");
         vm.serializeString(root, "bids", "{}");
         vm.serializeString(root, "results", "{}");
@@ -316,5 +319,14 @@ contract DemoDeploy is DemoBase {
 
     function _pointsToQ96(uint256 points) internal pure returns (uint256) {
         return points * ListingPrice.ONE_POINT_Q96;
+    }
+
+    function _metadataJson() internal returns (string memory m) {
+        m = "metadata";
+        vm.serializeString(m, "priceSource", vm.envOr("PRICE_SOURCE", string("demo")));
+        vm.serializeString(m, "priceSourceDate", vm.envOr("PRICE_SOURCE_DATE", string("")));
+        vm.serializeString(m, "referencePrice", vm.envOr("REFERENCE_PRICE_INR", string("")));
+        vm.serializeString(m, "priceCurrency", "INR");
+        m = vm.serializeString(m, "disclaimer", "Demo prices in test USDC. Not real USD-equity pricing.");
     }
 }
