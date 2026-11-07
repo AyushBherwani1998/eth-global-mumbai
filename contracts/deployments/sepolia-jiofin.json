@@ -292,7 +292,86 @@
         "status": 1
       }
     ],
-    "settle": [],
+    "settle": [
+      {
+        "block": 12080773,
+        "hash": "0xb303cacca570f0fb89a33f014d5e101a969d329a5555349eb96964dbd4ef1d4b",
+        "label": "checkpoint()",
+        "status": 1
+      },
+      {
+        "block": 12080774,
+        "hash": "0xb3228db9e9339712ef23a4d99120845fbd8d372a0ec1351bf3bec77d043a0442",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080775,
+        "hash": "0x7fe5c547974d5eba38f2c7809fefa8fec5b8653386a1aa519f3bb3b240e01116",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080776,
+        "hash": "0x5d67005a05e6c7cf2211c6ca52089eb61db9f4e9d43fe32a16d0ee419b8d64ea",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080777,
+        "hash": "0x1368868b6719361edc214d685df4fbcc535b58199a0d9351dfa0866b51a72c1f",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080778,
+        "hash": "0xcbd393e48ca759b5dc5b37a7fc89b7217b1dda47c631da9a44d555e071dadfd6",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080779,
+        "hash": "0xca6d537f358e2d00e595e268771bacf4a760d5d8c80d9be2d948f17de3d10ccc",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080780,
+        "hash": "0x9db27fdaa73e03c88c01c80a1b47eb217418cc47e1ff5d407a5d0c11ed92f1c8",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080781,
+        "hash": "0x13f7a3ace6cc98463bd60527a1574e20ab774ba149380e11102ea284021e1e40",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080782,
+        "hash": "0xa9c8f31e0fafc637f5651a8f6059c0a06badb9d4baec42b073ebd0a06f94dfd8",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080783,
+        "hash": "0xdebae38e04f60b7751b595b81b5b50c262eade39bdf356076691bdc86787036b",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080784,
+        "hash": "0x64e08002bf9e6dc9a5de0d393de80e10dea1282599301168e3daad2c131ea22f",
+        "label": "sweepUnsoldTokens()",
+        "status": 1
+      },
+      {
+        "block": 12080785,
+        "hash": "0x7d29879174c498d7479715f3103b56d56feb8ecd6bf02eeeefa455bc18afed6b",
+        "label": "migrate(address)",
+        "status": 1
+      }
+    ],
     "trade": []
   }
 }
