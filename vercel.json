@@ -6,7 +6,7 @@
   "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
   "functions": {
     "api/index.ts": {
-      "includeFiles": "{contracts/deployments/**,services/api/src/**}",
+      "includeFiles": "{contracts/deployments/sepolia*.json,contracts/abis/**,services/api/src/**}",
       "maxDuration": 60
     }
   }

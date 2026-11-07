@@ -1,0 +1,46 @@
+# Vercel API Configuration
+
+## Current Issue
+https://listing-day-api.vercel.app/v1/listings returns ONLY acme
+
+## Root Cause
+vercel.json bundles contracts/deployments/** to api/index.ts
+BUT sepolia-jiofin.json, sepolia-tcs.json exist only on box, not committed
+
+## Fix Required
+1. Commit actual deployment JSONs from box to branch
+2. Vercel includeFiles already covers: sepolia*.json pattern
+3. API config uses relative paths from api/index.ts:
+
+```
+DEPLOYMENTS_FILES="contracts/deployments/sepolia.json#acme,contracts/deployments/sepolia-jiofin.json#jiofin,contracts/deployments/sepolia-reliance.json#reliance,contracts/deployments/sepolia-tcs.json#tcs"
+```
+
+## Path Resolution
+
+Local (services/api/): `../../contracts/deployments/sepolia.json`
+Vercel (api/index.ts): `contracts/deployments/sepolia.json` (no ../)
+
+Config loader tries:
+1. Absolute path
+2. Relative from services/api
+3. Relative from cwd (Vercel: /var/task)
+4. Stripped ../../ from cwd
+
+Vercel should find `contracts/deployments/sepolia*.json` after commit.
+
+## Operator Action
+1. Receive sanitized deployment JSONs from box
+2. Commit to branch: contracts/deployments/sepolia-{jiofin,reliance,tcs}.json
+3. Push to trigger Vercel rebuild
+4. Verify: curl https://listing-day-api.vercel.app/v1/listings | jq '.listings[].ticker'
+
+Expected: acme, jiofin, reliance, tcs
+
+## Environment Variable (Vercel Dashboard)
+Set if not using default:
+```
+DEPLOYMENTS_FILES=contracts/deployments/sepolia.json#acme,contracts/deployments/sepolia-jiofin.json#jiofin,contracts/deployments/sepolia-reliance.json#reliance,contracts/deployments/sepolia-tcs.json#tcs
+```
+
+Or use default ../../contracts/deployments/sepolia.json and rely on file discovery.
