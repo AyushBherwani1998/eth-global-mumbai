@@ -1,0 +1,54 @@
+# FINAL EXECUTION CONFIG - cursor/multi-stock-config-8da0
+
+## Deployment Files (No Collision with Existing sepolia.json)
+- deployments/sepolia.json (EXISTING ACME - preserved)
+- deployments/sepolia-jiofin.json (NEW)
+- deployments/sepolia-reliance.json (NEW)
+- deployments/sepolia-tcs.json (NEW)
+
+## API Discovery Config
+In services/api/.env:
+DEPLOYMENTS_FILES="../../contracts/deployments/sepolia.json#acme,../../contracts/deployments/sepolia-jiofin.json#jiofin,../../contracts/deployments/sepolia-reliance.json#reliance,../../contracts/deployments/sepolia-tcs.json#tcs"
+
+## API Routes (Verified from code)
+GET /v1/listings - all listings
+GET /v1/listings/:ticker - single listing (jiofin, reliance, tcs)
+GET /v1/auction/:ticker
+GET /v1/market/:ticker
+
+## Execution Per Stock
+
+### JIOFIN
+cd contracts
+set -a && source config-jiofin.env && set +a
+make deploy launch wait-start bids wait-migration settle trade
+
+Output: deployments/sepolia-jiofin.json
+
+### Reliance
+set -a && source config-reliance.env && set +a
+make deploy launch wait-start bids wait-migration settle trade
+
+Output: deployments/sepolia-reliance.json
+
+### TCS (6-hour, leave open)
+set -a && source config-tcs.env && set +a
+make deploy launch wait-start bids
+
+NO settle - leave auction open 6 hours
+Output: deployments/sepolia-tcs.json
+
+## Budget
+JIOFIN: 90 USDC target
+Reliance: 86 USDC target
+TCS: 87 USDC target
+Total: 263 USDC (deployer has 449) ✓
+
+## Policy State
+All 3: Receiver deployed, bound to hook
+Initial: halted=false, normalBandBps=2000 (20%), trading OPEN
+NO CRE reports sent - stays unhalted
+
+## Final Commit
+Branch: cursor/multi-stock-config-8da0
+After next commit, ready for operator execution

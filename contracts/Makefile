@@ -16,7 +16,7 @@ endif
 RPC_URL ?= $(SEPOLIA_RPC_URL)
 DEPLOYMENTS_FILE ?= deployments/sepolia.json
 export RPC_URL DEPLOYMENTS_FILE
-FORGE_FLAGS ?=
+FORGE_FLAGS ?= --via-ir
 BROADCAST = --rpc-url $(RPC_URL) --broadcast --slow $(FORGE_FLAGS)
 VERIFY = $(if $(ETHERSCAN_API_KEY),--verify --etherscan-api-key $(ETHERSCAN_API_KEY),)
 STEP = forge script script/demo

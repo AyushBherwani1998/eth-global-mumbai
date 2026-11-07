@@ -43,7 +43,7 @@ contract DemoBid is DemoBase {
         uint256[] memory amounts = _bidAmounts();
         require(amounts.length <= keys.length, "more BID_AMOUNTS than DEMO_WALLET_KEYS");
         uint256 maxBids = vm.envOr("MAX_BIDS_PER_RUN", amounts.length);
-        uint256 maxPrice = ListingPrice.pointsToQ96(vm.envOr("BID_MAX_POINTS", ListingPrice.CAP_POINTS));
+        uint256 maxPrice = _bidMaxPriceQ96();
 
         bool[] memory todo = new bool[](amounts.length);
         uint256 pending;
@@ -94,11 +94,25 @@ contract DemoBid is DemoBase {
             IAllowanceTransfer(Sepolia.PERMIT2)
                 .approve(Sepolia.USDC, address(d.auction), amount, uint48(block.timestamp + 1 days));
         }
+        uint256 floorPriceQ96 = _floorPriceQ96();
         _tx("CCA.submitBid(maxPrice, amount, owner = wallet, prevTick = floor, \"\")");
-        uint256 bidId = d.auction.submitBid(maxPrice, amount, wallet, ListingPrice.FLOOR_PRICE_Q96, "");
+        uint256 bidId = d.auction.submitBid(maxPrice, amount, wallet, floorPriceQ96, "");
         vm.stopBroadcast();
         console2.log("  bidId", bidId);
         require(d.module.committed(wallet) == amount, "budget committed in the AllowAllModule");
+    }
+
+    function _bidMaxPriceQ96() internal view returns (uint256) {
+        uint256 issuePoints = vm.envOr("ISSUE_POINTS", uint256(100));
+        uint256 capPct = vm.envOr("CAP_PERCENT", uint256(190));
+        uint256 capPoints = (issuePoints * capPct) / 100;
+        uint256 bidMaxPoints = vm.envOr("BID_MAX_POINTS", capPoints);
+        return bidMaxPoints * ListingPrice.ONE_POINT_Q96;
+    }
+
+    function _floorPriceQ96() internal view returns (uint256) {
+        uint256 floorPoints = vm.envOr("FLOOR_POINTS", uint256(80));
+        return floorPoints * ListingPrice.ONE_POINT_Q96;
     }
 
     function _bidWindow() internal view returns (uint256) {

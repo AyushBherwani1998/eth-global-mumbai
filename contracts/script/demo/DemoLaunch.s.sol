@@ -45,6 +45,8 @@ contract DemoLaunch is DemoBase {
         Deployment memory d = _load();
         address issuer = vm.addr(_deployerKey());
         require(issuer == d.deployer, "PRIVATE_KEY is not the deployer in the deployments file");
+        uint256 totalSup = _totalSupply();
+        require(d.token.balanceOf(issuer) == totalSup, "issuer must hold the whole supply");
         bytes32 poolId = PoolId.unwrap(d.hook.poolId());
 
         IContinuousClearingAuction auction = d.auction;
@@ -74,9 +76,22 @@ contract DemoLaunch is DemoBase {
 
         require(d.validationHook.auction() == address(auction), "validation hook bound to the auction");
         require(address(auction.validationHook()) == address(d.validationHook), "auction uses our validation hook");
-        require(auction.totalSupply() == ListingDay.AUCTION_SUPPLY, "auction sells 90,000");
-        require(d.token.balanceOf(Sepolia.LBP_STRATEGY) >= ListingDay.LP_RESERVE, "strategy holds the LP reserve");
+        uint256 auctionSup = _auctionSupply();
+        require(auction.totalSupply() == auctionSup, "auction supply matches config");
+        require(d.token.balanceOf(Sepolia.LBP_STRATEGY) >= _lpReserve(), "strategy holds the LP reserve");
         _save(auction);
+    }
+
+    function _totalSupply() internal view returns (uint256) {
+        return vm.envOr("TOTAL_SUPPLY_SHARES", uint256(110_000)) * 1e18;
+    }
+
+    function _auctionSupply() internal view returns (uint256) {
+        return vm.envOr("AUCTION_SUPPLY_SHARES", uint256(90_000)) * 1e18;
+    }
+
+    function _lpReserve() internal view returns (uint256) {
+        return vm.envOr("LP_RESERVE_SHARES", uint256(20_000)) * 1e18;
     }
 
     function _launch(Deployment memory d, address issuer) internal returns (IContinuousClearingAuction auction) {
@@ -85,7 +100,8 @@ contract DemoLaunch is DemoBase {
         uint64 clearBlocks = uint64(vm.envOr("CLEAR_BLOCKS", uint256(20)));
         require(startDelay >= 4, "START_DELAY_BLOCKS must leave room for setAuction");
         require(clearBlocks != 0 && MPS_TOTAL % clearBlocks == 0, "CLEAR_BLOCKS must divide 1e7");
-        require(d.token.balanceOf(issuer) == ListingDay.TOTAL_SUPPLY, "issuer must hold the whole 110,000 supply");
+        uint256 totalSup = _totalSupply();
+        require(d.token.balanceOf(issuer) == totalSup, "issuer must hold the whole supply");
 
         uint64 startBlock = uint64(block.number) + startDelay;
         uint64 endBlock = startBlock + bidWindow + clearBlocks;
@@ -116,6 +132,8 @@ contract DemoLaunch is DemoBase {
         bytes memory steps = abi.encodePacked(uint24(MPS_TOTAL / clearBlocks), uint40(clearBlocks));
         if (bidWindow != 0) steps = abi.encodePacked(uint24(0), uint40(bidWindow), steps);
 
+        uint256 floorPts = _floorPoints();
+        uint256 floorPriceQ96 = floorPts * ListingPrice.ONE_POINT_Q96;
         AuctionParameters memory auctionParams = AuctionParameters({
             currency: Sepolia.USDC,
             tokensRecipient: d.treasury,
@@ -125,17 +143,18 @@ contract DemoLaunch is DemoBase {
             claimBlock: endBlock,
             tickSpacing: ListingPrice.TICK_SPACING_Q96,
             validationHook: address(d.validationHook),
-            floorPrice: ListingPrice.FLOOR_PRICE_Q96,
-            requiredCurrencyRaised: ListingDay.REQUIRED_CURRENCY_RAISED,
+            floorPrice: floorPriceQ96,
+            requiredCurrencyRaised: _requiredRaise(),
             auctionStepsData: steps
         });
         LiquidityAllocationBracket[] memory brackets = new LiquidityAllocationBracket[](1);
         brackets[0] = LiquidityAllocationBracket({lowerThreshold: 0, rate: LP_RATE_MPS});
+        uint256 totalSup = _totalSupply();
         MigratorParameters memory migrationParams = MigratorParameters({
             token: address(d.token),
             currency: Sepolia.USDC,
             migrationBlock: endBlock + 1,
-            reservedTokenAmountForLP: ListingDay.LP_RESERVE,
+            reservedTokenAmountForLP: uint128(_lpReserve()),
             recipient: d.treasury,
             positionRecipient: d.treasury,
             poolParameters: PoolParameters({fee: POOL_FEE, tickSpacing: POOL_TICK_SPACING, hook: address(d.hook)}),
@@ -144,29 +163,38 @@ contract DemoLaunch is DemoBase {
         });
         Distribution memory distribution = Distribution({
             strategy: Sepolia.LBP_STRATEGY,
-            amount: uint128(ListingDay.TOTAL_SUPPLY),
+            amount: uint128(totalSup),
             configData: abi.encode(migrationParams, abi.encode(auctionParams))
         });
         calls = new bytes[](2);
-        calls[0] = abi.encodeCall(ILiquidityLauncher.depositToken, (address(d.token), uint160(ListingDay.TOTAL_SUPPLY)));
+        calls[0] = abi.encodeCall(ILiquidityLauncher.depositToken, (address(d.token), uint160(totalSup)));
         calls[1] = abi.encodeCall(ILiquidityLauncher.distributeToken, (address(d.token), distribution, _salt("launch")));
+    }
+
+    function _floorPoints() internal view returns (uint256) {
+        return vm.envOr("FLOOR_POINTS", uint256(80));
+    }
+
+    function _requiredRaise() internal view returns (uint128) {
+        return uint128(vm.envOr("REQUIRED_RAISE_USDC_RAW", uint256(45e6)));
     }
 
     /// @dev The launcher pulls the deposit through Permit2. Runs inside the issuer's broadcast.
     function _approveLauncher(Deployment memory d, address issuer) internal {
-        if (d.token.allowance(issuer, Sepolia.PERMIT2) < ListingDay.TOTAL_SUPPLY) {
+        uint256 totalSup = _totalSupply();
+        if (d.token.allowance(issuer, Sepolia.PERMIT2) < totalSup) {
             _tx("MockSME.approve(Permit2, max)");
             d.token.approve(Sepolia.PERMIT2, type(uint256).max);
         }
         (uint160 amount, uint48 expiration,) =
             IAllowanceTransfer(Sepolia.PERMIT2).allowance(issuer, address(d.token), Sepolia.LIQUIDITY_LAUNCHER);
-        if (amount < ListingDay.TOTAL_SUPPLY || expiration < block.timestamp + 10 minutes) {
-            _tx("Permit2.approve(MockSME, LiquidityLauncher, 110,000, +1h)");
+        if (amount < totalSup || expiration < block.timestamp + 10 minutes) {
+            _tx("Permit2.approve(MockSME, LiquidityLauncher, supply, +1h)");
             IAllowanceTransfer(Sepolia.PERMIT2)
                 .approve(
                     address(d.token),
                     Sepolia.LIQUIDITY_LAUNCHER,
-                    uint160(ListingDay.TOTAL_SUPPLY),
+                    uint160(totalSup),
                     uint48(block.timestamp + 1 hours)
                 );
         }
@@ -201,7 +229,8 @@ contract DemoLaunch is DemoBase {
         vm.serializeUint(a, "bidWindowEndBlock", auction.startBlock() + bidWindow);
         vm.serializeUint(a, "clearBlocks", auction.endBlock() - auction.startBlock() - bidWindow);
         vm.serializeUint(a, "totalSupply", auction.totalSupply());
-        vm.serializeUint(a, "floorPriceQ96", ListingPrice.FLOOR_PRICE_Q96);
+        uint256 floorPts = _floorPoints();
+        vm.serializeUint(a, "floorPriceQ96", floorPts * ListingPrice.ONE_POINT_Q96);
         vm.serializeUint(a, "tickSpacingQ96", ListingPrice.TICK_SPACING_Q96);
         vm.serializeUint(a, "requiredCurrencyRaised", ListingDay.REQUIRED_CURRENCY_RAISED);
         vm.serializeUint(a, "reservedTokenAmountForLP", m.reservedTokenAmountForLP);

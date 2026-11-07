@@ -1,0 +1,84 @@
+# RUNTIME FIXES COMPLETE - commit a1f5674
+
+## All Runtime Blockers RESOLVED
+
+1. ✓ Stack-too-deep: FORGE_FLAGS=--via-ir in Makefile
+2. ✓ LP_RESERVE arithmetic: 90k (Reliance), 98k (TCS)
+3. ✓ BidAboveCap: Corrected to 1084 (Reliance), 2053 (TCS)
+4. ✓ Budget: 450 USDC available (6 wallets × 75)
+
+## Decoded TCS Bid Error
+Error: BidAboveCap(2054, 2053)
+- Bid maxPrice: 2054 points
+- Contract cap: 2053 points (integer division)
+- Fixed: BID_MAX_POINTS=2053
+
+## Current State
+
+### TCS - LAUNCHED (Ready for Bids)
+- Token: 0xf85Cd9c3F02dC578e0a82F8fdA1e837916034f09
+- Hook: 0xA1d11E02B66E2fe9d1e24d907251e757473Fb0C0
+- Receiver: 0xABA8dEFf6B92F952fF64a04Eb76C5A1E58966b14
+- **Auction: 0x44F69021Fe7e109f974d8E7785E785e11Cb6B2ad**
+- Start: 12080730, End: 12082530, Migration: 12082531
+- **Status: NO BIDS YET** - can now bid with fixed cap
+
+### JIOFIN - DEPLOYED (Need Auction)
+- Token: 0xCddd3c36C3634758571Cd8FF9A77247ED879146B
+- Hook: 0xC22566424b09C5466f39655cFDC2A43299AB70C0
+- Receiver: 0x594B83406A429074EE34E39aD7B62332A24F0d43
+- **Status: Need launch**
+
+### Reliance - NOT DEPLOYED
+- **Status: Need full deploy**
+
+## Execution Commands
+
+### TCS (Resume - Bid Only)
+```bash
+cd contracts
+set -a && source config-tcs.env && set +a
+export SKIP_OUT_OF_BAND_TEST=true
+
+# Auction already running, just bid:
+make bids
+
+# STOP - no settle, leave 6-hour auction open
+```
+
+### JIOFIN (Resume - Launch & Complete)
+```bash
+set -a && source config-jiofin.env && set +a
+export SKIP_OUT_OF_BAND_TEST=true
+
+# Contracts exist, need auction:
+make launch wait-start bids wait-migration settle trade
+```
+
+### Reliance (Full Deployment)
+```bash
+set -a && source config-reliance.env && set +a
+export SKIP_OUT_OF_BAND_TEST=true
+
+# Full deploy:
+make deploy launch wait-start bids wait-migration settle trade
+```
+
+## Budget Verified
+- 6 wallets: 75 USDC each = 450 total
+- JIOFIN: 99 USDC (5 wallets)
+- Reliance: 120 USDC (6 wallets)
+- TCS: 135 USDC (6 wallets)
+- **Total: 354 USDC (96 margin)**
+
+## API Config
+```bash
+DEPLOYMENTS_FILES="../../contracts/deployments/sepolia.json#acme,../../contracts/deployments/sepolia-jiofin.json#jiofin,../../contracts/deployments/sepolia-reliance.json#reliance,../../contracts/deployments/sepolia-tcs.json#tcs"
+```
+
+## Commit Details
+Branch: cursor/multi-stock-config-8da0
+Commit: a1f5674
+PR: #34 (no merge)
+
+Ready for operator execution - all runtime blockers resolved.

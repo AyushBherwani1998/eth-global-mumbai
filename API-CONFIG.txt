@@ -1,0 +1,21 @@
+# Exact API Configuration for Multi-Stock Discovery
+
+## From services/api directory:
+
+DEPLOYMENTS_FILES="../../contracts/deployments/sepolia.json#acme,../../contracts/deployments/jiofin.json#jiofin,../../contracts/deployments/reliance.json#reliance,../../contracts/deployments/tcs.json#tcs"
+
+## Path resolution:
+- API runs from services/api/
+- Relative path ../../contracts/deployments/ resolves correctly
+- #ticker suffix REQUIRED when file lacks ENS section
+- Comma-separated, no spaces
+
+## Verification:
+Each ticker must be unique. Current mappings:
+- sepolia.json → acme (existing, preserved)
+- jiofin.json → jiofin (new)
+- reliance.json → reliance (new)
+- tcs.json → tcs (new)
+
+API hot-reloads on every request. After deployment, verify:
+curl http://localhost:8788/v1/listings | jq '.listings[].ticker'
