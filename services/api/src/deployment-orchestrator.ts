@@ -88,7 +88,7 @@ function mineSaltForTokenAddress(
   // Encode deployment with constructor
   const deployData = encodeDeployData({
     abi: mockSmeAbi,
-    bytecode: bytecode.slice(0, bytecode.indexOf("000000") > 0 ? bytecode.indexOf("000000") : bytecode.length), // Strip appended constructor if any
+    bytecode: (bytecode.slice(0, bytecode.indexOf("000000") > 0 ? bytecode.indexOf("000000") : bytecode.length)) as `0x${string}`, // Strip appended constructor if any
     args: [tokenName, tokenSymbol, recipient],
   });
   
