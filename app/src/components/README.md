@@ -30,7 +30,7 @@ logo only; protocol words go inside `<Details>`.
 
 `useApp()`: `connected, sessionReady, address, ensName, usdcBalance, ethBalance, portfolio, connect(),
 disconnect(), isIssuerFor, network { ok, name, chainId, walletChainId }, switchNetwork(), canSign,
-signerLabel, demoData, txBusy, runTx({ title, success, failTitle?, prepare, guard?, onProgress? }),
+signerLabel, notLive, txBusy, runTx({ title, success, failTitle?, prepare, guard?, onProgress? }),
 anon { transport, fallback, live }, notify(title, status?, detail?)`. Toasts render one at a time at the
 bottom (UI.md 2.20): pending "Check your wallet app", success headline, error headline with the decoded
 error name on the grey second line.
@@ -40,7 +40,7 @@ signed-in account, `connect()` opens the sign-in flow and `disconnect()` ends th
 is false only while the session is being read; hold space rather than flashing "Sign in".
 
 Balances and holdings come from `GET /v1/portfolio/:address` (`portfolio`; `usdcBalance` / `ethBalance`
-are null until it answers). `demoData` is true while the API reports itself as the fixture stub.
+are null until it answers). `notLive` is true while the configured server cannot produce sendable calldata.
 
 `runTx` is the only way the app sends anything (`lib/tx.ts` `runPrepared`): it calls `prepare` (a
 `POST /v1/prepare/*`), refuses stub, wrong-chain or wrong-sender answers, runs `guard`, stops on a failed

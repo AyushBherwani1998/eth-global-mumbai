@@ -69,7 +69,7 @@ function verdictOf(market: Market, p: Prepared<SwapDetails>): Verdict {
 const pct = (bps: number | null) => (bps === null ? "No quote yet" : `${bps >= 0 ? "+" : "-"}${(Math.abs(bps) / 100).toFixed(2)}%`);
 
 export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }: Opts): { body: ReactNode; footer: ReactNode } {
-  const { connected, connect, address, portfolio, usdcBalance, runTx, canSign, txBusy, demoData } = useApp();
+  const { connected, connect, address, portfolio, usdcBalance, runTx, canSign, txBusy } = useApp();
   const held = sharesHeld(portfolio.data, ipo.ticker);
   const holding = portfolio.data?.holdings.find((h) => h.ticker === ipo.ticker) ?? null;
   const [amount, setAmount] = useState(side === "buy" ? "1" : "1000");
@@ -156,7 +156,7 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
     if (!parsed.ok) return <KV k="You'll get about" v={amount.trim() ? parsed.error : "Enter an amount"} />;
     if (quote.status === "loading" && !prepared) return <KV k="You'll get about" v="Getting a quote…" />;
     if (quote.status === "error") return <KV k="You'll get about" v="No quote" sub={(quote.error as { sentence?: string })?.sentence ?? "The exchange couldn't quote this. Try again."} />;
-    if (quote.status === "ready" && !q) return <KV k="You'll get about" v="No quote" sub={demoData ? "Quotes need the live exchange server, not demo data." : "The exchange sent no quote for this."} />;
+    if (quote.status === "ready" && !q) return <KV k="You'll get about" v="No quote" sub="The exchange sent no quote for this." />;
     if (!q || !prepared) return null;
     if (!q.ok || q.amountOut === null)
       return <KV k="You'll get about" v="Trade blocked" sub="No tokens will move. Try a smaller amount or check the trading rule below." />;
@@ -306,7 +306,7 @@ export function useTradeForm({ ipo, market, side, setSide, onDone, onRejected }:
       )}
       {connected && !canSign && (
         <p className="t-label mt-2 text-center">
-          {demoData ? "This is demo data, so nothing can be sent." : "This sign-in can look but not send. Sign in with a wallet to trade."}
+          {"This sign-in can look but not send. Sign in with a wallet to trade."}
         </p>
       )}
     </>

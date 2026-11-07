@@ -206,7 +206,7 @@ export default function GalleryPage() {
       <Marks />
 
       <p className="t-caption mt-8">
-        Prices are USDC per 1,000 shares. Sample data only — nothing on this page is read from a live endpoint.
+        Prices are USDC per 1,000 shares.
       </p>
     </main>
   );

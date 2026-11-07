@@ -342,10 +342,13 @@ export function ViewSwap<T extends string>({
 function chipClass(opts: { selected?: boolean; variant?: "filter" | "range"; disabled?: boolean; className?: string }) {
   const { selected, variant = "filter", disabled, className } = opts;
   return cx(
-    "t-chip relative inline-flex h-10 shrink-0 items-center justify-center rounded-full border whitespace-nowrap select-none",
+    "t-chip relative inline-flex h-10 items-center justify-center rounded-full border whitespace-nowrap select-none",
     "transition-[background-color,border-color,color,filter] duration-120",
     "after:absolute after:inset-x-0 after:-top-1 after:-bottom-1 after:content-['']",
-    variant === "filter" ? "px-[18px]" : "min-w-[52px] px-[14px]",
+    // A filter chip keeps its width. A range chip is one of seven on a phone,
+    // so it may shrink: seven at 52px plus gaps overflowed a 390px screen once
+    // the typeface changed. The 48px touch target is held by the after box.
+    variant === "filter" ? "shrink-0 px-[18px]" : "min-w-[40px] px-[10px]",
     selected
       ? cx("border-chip-on-line bg-chip-on-bg text-text", !disabled && "active:brightness-[0.96]")
       : variant === "filter"
