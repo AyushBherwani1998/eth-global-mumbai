@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it, beforeEach, afterEach } from "node:test";
-import { existsSync, unlinkSync, mkdirSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ListingCreationStorage } from "../src/listing-creation.ts";
@@ -22,7 +22,7 @@ describe("ListingCreationStorage", () => {
       if (existsSync(testDir)) {
         rmSync(testDir, { recursive: true, force: true });
       }
-    } catch (e) {
+    } catch {
       // Ignore cleanup errors in tests
     }
   });

@@ -237,7 +237,7 @@ export async function verifySignedRequest(
       message,
       signature,
     });
-  } catch (e) {
+  } catch {
     throw badRequest("Invalid signature");
   }
 

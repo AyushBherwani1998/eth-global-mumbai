@@ -21,11 +21,6 @@
 // Load pre-compiled bytecode artifacts (committed to repo).
 // These were extracted from forge build output at build time.
 // No runtime forge dependency - bytecode is bundled with API.
-import mockSMEBytecode from "./bytecode/MockSME.json" with { type: "json" };
-import allowAllModuleBytecode from "./bytecode/AllowAllModule.json" with { type: "json" };
-import validationHookBytecode from "./bytecode/AuctionValidationHook.json" with { type: "json" };
-import listingHookBytecode from "./bytecode/ListingHook.json" with { type: "json" };
-import receiverBytecode from "./bytecode/ListingPolicyReceiver.json" with { type: "json" };
 
 import { 
   type Address, 
@@ -36,9 +31,7 @@ import {
   encodePacked, 
   keccak256,
   getContractAddress,
-  concat,
-  pad,
-  toHex
+  concat
 } from "viem";
 
 import {
@@ -169,7 +162,7 @@ function mineHookAddress(
     if (nonce > startNonce + 10000n) {
       throw new Error("Failed to mine hook address with required flags after 10000 attempts");
     }
-  } while (true);
+  } while (true); // eslint-disable-line no-constant-condition
 }
 
 /**
@@ -311,7 +304,7 @@ export async function prepareListingHookDeployment(
   const deployData = encodeDeployData({
     abi: listingHookAbi,
     bytecode,
-    args: [params.poolManager, params.issuerAddress, hookConfig] as any,
+    args: [params.poolManager, params.issuerAddress, hookConfig] as unknown as readonly [Address, Address, Hex],
   });
   
   return {
@@ -344,7 +337,7 @@ export function prepareReceiverDeployment(
   const deployData = encodeDeployData({
     abi: receiverAbi,
     bytecode,
-    args: [params.forwarder, params.broadcaster, maxAge] as any,
+    args: [params.forwarder, params.broadcaster, maxAge] as unknown as readonly [Address, Address, bigint],
   });
   
   return {

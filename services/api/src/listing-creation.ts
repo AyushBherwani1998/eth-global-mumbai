@@ -3,7 +3,7 @@
  * Supports resumable creation workflow with pending/confirmed/error states.
  */
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
+import { dirname } from "node:path";
 import { type Address, type Hex } from "viem";
 
 export type ListingCreationPhase =
@@ -109,7 +109,7 @@ export class ListingCreationStorage {
       writeFileSync(this.storePath, JSON.stringify(this.store, null, 2), "utf8");
     } catch (e) {
       console.error("[listing-creation] Failed to save state:", e);
-      throw new Error("Failed to persist listing creation state");
+      throw new Error("Failed to persist listing creation state", { cause: e });
     }
   }
 

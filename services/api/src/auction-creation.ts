@@ -204,7 +204,7 @@ export function prepareAuctionCreation(params: AuctionCreationParams): AuctionAp
   const distributeCall = encodeFunctionData({
     abi: liquidityLauncherAbi,
     functionName: 'distributeToken',
-    args: [params.tokenAddress, distribution as any, "0x" + Date.now().toString(16).padStart(64, '0') as Hex],
+    args: [params.tokenAddress, distribution as unknown, "0x" + Date.now().toString(16).padStart(64, '0') as Hex],
   });
   
   const data = encodeFunctionData({
@@ -281,7 +281,7 @@ function encodeAuctionSteps(bidWindow: bigint, mpsPerBlock: bigint, clearBlocks:
 function encodeBrackets(brackets: Array<{ lowerThreshold: bigint; rate: bigint }>): Hex {
   return encodeAbiParameters(
     [{ type: 'tuple[]', components: [{ name: 'lowerThreshold', type: 'uint256' }, { name: 'rate', type: 'uint24' }] }],
-    [brackets as any]
+    [brackets as unknown as [{ lowerThreshold: bigint; rate: number }[]]]
   );
 }
 
@@ -289,7 +289,7 @@ function encodeBrackets(brackets: Array<{ lowerThreshold: bigint; rate: bigint }
  * Encode distribution config data: abi.encode(migrationParams, abi.encode(auctionParams))
  * This matches the exact encoding from DemoLaunch.s.sol
  */
-function encodeDistributionConfig(migrationParams: any, auctionParams: any): Hex {
+function encodeDistributionConfig(migrationParams: { liquidityLauncher: Address; tokenRecipient: Address; totalAmount: bigint }, auctionParams: { auctionAddress: Address; initialOwner: Address; baseFee: bigint; brackets: Hex; initialPrice: bigint }): Hex {
   // First encode AuctionParameters
   const encodedAuction = encodeAbiParameters(
     [

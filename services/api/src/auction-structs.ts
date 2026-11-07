@@ -109,7 +109,7 @@ export function encodePoolParameters(params: PoolParameters): Hex {
 export function encodeLiquidityAllocationBrackets(brackets: LiquidityAllocationBracket[]): Hex {
   return encodeAbiParameters(
     parseAbiParameters('(uint256 lowerThreshold, uint24 rate)[]'),
-    [brackets as any]
+    [brackets as unknown as [{ lowerThreshold: bigint; rate: number }[]]]
   );
 }
 
@@ -157,7 +157,7 @@ export function encodeDistributionConfigData(
 export function encodeDistribution(distribution: Distribution): Hex {
   return encodeAbiParameters(
     parseAbiParameters('(address strategy, uint128 amount, bytes configData)'),
-    [distribution as any]
+    [distribution as unknown as [{ strategy: Address; amount: bigint; configData: Hex }]]
   );
 }
 

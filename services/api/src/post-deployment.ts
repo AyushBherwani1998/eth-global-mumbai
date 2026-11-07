@@ -8,8 +8,8 @@
  * 4. Register in deployments file for script/app discovery
  */
 
-import { type Address, type Hex, type PublicClient, type WalletClient, encodeAbiParameters, parseAbi } from "viem";
-import { listingHookAbi, validationHookAbi } from "./abis.generated.ts";
+import { type Address, type Hex, type PublicClient } from "viem";
+import { listingHookAbi } from "./abis.generated.ts";
 
 export type PostDeploymentParams = {
   ticker: string;
@@ -51,9 +51,6 @@ export function prepareSetPolicySource(params: {
   hookAddress: Address;
   receiverAddress: Address;
 }): PostDeploymentStep {
-  const setPolicySourceAbi = parseAbi([
-    'function setPolicySource(address source) external'
-  ]);
   
   // This would normally use encodeFunctionData but we'll construct it manually
   // Function selector for setPolicySource(address): 0x6c6f26fa
@@ -146,9 +143,9 @@ export async function registerDeployedListing(params: {
 }): Promise<void> {
   const { readFileSync, writeFileSync, existsSync } = await import("node:fs");
   
-  let deployments: any = {};
+  let deployments: Record<string, unknown> = {};
   if (existsSync(params.deploymentFile)) {
-    deployments = JSON.parse(readFileSync(params.deploymentFile, 'utf8'));
+    deployments = JSON.parse(readFileSync(params.deploymentFile, 'utf8')) as Record<string, unknown>;
   }
   
   // Add new listing to deployments

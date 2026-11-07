@@ -3,7 +3,7 @@
  * NEVER stores private keys in client code, logs, responses, or repo.
  * Uses RELAYER_PRIVATE_KEY from environment for demo only.
  */
-import { createPublicClient, createWalletClient, http, parseEther, encodeAbiParameters, decodeEventLog, type Address, type Hex } from "viem";
+import { createPublicClient, createWalletClient, http, parseEther, encodeAbiParameters, decodeEventLog, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { sepolia } from "viem/chains";
 import { badRequest } from "./errors.ts";

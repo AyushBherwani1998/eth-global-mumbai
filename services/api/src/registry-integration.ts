@@ -106,14 +106,14 @@ export type DeployedListing = {
   };
   
   // Transaction history
-  txs?: Record<string, any>;
+  txs?: Record<string, unknown>;
   
   // Other sections
-  bids?: Record<string, any>;
-  results?: Record<string, any>;
-  trade?: Record<string, any>;
-  halt?: Record<string, any>;
-  ens?: Record<string, any>;
+  bids?: Record<string, unknown>;
+  results?: Record<string, unknown>;
+  trade?: Record<string, unknown>;
+  halt?: Record<string, unknown>;
+  ens?: Record<string, unknown>;
 };
 
 /**
@@ -136,7 +136,7 @@ export function registerListing(
     console.log("[registry] Registered listing in", deploymentFile);
   } catch (e) {
     console.error("[registry] Failed to register listing:", e);
-    throw new Error("Failed to register listing in deployments file");
+    throw new Error("Failed to register listing in deployments file", { cause: e });
   }
 }
 
@@ -161,15 +161,15 @@ export function loadDeployment(deploymentFile: string): DeployedListing | null {
 export function updateDeploymentSection(
   deploymentFile: string,
   section: string,
-  data: any
+  data: unknown
 ): void {
   try {
     const deployment = loadDeployment(deploymentFile) || {};
-    (deployment as any)[section] = data;
+    (deployment as Record<string, unknown>)[section] = data;
     registerListing(deploymentFile, deployment);
   } catch (e) {
     console.error("[registry] Failed to update section:", e);
-    throw new Error(`Failed to update ${section} in deployments file`);
+    throw new Error(`Failed to update ${section} in deployments file`, { cause: e });
   }
 }
 
@@ -193,8 +193,8 @@ export function listDeployments(chainId: number): DeployedListing[] {
   }
   
   try {
-    const { readdirSync } = require("node:fs");
-    const files = readdirSync(deploymentsDir);
+    const { readdirSync } = await import("node:fs");
+    const files = readdirSync(deploymentsDir) as string[];
     return files
       .filter((f: string) => f.endsWith(".json"))
       .map((f: string) => loadDeployment(`${deploymentsDir}/${f}`))

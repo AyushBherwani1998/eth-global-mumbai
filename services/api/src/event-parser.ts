@@ -49,7 +49,7 @@ export function parseAuctionFromLogs(logs: Log[], lbpStrategyAddress: Address): 
           transactionHash: log.transactionHash ?? ("0x" as Hex),
         };
       }
-    } catch (e) {
+    } catch {
       // Not the event we're looking for, continue
       continue;
     }

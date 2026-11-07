@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-env node */
+/* global process, console */
 /**
  * BUILD-TIME TOOL: Extract deployment bytecode from forge build output.
  * 
