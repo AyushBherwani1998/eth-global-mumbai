@@ -15,6 +15,7 @@ import {IAllowanceTransfer} from "permit2/src/interfaces/IAllowanceTransfer.sol"
 ///   DEMO_WALLET_KEYS=0x…,0x…,… [BID_AMOUNTS=20000000,20000000,20000000,20000000,19000000] [BID_MAX_POINTS=190] \
 ///   [MAX_BIDS_PER_RUN=<all>] \
 ///   forge script script/demo/DemoBid.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --slow
+///   (submitBid uses a fixed 3M gas limit; or pass --gas-estimate-multiplier 200)
 ///
 /// Wallet i bids BID_AMOUNTS[i] raw USDC (6 decimals) at BID_MAX_POINTS. Run after `startBlock`, ideally inside
 /// the bid window. Idempotent: a wallet that already committed budget in the AllowAllModule is skipped. Every
@@ -95,7 +96,9 @@ contract DemoBid is DemoBase {
                 .approve(Sepolia.USDC, address(d.auction), amount, uint48(block.timestamp + 1 days));
         }
         _tx("CCA.submitBid(maxPrice, amount, owner = wallet, prevTick = floor, \"\")");
-        uint256 bidId = d.auction.submitBid(maxPrice, amount, wallet, ListingPrice.FLOOR_PRICE_Q96, "");
+        // Fixed gas: estimate under-shoots as the CCA tree grows (see SUBMIT_BID_GAS).
+        uint256 bidId =
+            d.auction.submitBid{gas: SUBMIT_BID_GAS}(maxPrice, amount, wallet, ListingPrice.FLOOR_PRICE_Q96, "");
         vm.stopBroadcast();
         console2.log("  bidId", bidId);
         require(d.module.committed(wallet) == amount, "budget committed in the AllowAllModule");

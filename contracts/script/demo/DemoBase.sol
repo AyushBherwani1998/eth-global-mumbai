@@ -68,6 +68,9 @@ abstract contract DemoBase is Script {
     ///      while `tryMigrate` / `onReport` run out of gas (`MigrationFailed`, `ReportProcessed(result=false)`).
     uint256 internal constant MIGRATE_GAS = 5_000_000;
     uint256 internal constant REPORT_GAS = 1_500_000;
+    /// @dev `submitBid` gas grows with the auction tree; forge's eth_estimateGas under-shot later bids
+    ///      (bid3 OutOfGas at ~1.33M after bid0-2 used ~963k). Explicit limit avoids that.
+    uint256 internal constant SUBMIT_BID_GAS = 3_000_000;
     /// @dev Exact-input amount large enough that swaps stop at their price limit.
     int256 internal constant SWAP_TO_LIMIT = -1e30;
 

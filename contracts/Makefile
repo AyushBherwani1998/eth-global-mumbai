@@ -64,6 +64,8 @@ launch:
 wait-start:
 	$(WAIT) .auction.startBlock
 
+# submitBid gas grows with the auction tree; DemoBid sets gas: 3_000_000. If estimates still under-shoot,
+# retry with FORGE_FLAGS='--gas-estimate-multiplier 200'.
 bids:
 	$(STEP)/DemoBid.s.sol $(BROADCAST)
 	$(MAKE) export-json
