@@ -21,6 +21,10 @@ export const SEPOLIA = {
   stateView: "0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C",
   quoter: "0x68aFa8b853cAa7a2D40B0F6AEE5C4DbC147C8244",
   lbpStrategy: "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+  ccaFactory: "0x000000001F26a0044BaA66024e7b6599c61963F8",
+  liquidityLauncher: "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+  creMockForwarder: "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+  create2Factory: "0x4e59b44847b379578588920cA78FbF26c0B4956C",
   multicall3: "0xcA11bde05977b3631167028862bE2a173976CA11",
   ensUniversalResolver: "0xeEeEEEeE14D718C2B47D9923Deab1335E144EeEe",
 } as const satisfies Record<string, string | number>;
@@ -34,6 +38,10 @@ export type ExternalAddresses = {
   stateView: Address;
   quoter: Address;
   lbpStrategy: Address;
+  liquidityLauncher: Address;
+  ccaFactory: Address;
+  creMockForwarder: Address;
+  create2Factory: Address;
   multicall3: Address;
   ensUniversalResolver: Address;
 };
@@ -214,6 +222,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       stateView: envAddress(env, "STATE_VIEW_ADDRESS"),
       quoter: envAddress(env, "QUOTER_ADDRESS"),
       lbpStrategy: envAddress(env, "LBP_STRATEGY_ADDRESS"),
+      liquidityLauncher: envAddress(env, "LIQUIDITY_LAUNCHER_ADDRESS"),
+      ccaFactory: envAddress(env, "CCA_FACTORY_ADDRESS"),
+      creMockForwarder: envAddress(env, "CRE_MOCK_FORWARDER_ADDRESS"),
+      create2Factory: envAddress(env, "CREATE2_FACTORY_ADDRESS"),
       multicall3: envAddress(env, "MULTICALL3_ADDRESS"),
       ensUniversalResolver: envAddress(env, "ENS_UNIVERSAL_RESOLVER_ADDRESS"),
     },
@@ -358,6 +370,10 @@ export function parseDeployment(
       stateView: pick("stateView", ext.stateView),
       quoter: pick("quoter", ext.quoter),
       lbpStrategy: pick("lbpStrategy", ext.lbpStrategy),
+      liquidityLauncher: pick("liquidityLauncher", ext.liquidityLauncher),
+      ccaFactory: pick("ccaFactory", ext.ccaFactory),
+      creMockForwarder: pick("creMockForwarder", ext.creMockForwarder),
+      create2Factory: pick("create2Factory", ext.create2Factory),
       multicall3: pick("multicall3", undefined),
       ensUniversalResolver: pick("ensUniversalResolver", ensExt.universalResolver),
     },

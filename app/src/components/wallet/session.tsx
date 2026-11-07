@@ -157,6 +157,39 @@ function PrivyBridge({ children }: { children: ReactNode }) {
   const signer = useMemo(() => privySigner(wallet), [wallet]);
   const chainId = caipChainId(wallet?.chainId);
 
+  const signMessage = useMemo(
+    () => (wallet ? async (message: string) => {
+      // Privy wallets have signMessage method
+      if ('signMessage' in wallet && typeof wallet.signMessage === 'function') {
+        return await wallet.signMessage(message);
+      }
+      throw new Error("Wallet does not support message signing");
+    } : null),
+    [wallet]
+  );
+
+  const getEthersProvider = useMemo(
+    () => (wallet ? async (): Promise<import("./session-context").EthersCompatProvider> => {
+      // Use getEthereumProvider for EIP-1193, wrap for ethers compatibility
+      const provider = await wallet.getEthereumProvider();
+      // Ethers compatibility wrapper
+      return {
+        getSigner: () => ({
+          sendTransaction: async (tx: { to: string; data: string; value?: string }) => {
+            const result = await provider.request({
+              method: 'eth_sendTransaction',
+              params: [{ from: wallet.address, ...tx }]
+            }) as string;
+            return { hash: result };
+          },
+          getAddress: () => wallet.address,
+        }),
+        ...provider,
+      };
+    } : null),
+    [wallet]
+  );
+
   const value = useMemo<WalletSession>(
     () => ({
       mode: "privy",
@@ -168,8 +201,10 @@ function PrivyBridge({ children }: { children: ReactNode }) {
       logout: () => void logout(),
       signer,
       chainId,
+      signMessage,
+      getEthersProvider,
     }),
-    [ready, authenticated, address, ensName, login, logout, signer, chainId],
+    [ready, authenticated, address, ensName, login, logout, signer, chainId, signMessage, getEthersProvider],
   );
 
   return <WalletSessionContext.Provider value={value}>{children}</WalletSessionContext.Provider>;

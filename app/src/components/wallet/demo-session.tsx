@@ -132,6 +132,43 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
   const signer = useMemo(() => (canSign && address ? injectedSigner(address) : null), [canSign, address]);
   const chainId = useInjectedChainId(canSign);
 
+  const signMessage = useMemo(
+    () => (canSign && injected() ? async (message: string) => {
+      const eth = injected();
+      if (!eth) throw new Error("No wallet found");
+      const accounts = await eth.request({ method: 'eth_accounts' }) as string[];
+      if (!accounts || accounts.length === 0) throw new Error("No accounts available");
+      const result = await eth.request({
+        method: 'personal_sign',
+        params: [message, accounts[0]]
+      });
+      return result as string;
+    } : null),
+    [canSign]
+  );
+
+  const getEthersProvider = useMemo(
+    () => (canSign && injected() ? async (): Promise<import("./session-context").EthersCompatProvider> => {
+      const eth = injected();
+      if (!eth) throw new Error("No wallet found");
+      // Simple ethers-compatible wrapper
+      return {
+        getSigner: () => ({
+          sendTransaction: async (tx: { to: string; data: string; value?: string }) => {
+            const result = await eth.request({
+              method: 'eth_sendTransaction',
+              params: [tx]
+            }) as string;
+            return { hash: result };
+          },
+          getAddress: async () => address,
+        }),
+        request: eth.request.bind(eth),
+      };
+    } : null),
+    [canSign, address]
+  );
+
   const value = useMemo<WalletSession>(
     () => ({
       mode: "demo",
@@ -143,8 +180,10 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
       logout: () => store(null),
       signer,
       chainId,
+      signMessage,
+      getEthersProvider,
     }),
-    [ready, address, ensName, signer, chainId],
+    [ready, address, ensName, signer, chainId, signMessage, getEthersProvider],
   );
 
   return (

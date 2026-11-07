@@ -18,6 +18,14 @@
 import { createContext } from "react";
 import type { WalletSigner } from "@/lib/tx";
 
+export interface EthersCompatProvider {
+  getSigner: () => {
+    sendTransaction: (tx: { to: string; data: string; value?: string }) => Promise<{ hash: string }>;
+    getAddress: () => string | Promise<string>;
+  };
+  [key: string]: unknown;
+}
+
 export type WalletSession = {
   /** Which implementation is live. "demo" means no Privy app id is configured. */
   mode: "privy" | "demo";
@@ -33,6 +41,10 @@ export type WalletSession = {
   signer: WalletSigner | null;
   /** The wallet's current chain id; null when unknown (no signer, or the wallet has not said). */
   chainId: number | null;
+  /** Sign a message with the connected wallet. Null when no wallet is connected or signing not available. */
+  signMessage: ((message: string) => Promise<string>) | null;
+  /** Get ethers provider for transaction signing. Null when no wallet is connected. */
+  getEthersProvider: (() => Promise<EthersCompatProvider>) | null;
 };
 
 export const WalletSessionContext = createContext<WalletSession | null>(null);

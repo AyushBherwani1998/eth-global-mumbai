@@ -7,11 +7,13 @@
 // (GET /v1/listings/:ticker).
 
 import Link from "next/link";
+import { useState } from "react";
 
 import { ConsoleShell, ConsoleSignIn, GateLine, NotTheOwner } from "@/components/console/shell";
 import { useIssuerSession } from "@/components/console/session";
+import { CreateListingWizard } from "@/components/console/create-listing";
 import { SkeletonList } from "@/components/states";
-import { EmptyState, Table, TickerLogo, statusLabel, type Column } from "@/components/ui";
+import { Button, EmptyState, Table, TickerLogo, statusLabel, type Column } from "@/components/ui";
 import { nextByPhase } from "@/components/console/lifecycle";
 import { POLL, api, apiConfigured, type Listing } from "@/lib/api";
 import { usdc } from "@/lib/format";
@@ -23,6 +25,7 @@ const raisedWords = (r: Row) => (r.raised === null ? "Not available" : usdc(r.ra
 
 export function ConsoleListScreen() {
   const { ready, connected, listings, rows: listed, ensName: signedInEns } = useIssuerSession();
+  const [showCreateWizard, setShowCreateWizard] = useState(false);
   const tickers = listed.map((l) => l.ticker).join(",");
   const offers = useLive(
     tickers ? `console-offers:${tickers}` : null,
@@ -91,12 +94,31 @@ export function ConsoleListScreen() {
   return (
     <ConsoleShell>
       <header className="border-b border-line py-5">
-        <h1 className="t-page-title text-text">Your listings</h1>
-        <p className="t-label mt-1">
-          {signedInEns ?? "This wallet"} manages {rows.length} {rows.length === 1 ? "listing" : "listings"}. Investors never see this screen.
-        </p>
-        <GateLine className="mt-1" />
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h1 className="t-page-title text-text">Your listings</h1>
+            <p className="t-label mt-1">
+              {signedInEns ?? "This wallet"} manages {rows.length} {rows.length === 1 ? "listing" : "listings"}. Investors never see this screen.
+            </p>
+            <GateLine className="mt-1" />
+          </div>
+          {apiConfigured() && (
+            <Button onClick={() => setShowCreateWizard(!showCreateWizard)}>
+              {showCreateWizard ? "Cancel" : "+ Create Listing"}
+            </Button>
+          )}
+        </div>
       </header>
+
+      {showCreateWizard && (
+        <div className="mt-6">
+          <CreateListingWizard onComplete={() => {
+            setShowCreateWizard(false);
+            // Refresh listings
+            window.location.reload();
+          }} />
+        </div>
+      )}
 
       {rows.length > 0 && (
         <dl className="mt-6 grid gap-px overflow-hidden rounded-[10px] border border-line bg-line sm:grid-cols-3">

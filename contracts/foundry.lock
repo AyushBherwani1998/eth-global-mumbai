@@ -1,0 +1,32 @@
+{
+  "lib/blocknumberish": {
+    "rev": "38fe20bc0341d5bc2780d41f90dadb70e10f8cea"
+  },
+  "lib/continuous-clearing-auction": {
+    "rev": "ce78b4d94cdf94fd41f20afb6f6e495b8b83a234"
+  },
+  "lib/forge-std": {
+    "rev": "8e40513d678f392f398620b3ef2b418648b33e89"
+  },
+  "lib/liquidity-launcher": {
+    "rev": "266c18786c58822b72a7a9490f4e319294df0548"
+  },
+  "lib/openzeppelin-contracts": {
+    "rev": "e4f70216d759d8e6a64144a9e1f7bbeed78e7079"
+  },
+  "lib/permit2": {
+    "rev": "cc56ad0f3439c502c246fc5cfcc3db92bb8b7219"
+  },
+  "lib/solady": {
+    "rev": "2af06408b6a204824c2ecb245779ed400b535fb5"
+  },
+  "lib/solmate": {
+    "rev": "4b47a19038b798b4a33d9749d25e570443520647"
+  },
+  "lib/v4-core": {
+    "rev": "59d3ecf53afa9264a16bba0e38f4c5d2231f80bc"
+  },
+  "lib/v4-periphery": {
+    "rev": "ad04c9f24a170accf5ea1b2836bbafd514537ca6"
+  }
+}
