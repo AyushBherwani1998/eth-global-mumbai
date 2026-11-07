@@ -1,0 +1,403 @@
+{
+  "auction": {
+    "address": "0x3C6B4b39D7e60d2F533f0304143C71Be92E8fff5",
+    "bidWindowBlocks": 20,
+    "bidWindowEndBlock": 12080828,
+    "claimBlock": 12080833,
+    "clearBlocks": 5,
+    "endBlock": 12080833,
+    "floorPriceQ96": 362072702689894,
+    "fundsRecipient": "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+    "migrationBlock": 12080834,
+    "requiredCurrencyRaised": 45000000,
+    "reservedTokenAmountForLP": "90000000000000000000000",
+    "startBlock": 12080808,
+    "tickSpacingQ96": 792281625142,
+    "tokensRecipient": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+    "totalSupply": "20000000000000000000000",
+    "validationHook": "0x74F3cCf20639523fD8cf867A30426211C3928134"
+  },
+  "bids": {
+    "committedTotal": 120000000,
+    "count": 6,
+    "list": [
+      {
+        "amount": 20000000,
+        "id": 0,
+        "maxPricePoints": 1084,
+        "maxPriceQ96": 858833281653928,
+        "owner": "0xa13b57405cF7DA5e8F4dbF8D5E33626B87ABbf6B",
+        "startBlock": 12080808
+      },
+      {
+        "amount": 20000000,
+        "id": 1,
+        "maxPricePoints": 1084,
+        "maxPriceQ96": 858833281653928,
+        "owner": "0xd2B99eC86e8607AEbdDBdd8d2957662e44B411FB",
+        "startBlock": 12080808
+      },
+      {
+        "amount": 20000000,
+        "id": 2,
+        "maxPricePoints": 1084,
+        "maxPriceQ96": 858833281653928,
+        "owner": "0x657f28336C19a467fDf978B5e8123449bf0Fad16",
+        "startBlock": 12080808
+      },
+      {
+        "amount": 20000000,
+        "id": 3,
+        "maxPricePoints": 1084,
+        "maxPriceQ96": 858833281653928,
+        "owner": "0xe0B0976B958FdE7062F96648bb262F0b6aB879e0",
+        "startBlock": 12080808
+      },
+      {
+        "amount": 20000000,
+        "id": 4,
+        "maxPricePoints": 1084,
+        "maxPriceQ96": 858833281653928,
+        "owner": "0x236693636FB62DA4f1B8b1802D86aaC70276B94A",
+        "startBlock": 12080808
+      },
+      {
+        "amount": 20000000,
+        "id": 5,
+        "maxPricePoints": 1084,
+        "maxPriceQ96": 858833281653928,
+        "owner": "0xD6017250D4A3565c4bfea2e778db3f556787b58A",
+        "startBlock": 12080808
+      }
+    ]
+  },
+  "chainId": 11155111,
+  "contracts": {
+    "allowAllModule": "0x92049f7b1c290B60446a05f475888e38D97B6b83",
+    "auctionValidationHook": "0x74F3cCf20639523fD8cf867A30426211C3928134",
+    "listingHook": "0xa829AF67dAd95001cC48DbaBC2FBd965aa6E30C0",
+    "listingPolicyReceiver": "0x88CC2b3246b1fAF755cC97ED8753d38309B9F650",
+    "mockSME": "0x3bA34D9354AF22f690306CAb2BF2d001Ec43a267"
+  },
+  "creBroadcaster": "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA",
+  "deployBlock": 12080791,
+  "deployer": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+  "ens": {},
+  "external": {
+    "ccaFactory": "0x000000001F26a0044BaA66024e7b6599c61963F8",
+    "creMockForwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "create2Factory": "0x4e59b44847b379578588920cA78FbF26c0B4956C",
+    "lbpStrategy": "0x95434E898Af471945Cab33D5064d2aC1A6Ba2000",
+    "liquidityLauncher": "0x0000FffFBE8efE702c8703aE3477FF5dE3d319C0",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3",
+    "poolManager": "0xE03A1074c86CFeDd5C142C4F04F1a1536e203543",
+    "positionManager": "0x429ba70129df741B2Ca2a85BC3A2a3328e5c09b4",
+    "quoter": "0x68aFa8b853cAa7a2D40B0F6AEE5C4DbC147C8244",
+    "stateView": "0xE1Dd9c3fA50EDB962E442f60DfBc432e24537E4C",
+    "universalRouter": "0x3A9D48AB9751398BbFa63ad67599Bb04e4BdF98b",
+    "usdc": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238"
+  },
+  "halt": {},
+  "issuer": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+  "label": "reliance-v1",
+  "metadata": {
+    "disclaimer": "Demo prices in test USDC. Not real USD-equity pricing.",
+    "priceCurrency": "INR",
+    "priceSource": "charting.in",
+    "priceSourceDate": "2026-11-06",
+    "referencePrice": "1320.00"
+  },
+  "params": {
+    "applicantCap": 60000000,
+    "auctionSupply": "20000000000000000000000",
+    "capPoints": 1084,
+    "capPriceQ96": 858833281653928,
+    "floorPoints": 457,
+    "floorPriceQ96": 362072702689894,
+    "issuePoints": 571,
+    "lpRateMps": 2000000,
+    "lpReserve": "90000000000000000000000",
+    "onePointQ96": 792281625142,
+    "requiredCurrencyRaised": 57000000,
+    "tickSpacingQ96": 792281625142,
+    "totalSupply": "110000000000000000000000"
+  },
+  "pool": {
+    "listingDayBandBps": 500,
+    "listingDaySeconds": 3600,
+    "poolId": "0x1ea858eafd109aea3e974adecbfa0e74364a472d9fbe1bdefe2cb44f523546ae",
+    "poolKey": {
+      "currency0": "0x1c7D4B196Cb0C7B01d743Fbc6116a902379C7238",
+      "currency1": "0x3bA34D9354AF22f690306CAb2BF2d001Ec43a267",
+      "fee": 3000,
+      "hooks": "0xa829AF67dAd95001cC48DbaBC2FBd965aa6E30C0",
+      "tickSpacing": 60
+    },
+    "usdcIsCurrency0": true
+  },
+  "receiverConfig": {
+    "broadcaster": "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA",
+    "chainSelector": "16015286601757825753",
+    "forwarder": "0x15fC6ae953E024d975e77382eEeC56A9101f9F88",
+    "maxAge": 86400
+  },
+  "results": {
+    "clearingPoints": 600,
+    "clearingPriceQ96": 475368975085587,
+    "currencyRaised": 120000000,
+    "graduated": true,
+    "listedAt": 1794020088,
+    "listingDayEndsAt": 1794023688,
+    "listingPointsE2": 59999,
+    "listingSqrtPriceX96": "1022831179894534037099843278368391155",
+    "lpTokenId": 41492,
+    "migrated": true,
+    "poolLiquidity": 309838667696810,
+    "totalCleared": "19999999999999959002846",
+    "treasuryShares": "85999999999997248167908",
+    "treasuryUsdc": 234467503,
+    "unsoldSwept": 40997153
+  },
+  "trade": {},
+  "treasury": "0xAfD0AeDb40DcDd5E725b487DaB40a8A5dBB60Dd9",
+  "txs": {
+    "bids": [
+      {
+        "block": 12080810,
+        "hash": "0xfe610cebcd0ec33adf1f20030020c027db2a148e6efe91b29886cc22ca2704cf",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080811,
+        "hash": "0x47c92a8790eeaffc9513d2975f977de0e66519234b6b0fa0207ee9a8770c55fc",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12080812,
+        "hash": "0x82775b2ad4c7a709139d7d0fcdfc439e534d35b33d41b0ffc749e482a78e3d80",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080813,
+        "hash": "0xc469c791738ad0e7846be4e30a5aabcb3cbfa678098ce72228a65791b3845f00",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12080814,
+        "hash": "0xffd5d6e97a792e14d23cc5c1b1489e9673f305f25a58845464adfc8aa6241f89",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080815,
+        "hash": "0x79bc095cec503dde331f749fbe1e8c1dda91631fdc821aabfae8bc91b79453ee",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12080816,
+        "hash": "0xd053d668f319ec9c1e2544656b7e6d08ed99cfcc7e3a57bc8a5f6e496f029278",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080817,
+        "hash": "0x9a3413addec2eab4d7aa2604ecdf7296673ca188df70d32df0ac477981426037",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12080818,
+        "hash": "0x145982a1ca2e7b04dddbb7a4e9ac2a9b6d51719b305685ebba0a29b472e033a6",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080819,
+        "hash": "0x0fff4c76ca06f5c79f76d9c2030bebea1058b4e93e475c40a4d4b19fe7840b69",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      },
+      {
+        "block": 12080820,
+        "hash": "0x3deeea3e6bf5216ee74efde216e6935c37ac792d2ed282dc002d07482bbfe216",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080821,
+        "hash": "0x7f360ac90765fca1d9398a7e30cd1e6ced2f6b631e6fc73d7dbd3472ad85c64a",
+        "label": "submitBid(uint256,uint128,address,uint256,bytes)",
+        "status": 1
+      }
+    ],
+    "deploy": [
+      {
+        "block": 12080793,
+        "hash": "0xed6d236a72a78f1ab1cdd594b2a6b93b1216d8153debfbd056f34d47917f226b",
+        "label": "create MockSME",
+        "status": 1
+      },
+      {
+        "block": 12080794,
+        "hash": "0x892ff3daa16f0fdabc3a6046262e244552b4ab1f4ac27d95b32a9241b2d108f8",
+        "label": "create AllowAllModule",
+        "status": 1
+      },
+      {
+        "block": 12080795,
+        "hash": "0xee312463e58efed82bc4172d47e8f418c0a7decbc49fb7e07ee955568cbe5df7",
+        "label": "create AuctionValidationHook",
+        "status": 1
+      },
+      {
+        "block": 12080796,
+        "hash": "0x53c3e724624e1cc34ad25f1f2a6a6267e9110670aa60c673d850f2c94540dd13",
+        "label": "create ListingHook",
+        "status": 1
+      },
+      {
+        "block": 12080797,
+        "hash": "0xdb8621c65569ad8932d63ccc9d1e6145de47ca4307c92a728bab62a0e9891ff7",
+        "label": "create ListingPolicyReceiver",
+        "status": 1
+      },
+      {
+        "block": 12080798,
+        "hash": "0x26a58f48ba65389b4c09e88398347af51ea4144ccb7a986b77e7d994f5df2d4d",
+        "label": "ListingHook.setPolicySource(address)",
+        "status": 1
+      }
+    ],
+    "ensName": [],
+    "ensRecords": [],
+    "ensRegistry": [],
+    "ensStatusRole": [],
+    "ensTicker": [],
+    "fund": [],
+    "halt": [],
+    "launch": [
+      {
+        "block": 12080799,
+        "hash": "0x3d1384128cb6bee3e277df6e41a05ebc9b8af43d0feb7cddbd98f08c07530843",
+        "label": "approve(address,uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080800,
+        "hash": "0x29e2b185a660819d9f64c45e91c59f63973a52ebd460edc36cb68910ad628887",
+        "label": "approve(address,address,uint160,uint48)",
+        "status": 1
+      },
+      {
+        "block": 12080801,
+        "hash": "0xd56967d9fb973313065ead529a237cbf19922ab1e673b0845c58971b9074c7b3",
+        "label": "multicall(bytes[])",
+        "status": 1
+      },
+      {
+        "block": 12080802,
+        "hash": "0xad92447f761e6f20b0496355d3eb18798b2d584f8e3379b61549623422df86f5",
+        "label": "setAuction(address)",
+        "status": 1
+      }
+    ],
+    "settle": [
+      {
+        "block": 12080836,
+        "hash": "0x152a177953165d07855a97f21e1d4312e38ea42e7d935e47b06a822310c49a0e",
+        "label": "checkpoint()",
+        "status": 1
+      },
+      {
+        "block": 12080837,
+        "hash": "0xeb14f71d52ed3c30c26e6b6e47ae355688fbbbdfff879bf6e304cb11e4fe402d",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080838,
+        "hash": "0x4351197731e5ac64fa1c30a7bb34ab78dc1086f610b1cc3700a30ecc3ef3921d",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080839,
+        "hash": "0x6d523d9910a5b20bf4e980fa3536d71fea85a6aee5ddfd6d6e174f573c70cc6a",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080840,
+        "hash": "0x991cbb83738acb346a1ccf372008aa2f26b87264025effe1c98c060fa4531a3e",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080841,
+        "hash": "0x8ec9e2a7a73307270bc935e4f636e0c1442a8fdfa548167a99da7907a763db01",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080842,
+        "hash": "0x6a7c3f2adf1e7f279cff2af7b27fa325ac2e23f6e467e9e8911f3311a34efd12",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080843,
+        "hash": "0x37c9c186e3cba96ffebe2fc0afda97186f4a6de804ad173c2547ef8485803a10",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080844,
+        "hash": "0x2137ebefdca8c87ec7607497d43013a126906800a80299b664581da77d05b593",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080845,
+        "hash": "0x6a482a2f23e6c11d2a8217e33433d0ed2da8d54fcc237539ccfbf313fe3e5f77",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080846,
+        "hash": "0x05040331dc908de76ff9ee6a1aed40b2ff518ff91488eac6cb2e9e17d3dc8e0e",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080847,
+        "hash": "0x73fe0b4325af3df8d22fbe47972e5d61719139ac9122ea63ba76800a9ed75ff7",
+        "label": "exitBid(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080848,
+        "hash": "0x56a273ac679f5aa9640fd65398756a2438befa7df854c0ec89a2f12cd77ccf1a",
+        "label": "claimTokens(uint256)",
+        "status": 1
+      },
+      {
+        "block": 12080849,
+        "hash": "0xec80ba1ae0dc97dc4168eb9b53b69119d9a395e5cd51863f4313ca0ac6543d45",
+        "label": "sweepUnsoldTokens()",
+        "status": 1
+      },
+      {
+        "block": 12080850,
+        "hash": "0x12e9160397bf75c055249a75770851b52e125d8a19db75d6745cca32983f6b96",
+        "label": "migrate(address)",
+        "status": 1
+      }
+    ],
+    "trade": []
+  }
+}
