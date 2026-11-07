@@ -3,11 +3,18 @@
   "installCommand": "npm ci",
   "buildCommand": "",
   "framework": null,
-  "rewrites": [{ "source": "/(.*)", "destination": "/api" }],
+  "rewrites": [
+    { "source": "/api/policy(.*)", "destination": "/api/policy" },
+    { "source": "/(.*)", "destination": "/api" }
+  ],
   "functions": {
     "api/index.ts": {
       "includeFiles": "{contracts/deployments/**,services/api/src/**}",
       "maxDuration": 60
+    },
+    "api/policy.ts": {
+      "includeFiles": "services/mock-exchange/src/**",
+      "maxDuration": 10
     }
   }
 }
