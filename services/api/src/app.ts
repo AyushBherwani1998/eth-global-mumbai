@@ -368,7 +368,7 @@ export function createApp(ctx: Ctx): Hono {
     try {
       const { getNextDeploymentStep } = await import("./deployment-complete.ts");
       
-      // Load compiled bytecodes from forge build artifacts
+      // Load pre-compiled bytecode artifacts (bundled with API, no runtime forge dependency)
       const mockSMEBytecode = (await import("./bytecode/MockSME.json", { with: { type: "json" } })).default;
       const allowAllModuleBytecode = (await import("./bytecode/AllowAllModule.json", { with: { type: "json" } })).default;
       const validationHookBytecode = (await import("./bytecode/AuctionValidationHook.json", { with: { type: "json" } })).default;

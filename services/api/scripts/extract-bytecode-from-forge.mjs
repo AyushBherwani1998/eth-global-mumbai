@@ -1,7 +1,16 @@
 #!/usr/bin/env node
 /**
- * Extract deployment bytecode from forge build output.
- * Run after: forge build
+ * BUILD-TIME TOOL: Extract deployment bytecode from forge build output.
+ * 
+ * This is run ONCE during development to extract bytecode artifacts.
+ * The extracted JSON files are committed to the repo and bundled with the API.
+ * 
+ * NO RUNTIME FORGE DEPENDENCY: The API loads pre-compiled bytecode from JSON files.
+ * 
+ * Usage:
+ *   cd contracts && forge build
+ *   cd ../services/api && node scripts/extract-bytecode-from-forge.mjs
+ *   git add src/bytecode/*.json
  */
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';

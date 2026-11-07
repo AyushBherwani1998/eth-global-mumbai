@@ -1,5 +1,23 @@
 # Complete Listing Lifecycle - Browser & Script Compatibility
 
+## Foundry Dependency Status
+
+**NO RUNTIME FORGE DEPENDENCY** in browser or API:
+- Browser/API deployment (steps 1-6) uses pre-compiled bytecode bundled in JSON files
+- Bytecode extracted once at build time via `scripts/extract-bytecode-from-forge.mjs`
+- Railway API deployment requires no Foundry installation
+- Browser wallet signs transactions using bundled bytecode + ABIs
+
+**BUILD-TIME ONLY:**
+- `forge build` used during development to compile contracts
+- Extraction script runs once to generate bytecode JSON files
+- JSON files are committed to repo and bundled with API
+
+**CLI SCRIPTS PRESERVED:**
+- `contracts/script/demo/*.s.sol` use Foundry for issuer's CLI workflow
+- Option A completion path suggests CLI script for auction (optional approach)
+- CLI and browser/API paths are independent
+
 ## Overview
 
 A functional Thaamba Listing Day listing requires 8 steps:

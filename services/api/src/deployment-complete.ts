@@ -18,7 +18,9 @@
  * 8. ValidationHook.setAuction(auction) - REQUIRED binding
  */
 
-// Load compiled bytecode artifacts from forge build
+// Load pre-compiled bytecode artifacts (committed to repo).
+// These were extracted from forge build output at build time.
+// No runtime forge dependency - bytecode is bundled with API.
 import mockSMEBytecode from "./bytecode/MockSME.json" with { type: "json" };
 import allowAllModuleBytecode from "./bytecode/AllowAllModule.json" with { type: "json" };
 import validationHookBytecode from "./bytecode/AuctionValidationHook.json" with { type: "json" };
