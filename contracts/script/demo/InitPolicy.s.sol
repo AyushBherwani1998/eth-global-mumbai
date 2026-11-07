@@ -43,24 +43,24 @@ contract InitPolicy is DemoBase {
 
         console2.log("Sending initial policy:");
         console2.log("  Reference price:", issuePoints, "points");
-        console2.log("  Normal band: 20% (±", issuePoints * 20 / 100, "points)");
+        console2.log("  Normal band: 20% (+/-", issuePoints * 20 / 100, "points)");
         console2.log("  Mode: 0 (normal)");
         console2.log("  Halted: false");
 
         _sendPolicyReport(d.receiver, p, "listed", "init-policy");
         
         // Verify
-        ListingPolicy memory after = d.receiver.policy();
+        ListingPolicy memory applied = d.receiver.policy();
         console2.log("");
         console2.log("=== Policy Applied ===");
-        console2.log("Version:", after.version);
-        console2.log("Halted:", after.halted);
-        console2.log("Mode:", after.mode);
-        console2.log("NormalBandBps:", after.normalBandBps);
-        console2.log("AsOf:", after.asOf);
-        require(!after.halted, "Policy should not be halted");
-        require(after.mode == 0, "Policy should be normal mode");
-        require(after.normalBandBps == 2000, "Band should be 2000 bps");
+        console2.log("Version:", applied.version);
+        console2.log("Halted:", applied.halted);
+        console2.log("Mode:", applied.mode);
+        console2.log("NormalBandBps:", applied.normalBandBps);
+        console2.log("AsOf:", applied.asOf);
+        require(!applied.halted, "Policy should not be halted");
+        require(applied.mode == 0, "Policy should be normal mode");
+        require(applied.normalBandBps == 2000, "Band should be 2000 bps");
     }
 
     function _issueToSqrtPrice(uint256 points, bool usdcIsCurrency0) internal pure returns (uint160) {

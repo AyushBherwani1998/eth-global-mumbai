@@ -60,8 +60,6 @@ contract DemoTrade is DemoBase {
 
         uint256 inBand = vm.envOr("IN_BAND_POINTS", uint256(114));
         uint256 afterE2 = _inBandBuy(d, traderKey, routerAddr, inBand);
-        
-        bool skipOutOfBand = vm.envOr("SKIP_OUT_OF_BAND_TEST", false);
         OutOfBand memory o;
         if (!skipOutOfBand) {
             o = _outOfBandBuy(d, trader, routerAddr, vm.envOr("OUT_OF_BAND_POINTS", uint256(117)));
