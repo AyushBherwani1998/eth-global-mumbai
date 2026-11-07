@@ -4,7 +4,7 @@
 //
 // Everything here is something the backend can actually answer, from
 // GET /v1/portfolio/:address: wallet balances (USDC, ETH), shares held (the
-// token balance, so shares bought on the market count even with no IPO
+// token balance, so shares bought on the market count even with no ICO
 // application), shares ready to collect, and the mark price and value. Today's
 // move comes from the GET /v1/market/:ticker price points. There is no cost basis anywhere on chain, so
 // there is no "invested", no "since you bought" and no average price, and the
@@ -180,7 +180,7 @@ export function PortfolioScreen() {
             points={[
               "The value of your shares, and how it moved today",
               "Every company you hold, with its price and today's change",
-              "Shares waiting to be collected from an IPO",
+              "Shares waiting to be collected from an ICO",
               "Your USDC available to spend",
             ]}
           />
@@ -208,7 +208,7 @@ export function PortfolioScreen() {
           <p className="t-body text-text">USDC available</p>
           <p className="num t-list-title text-text">{orCopy(usdcBalance, usdc, "Loading")}</p>
         </div>
-        <p className="t-label mt-1">This is what you can spend on shares and IPO applications.</p>
+        <p className="t-label mt-1">This is what you can spend on shares and ICO applications.</p>
         {lowCash && (
           <p className="mt-1">
             <TextLink href={FAUCET_URL}>Get free test USDC</TextLink>
@@ -245,7 +245,7 @@ export function PortfolioScreen() {
           {error && <ApiErrorCard className="mt-4" error={error} onRetry={retry} retrying={refreshing} />}
           <EmptyState
             title="Nothing here yet"
-            body="Shares you buy, or get from an IPO once you collect them, show up here."
+            body="Shares you buy, or get from an ICO once you collect them, show up here."
             action={{ label: "See companies", href: "/" }}
           />
           <div className="mt-2 lg:max-w-[400px]">{cash}</div>

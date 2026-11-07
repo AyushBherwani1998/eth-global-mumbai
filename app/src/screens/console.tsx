@@ -39,7 +39,7 @@ const STEP_COPY: Record<StepId, { title: string; sub: string }> = {
   create: { title: "Create the listing", sub: "Shares, issue price and the rules of the sale." },
   ticker: { title: "Register the name", sub: "Your company name on Thamba, and what it points to." },
   policy: { title: "Publish the trading rule", sub: "The price limits the exchange will enforce." },
-  launch: { title: "Open the IPO", sub: "People can apply from this moment." },
+  launch: { title: "Open the ICO", sub: "People can apply from this moment." },
   monitor: { title: "Watch applications", sub: "Price, money raised and who applied." },
   graduate: { title: "List on the market", sub: "Opens trading at the final price." },
 };
@@ -316,7 +316,7 @@ function CreateStep({ ipo }: { ipo: ListingDetail }) {
           }
         />
         <KV k="Shares in total" v={shares(o.totalSupply)} />
-        <KV k="Shares offered in the IPO" v={shares(o.auctioned)} sub={`${shares(o.lpReserve)} kept for the market`} />
+        <KV k="Shares offered in the ICO" v={shares(o.auctioned)} sub={`${shares(o.lpReserve)} kept for the market`} />
         <KV k="Issue price" v={`${lotFixed(o.issuePrice)} per 1,000 shares`} />
         <KV k="Price range" v={`${lotFixed(o.floorPrice)} to ${lotFixed(o.capPrice)}`} />
         <KV k="Most one wallet can apply with" v={`${o.perApplicantCap} USDC`} sub="Counted per wallet, across all of its applications" />
@@ -332,7 +332,7 @@ function CreateStep({ ipo }: { ipo: ListingDetail }) {
 
 const RECORD_LABEL: Record<string, string> = {
   addr: "Share token",
-  auction: "IPO contract",
+  auction: "ICO contract",
   pool: "Market",
   hook: "Rule enforcer",
   policy: "Rule publisher",
@@ -368,7 +368,7 @@ function PolicyStep({ ipo, market, creTx }: { ipo: ListingDetail; market: Market
         <KV k="Reference price" v={`${lotFixed(ref)} per 1,000 shares`} />
         <KV k="Normal day" v="Trades within 20% of the reference price" />
         <KV k="Under watch" v="Trades within 5% of the reference price" />
-        <KV k="Listing day" v="Trades within 5% of the price the IPO closed at" />
+        <KV k="Listing day" v="Trades within 5% of the price the ICO closed at" />
       </div>
       <p className="t-body mt-3 text-text-2">
         The rule in force right now, and the commands that change it, are under &ldquo;Trading rule&rdquo; further down this page.
@@ -392,8 +392,8 @@ function LaunchStep({ ipo, done }: { ipo: ListingDetail; done: boolean }) {
         <KV k="Price range" v={`${lotFixed(o.floorPrice)} to ${lotFixed(o.capPrice)}`} />
         <KV k="Minimum raise to list" v={`${o.requiredRaise} USDC`} />
       </div>
-      {done && <p className="t-body mt-3 text-text">The IPO has opened. The contract address is written to your name.</p>}
-      <RunsFromTheCommandLine command="cd contracts && make launch" note="Opens the sale and writes the IPO contract address to the name." />
+      {done && <p className="t-body mt-3 text-text">The ICO has opened. The contract address is written to your name.</p>}
+      <RunsFromTheCommandLine command="cd contracts && make launch" note="Opens the sale and writes the ICO contract address to the name." />
     </Card>
   );
 }
@@ -441,7 +441,7 @@ function MonitorStep({ reads }: { reads: Reads }) {
         <KV k="Applications" v={String(auction?.bidCount ?? ipo.bidCount)} />
         <KV k="Wallets that applied" v={String(auction?.applicants ?? ipo.applicants)} />
       </div>
-      <p className="t-caption mt-2">An application the IPO turns away (over the per-wallet limit, or priced above the cap) never lands, so it leaves no record to count.</p>
+      <p className="t-caption mt-2">An application the ICO turns away (over the per-wallet limit, or priced above the cap) never lands, so it leaves no record to count.</p>
       {bids && bids.length > 0 && (
         <div className="mt-4">
           <p className="t-list-title text-text">Applications</p>
@@ -472,12 +472,12 @@ function GraduateStep({ reads, done }: { reads: Reads; done: boolean }) {
       <Card className="p-4">
         <p className="t-body text-text">
           {ipo.phase === "refunding"
-            ? `The IPO raised less than ${ipo.offer.requiredRaise} USDC, so every application is refunded and there is nothing to list.`
-            : `Opens when the IPO closes${ipo.endBlock !== null ? ` at block ${blockNo(ipo.endBlock)}` : ""}${
+            ? `The ICO raised less than ${ipo.offer.requiredRaise} USDC, so every application is refunded and there is nothing to list.`
+            : `Opens when the ICO closes${ipo.endBlock !== null ? ` at block ${blockNo(ipo.endBlock)}` : ""}${
                 ipo.endBlock !== null && currentBlock !== null && currentBlock < ipo.endBlock ? ` (${ipo.endBlock - currentBlock} blocks from now)` : ""
-              }. The shares list if the IPO raised at least ${ipo.offer.requiredRaise} USDC; otherwise every application is refunded and there is nothing to list.`}
+              }. The shares list if the ICO raised at least ${ipo.offer.requiredRaise} USDC; otherwise every application is refunded and there is nothing to list.`}
         </p>
-        <RunsFromTheCommandLine command="cd contracts && make settle" note="Only works once the IPO has closed." />
+        <RunsFromTheCommandLine command="cd contracts && make settle" note="Only works once the ICO has closed." />
       </Card>
     );
   const unsold = auction && auction.totalCleared !== null ? Math.max(0, auction.totalSupply - auction.totalCleared) : null;

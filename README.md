@@ -1,11 +1,16 @@
 <div align="center">
 
-# thaamba
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/brand/logo-dark.png">
+  <img src="docs/brand/logo-light.png" width="300" alt="thaamba">
+</picture>
 
-**An exchange that can say no.**
+<br><br>
 
-Indian SME shares, listed and traded on Ethereum. The price limits, the halts and
-the allotment are public code instead of a desk nobody can see.
+**Keeping an on-chain share honest about what it is worth.**
+
+A tokenised stock drifts from the real one the moment the real market closes.
+thaamba makes that drift cost money, and at the edge makes it impossible.
 
 Built at ETHGlobal Mumbai, 2026 · Ethereum Sepolia
 
@@ -13,27 +18,51 @@ Built at ETHGlobal Mumbai, 2026 · Ethereum Sepolia
 
 ---
 
-## The problem
+## The problem we are actually solving
 
-India already has good rules for small-company listings. An SME IPO opens with a
-call auction, the first day trades inside a band of plus or minus 5 percent, and
-surveillance can tighten that band whenever it likes. The rules are sensible. The
-way they are applied is a black box: the opening cap arrived by circular after
-day-one falls of 30 to 50 percent became routine, the allotment lottery is run by
-a registrar nobody outside can audit, and a band can change without the reason
-ever being published.
+A tokenised stock trades around the clock. The share it represents does not.
 
-Tokenised stocks have the opposite problem. No rules at all. They trade around
-the clock on venues that enforce nothing, so when the real market shuts the token
-keeps moving and nothing pulls it back until Monday. Ondo's S&P 500 token sat at
-a 0.99 percent premium after one Friday close. Weekend volume on tokenised stocks
-went from $2.4M to $55.2M a day over two months. The arbitrage that should close
-that gap runs 24/5, which is to say it is switched off exactly when the gap
-opens.
+So the moment the real market shuts, the two prices come apart and nothing pulls
+them back. Ondo's S&P 500 token sat at a 0.99 percent premium after one Friday
+close, the widest post-close gap measured across platforms. Weekend volume on
+tokenised stocks went from $2.4M to $55.2M a day over two months, so this is not
+a rounding error any more. The arbitrage that should close the gap runs 24/5,
+which is to say it is switched off at exactly the hours the gap opens.
 
-thaamba puts the rules in the pool. An issuer picks a rulebook at listing, a
-Uniswap v4 hook enforces it on every swap, and anyone can read it before they
-trade. The market stays open when the one it mirrors is closed.
+Nobody in the business of issuing these tokens can fix it either. An issuer can
+make arbitrage cheaper, and Ondo and Backed both have, but neither controls the
+venue where the token actually trades, and an issuer policing secondary prices
+starts to look like an unregistered exchange. The only party that could fix it is
+the venue. No venue has.
+
+### What thaamba does about it
+
+The price limits live in the pool, so the venue enforces them.
+
+A Chainlink CRE workflow publishes the reference price the real market last
+printed, along with the rule in force. A Uniswap v4 hook reads that policy and
+checks every single swap against it before the trade settles:
+
+- Outside today's band, the swap reverts. Not a fee, not a warning. It does not happen.
+- While the real market is shut, the reference freezes and the pool switches to a one way rule: a trade that pushes the price **further** from the reference is turned away, while a trade that brings it **back** goes through untouched.
+- Under surveillance the band tightens. On a halt, trading stops entirely, though liquidity can always be withdrawn.
+
+The result is a market that stays open all weekend without letting the price
+wander off, because the only trades it will accept while the reference is stale
+are the ones that close the gap rather than widen it.
+
+### And the listing itself
+
+Companies get onto the exchange through an ICO: a Uniswap Continuous Clearing
+Auction where everyone who fills pays one clearing price, bids are capped at 190
+percent of the issue price, and each wallet has a limit. It is how a company
+arrives. It is not the point of the product.
+
+We model the listing rules on India's SME market because they are the clearest
+example of an exchange that already thinks this way, with an opening cap, a
+listing-day band and a surveillance regime. The difference is that on the NSE
+those rules are applied behind a curtain, and here they are code anyone can read
+before they trade.
 
 ---
 
@@ -41,7 +70,7 @@ trade. The market stays open when the one it mirrors is closed.
 
 ### On a phone
 
-| Markets | Company | IPO | Portfolio |
+| Markets | Company | ICO | Portfolio |
 |---|---|---|---|
 | <img src="docs/screens/mobile-markets.png" width="200"> | <img src="docs/screens/mobile-company.png" width="200"> | <img src="docs/screens/mobile-ipo.png" width="200"> | <img src="docs/screens/mobile-portfolio.png" width="200"> |
 
@@ -74,12 +103,12 @@ Then the rule goes up. A Chainlink CRE workflow reads the exchange calendar and
 writes a signed report on chain carrying the reference price, the band, the mode
 and whether trading is halted.
 
-The IPO itself is a Uniswap Continuous Clearing Auction. Applications come in,
+The ICO itself is a Uniswap Continuous Clearing Auction. Applications come in,
 everyone who fills pays the same clearing price, bids above 190 percent of the
 issue price are refused by a validation hook, and each wallet has a cap.
 
-If it raises enough, LBPStrategy migrates into a Uniswap v4 pool at exactly the
-clearing price, and the ListingHook writes down the listing-day band.
+If it raises enough, [LBPStrategy](#uniswap-and-circle-contracts-we-build-on) migrates into a Uniswap v4 pool at exactly the
+clearing price, and the [ListingHook](#the-contracts-we-wrote) writes down the listing-day band.
 
 After that every swap goes through the hook. Outside the band it reverts. Under
 surveillance the band tightens. In directional mode a trade that widens the gap
@@ -101,7 +130,7 @@ Listing `acme-v1`, deployed at block 12077327.
 | `AuctionValidationHook` | The 190 percent bid cap, and the eligibility module behind it. | [`0xB1FCD717…Be002`](https://sepolia.etherscan.io/address/0xB1FCD717C120A7BB8e0732d5C703DEa1682Be002) |
 | `AllowAllModule` | The per-wallet application cap, 20 USDC. | [`0x35Fa94d5…a453`](https://sepolia.etherscan.io/address/0x35Fa94d5Be2700D42Bbbc82665eE7B79699Ea453) |
 | `MockSME` | The share token, fixed supply of 110,000. | [`0x8F902CAB…8152`](https://sepolia.etherscan.io/address/0x8F902CABeD3D72bd21EFaaC878a490E81aF78152) |
-| CCA auction | The IPO book for this listing. | [`0xF36d09f6…5aE3`](https://sepolia.etherscan.io/address/0xF36d09f6C780bde8f09000d87e47B9D3E2EE5aE3) |
+| CCA auction | The ICO book for this listing. | [`0xF36d09f6…5aE3`](https://sepolia.etherscan.io/address/0xF36d09f6C780bde8f09000d87e47B9D3E2EE5aE3) |
 
 ### The ENS names
 
@@ -246,9 +275,9 @@ flowchart TB
     cca["CCA auction<br/>one clearing price"]
     lbp["LBPStrategy<br/>migrates at clearing"]
     pool["Uniswap v4 pool"]
-    hook["ListingHook<br/>band · surveillance · directional · halt"]
-    recv["ListingPolicyReceiver<br/>effective policy"]
-    token["MockSME<br/>share token"]
+    hook["[ListingHook](#the-contracts-we-wrote)<br/>band · surveillance · directional · halt"]
+    recv["[ListingPolicyReceiver](#the-contracts-we-wrote)<br/>effective policy"]
+    token["[MockSME](#the-contracts-we-wrote)<br/>share token"]
   end
 
   cre["Chainlink CRE workflow"]

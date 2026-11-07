@@ -87,7 +87,7 @@ and inside the Trading rule sheet.
 nothing is a number without a reason to read it.
 
 **Fed by** `GET /v1/market/:ticker` `liquidity.usdc` / `liquidity.shares` (what the pool can actually
-buy and sell), `policy.referencePrice`, `policy.bandBps`, `policy.version`, `listingPrice`; on an IPO by
+buy and sell), `policy.referencePrice`, `policy.bandBps`, `policy.version`, `listingPrice`; on an ICO by
 `GET /v1/auction/:ticker` (`issuePrice`, `floorPrice`, `capPrice`, `perApplicantCap`, `totalSupply`,
 `requiredRaise`).
 
@@ -113,7 +113,7 @@ Suggested mapping: `draft` → draft current; `live` → applications current; `
 current; `listed` → trading current, everything before it done; `refunding` → final price current with
 `tone: "loss"` and the label "Not listed".
 
-**Screen** IPO phases of the company page, above the chart; and the console Listing header. It is not
+**Screen** ICO phases of the company page, above the chart; and the console Listing header. It is not
 the approval `Stepper` (UI.md 2.17), which counts three wallet prompts inside a sheet.
 
 | prop | type | |
@@ -123,13 +123,13 @@ the approval `Stepper` (UI.md 2.17), which counts three wallet prompts inside a 
 
 ## SubscriptionMeter — `subscription-meter.tsx`
 
-**Shows** how much of an IPO has been applied for, whether it has passed the raise it needs to list
+**Shows** how much of an ICO has been applied for, whether it has passed the raise it needs to list
 (the tick on the bar), by how many times it is subscribed, and who applied.
 
 **Fed by** `GET /v1/auction/:ticker`: `raised`, `targetRaise`, `requiredRaise`, `bidCount`, `applicants`,
 `perApplicantCap`, `graduated`; `closes` is `blocksRemaining` through `blocksToCountdown`.
 
-**Screen** IPO phases of the company page, under the chart (UX.md 3.4 "subscription card"), and the IPO
+**Screen** ICO phases of the company page, under the chart (UX.md 3.4 "subscription card"), and the ICO
 card in the Markets list.
 
 | prop | type | |
@@ -148,7 +148,7 @@ up by one high application or a wall of them, and how close the next one is to b
 **Fed by** `GET /v1/bids?ticker=` — group `bids[]` by `maxPrice`, sum `budget`, count the rows. The line
 through the ladder is `clearingPrice` from `GET /v1/auction/:ticker`.
 
-**Screen** IPO phases of the company page, Overview tab; and the console Monitor step next to the
+**Screen** ICO phases of the company page, Overview tab; and the console Monitor step next to the
 applications table.
 
 | prop | type | |

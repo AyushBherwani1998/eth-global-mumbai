@@ -294,7 +294,7 @@ function swapDir<T extends string>(order: readonly T[] | undefined, from: T, to:
 }
 
 /**
- * One view replacing another in place: Markets' Stocks and IPO bodies, the IPO
+ * One view replacing another in place: Markets' Stocks and ICO bodies, the ICO
  * status segments. The incoming body arrives on the shared swap movement while
  * the page holds the height it had, so the change reads as a movement and the
  * tab row above it does not shift. Under reduced motion it is immediate.
@@ -664,7 +664,7 @@ export function ListRow({
   onClick?: () => void;
   logo?: ReactNode;
   title: ReactNode;
-  /** One grey line under the name (sector, "IPO open · closes in 42m"). */
+  /** One grey line under the name (sector, "ICO open · closes in 42m"). */
   sub?: ReactNode;
   /** Right column, line 1 (price 18/500 or "Apply"). */
   right?: ReactNode;
@@ -735,7 +735,7 @@ export function CompanyCard({
   href: string;
   logo: ReactNode;
   name: string;
-  /** Price line (16/400). For an open IPO pass "Closes in 02:14" instead. */
+  /** Price line (16/400). For an open ICO pass "Closes in 02:14" instead. */
   price: ReactNode;
   /** Change line (14/500 gain/loss), usually <Change />. */
   change?: ReactNode;
@@ -1272,7 +1272,7 @@ export function statusLabel(ipo: Pick<Ipo, "status" | "phase">): string {
     case "draft":
       return "Upcoming";
     case "auction":
-      return "IPO open";
+      return "ICO open";
     case "listed":
       return "Listed";
     case "surveillance":

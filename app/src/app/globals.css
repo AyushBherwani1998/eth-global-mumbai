@@ -545,7 +545,7 @@ input[type="range"].slider:focus-visible::-moz-range-thumb {
 }
 
 /*
- * View swap: one body replacing another under a tab row (Stocks|IPO, the IPO
+ * View swap: one body replacing another under a tab row (Stocks|ICO, the ICO
  * segments, UnderlineTabs and Segmented everywhere else). 200ms on --ease-swap,
  * fading in and travelling 8px from the side the tab row moved towards. It is
  * played from JS (components/ui.tsx) because the direction is only known at the

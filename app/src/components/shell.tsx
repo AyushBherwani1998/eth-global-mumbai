@@ -467,7 +467,7 @@ export function SearchButton() {
 
 /**
  * One company row in three shapes (UX.md section 2): listed (price and today's
- * change, with a Watch / Halted word), IPO open or upcoming, and closed but not
+ * change, with a Watch / Halted word), ICO open or upcoming, and closed but not
  * listed. Search results use these; list screens can reuse them.
  */
 export function CompanyResultRow({
@@ -511,7 +511,7 @@ export function CompanyResultRow({
         title={ipo.name}
         sub={
           <>
-            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · IPO open
+            <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · ICO open
             {ipo.endBlock !== null ? ` · closes in ${blocksToCountdown(Math.max(0, ipo.endBlock - currentBlock))}` : ""}
           </>
         }
@@ -528,7 +528,7 @@ export function CompanyResultRow({
         sub={
           <>
             <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> ·{" "}
-            {ipo.startBlock !== null ? `IPO opens in ${blocksToCountdown(Math.max(0, ipo.startBlock - currentBlock))}` : COPY.noSchedule}
+            {ipo.startBlock !== null ? `ICO opens in ${blocksToCountdown(Math.max(0, ipo.startBlock - currentBlock))}` : COPY.noSchedule}
           </>
         }
         right={<span className="t-body text-text-2">Upcoming</span>}
@@ -542,7 +542,7 @@ export function CompanyResultRow({
       title={ipo.name}
       sub={
         <>
-          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.phase === "cleared" ? "IPO closed · about to list" : "Not listed · refunds open"}
+          <TickerMark ticker={ipo.ticker} symbol={ipo.symbol} /> · {ipo.phase === "cleared" ? "ICO closed · about to list" : "Not listed · refunds open"}
         </>
       }
       right={

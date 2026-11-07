@@ -1,6 +1,6 @@
 "use client";
 
-// SubscriptionMeter (rich): how much of an IPO has been applied for, whether it
+// SubscriptionMeter (rich): how much of an ICO has been applied for, whether it
 // has passed the raise it needs to list, and who has applied.
 //
 // Fed by GET /v1/auction/:ticker — `raised`, `targetRaise`, `requiredRaise`,
