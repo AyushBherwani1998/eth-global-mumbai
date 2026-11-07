@@ -63,7 +63,9 @@ contract DemoDeploy is DemoBase {
     }
 
     function _deployToken(address issuer) internal returns (MockSME token) {
-        bytes memory initCode = abi.encodePacked(type(MockSME).creationCode, abi.encode("Acme SME", "ACME", issuer));
+        string memory name = vm.envOr("STOCK_NAME", string("Acme SME"));
+        string memory symbol = vm.envOr("STOCK_SYMBOL", string("ACME"));
+        bytes memory initCode = abi.encodePacked(type(MockSME).creationCode, abi.encode(name, symbol, issuer));
         bytes32 initCodeHash = keccak256(initCode);
         uint256 i;
         bytes32 salt = _salt(string.concat("MockSME#", vm.toString(i)));
@@ -71,7 +73,7 @@ contract DemoDeploy is DemoBase {
             salt = _salt(string.concat("MockSME#", vm.toString(++i)));
         }
         (address addr, bool fresh) = _create2(salt, initCode);
-        if (fresh) _tx("MockSME (CREATE2, 110,000 ACME to the issuer)");
+        if (fresh) _tx(string.concat("MockSME (CREATE2, ", symbol, " to the issuer)"));
         token = MockSME(addr);
         console2.log("MockSME", addr, fresh ? "(deployed)" : "(exists)");
     }
@@ -94,10 +96,13 @@ contract DemoDeploy is DemoBase {
             return (module, validationHook);
         }
         address predicted = vm.computeCreateAddress(deployer, vm.getNonce(deployer) + 1);
-        _tx("AllowAllModule (20 USDC per wallet)");
-        module = new AllowAllModule(predicted, ListingDay.APPLICANT_CAP);
-        _tx("AuctionValidationHook (cap 190 points)");
-        validationHook = new AuctionValidationHook(module, address(token), Sepolia.USDC, ListingPrice.CAP_PRICE_Q96);
+        uint128 applicantCap = uint128(vm.envOr("APPLICANT_CAP_USDC_RAW", uint256(20e6)));
+        uint256 capPoints = _capPoints();
+        uint256 capPriceQ96 = _pointsToQ96(capPoints);
+        _tx("AllowAllModule (per wallet cap)");
+        module = new AllowAllModule(predicted, applicantCap);
+        _tx(string.concat("AuctionValidationHook (cap ", vm.toString(capPoints), " points)"));
+        validationHook = new AuctionValidationHook(module, address(token), Sepolia.USDC, capPriceQ96);
         require(address(validationHook) == predicted, "validation hook address prediction");
         console2.log("AllowAllModule", address(module), "(deployed)");
         console2.log("AuctionValidationHook", address(validationHook), "(deployed)");
@@ -151,9 +156,10 @@ contract DemoDeploy is DemoBase {
 
     function _check(Deployed memory c, address deployer, address broadcaster) internal view {
         require(address(c.token) > Sepolia.USDC, "MockSME must sort above USDC");
+        uint256 supply = _totalSupply();
         require(
-            c.token.balanceOf(deployer) == ListingDay.TOTAL_SUPPLY || c.validationHook.auction() != address(0),
-            "issuer holds 110,000 ACME"
+            c.token.balanceOf(deployer) == supply || c.validationHook.auction() != address(0),
+            "issuer holds total supply"
         );
         require(c.module.hook() == address(c.validationHook), "module bound to the validation hook");
         require(c.hook.authorized() == Sepolia.LBP_STRATEGY, "hook authorizes LBPStrategy");
@@ -259,19 +265,56 @@ contract DemoDeploy is DemoBase {
     }
 
     function _paramsJson() internal returns (string memory p) {
+        uint256 floorPts = _floorPoints();
+        uint256 issuePts = _issuePoints();
+        uint256 capPts = _capPoints();
         p = "params";
-        vm.serializeUint(p, "totalSupply", ListingDay.TOTAL_SUPPLY);
-        vm.serializeUint(p, "auctionSupply", ListingDay.AUCTION_SUPPLY);
-        vm.serializeUint(p, "lpReserve", ListingDay.LP_RESERVE);
-        vm.serializeUint(p, "applicantCap", ListingDay.APPLICANT_CAP);
-        vm.serializeUint(p, "requiredCurrencyRaised", ListingDay.REQUIRED_CURRENCY_RAISED);
-        vm.serializeUint(p, "floorPoints", ListingPrice.FLOOR_POINTS);
-        vm.serializeUint(p, "issuePoints", ListingPrice.ISSUE_POINTS);
-        vm.serializeUint(p, "capPoints", ListingPrice.CAP_POINTS);
-        vm.serializeUint(p, "floorPriceQ96", ListingPrice.FLOOR_PRICE_Q96);
-        vm.serializeUint(p, "capPriceQ96", ListingPrice.CAP_PRICE_Q96);
+        vm.serializeUint(p, "totalSupply", _totalSupply());
+        vm.serializeUint(p, "auctionSupply", _auctionSupply());
+        vm.serializeUint(p, "lpReserve", _lpReserve());
+        vm.serializeUint(p, "applicantCap", vm.envOr("APPLICANT_CAP_USDC_RAW", uint256(20e6)));
+        vm.serializeUint(p, "requiredCurrencyRaised", _requiredRaise());
+        vm.serializeUint(p, "floorPoints", floorPts);
+        vm.serializeUint(p, "issuePoints", issuePts);
+        vm.serializeUint(p, "capPoints", capPts);
+        vm.serializeUint(p, "floorPriceQ96", _pointsToQ96(floorPts));
+        vm.serializeUint(p, "capPriceQ96", _pointsToQ96(capPts));
         vm.serializeUint(p, "tickSpacingQ96", ListingPrice.TICK_SPACING_Q96);
         vm.serializeUint(p, "onePointQ96", ListingPrice.ONE_POINT_Q96);
         p = vm.serializeUint(p, "lpRateMps", LP_RATE_MPS);
+    }
+
+    function _totalSupply() internal view returns (uint256) {
+        return vm.envOr("TOTAL_SUPPLY_SHARES", uint256(110_000)) * 1e18;
+    }
+
+    function _auctionSupply() internal view returns (uint256) {
+        return vm.envOr("AUCTION_SUPPLY_SHARES", uint256(90_000)) * 1e18;
+    }
+
+    function _lpReserve() internal view returns (uint256) {
+        return vm.envOr("LP_RESERVE_SHARES", uint256(20_000)) * 1e18;
+    }
+
+    function _requiredRaise() internal view returns (uint128) {
+        return uint128(vm.envOr("REQUIRED_RAISE_USDC_RAW", uint256(45e6)));
+    }
+
+    function _floorPoints() internal view returns (uint256) {
+        return vm.envOr("FLOOR_POINTS", uint256(80));
+    }
+
+    function _issuePoints() internal view returns (uint256) {
+        return vm.envOr("ISSUE_POINTS", uint256(100));
+    }
+
+    function _capPoints() internal view returns (uint256) {
+        uint256 issue = _issuePoints();
+        uint256 capPct = vm.envOr("CAP_PERCENT", uint256(190));
+        return (issue * capPct) / 100;
+    }
+
+    function _pointsToQ96(uint256 points) internal pure returns (uint256) {
+        return points * ListingPrice.ONE_POINT_Q96;
     }
 }
