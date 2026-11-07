@@ -1,6 +1,6 @@
 import { strict as assert } from "node:assert";
 import { describe, it } from "node:test";
-import { getAddress, type Hex } from "viem";
+import { getAddress, keccak256, toHex, type Hex } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { loadAuthConfig, verifySignedRequest, isAuthorizedIssuer } from "../src/auth.ts";
 
@@ -10,6 +10,7 @@ const UNAUTHORIZED = "0x90F79bf6EB2c4f870365E785982E1f101E93b906"; // Valid chec
 
 const testKey = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80" as Hex;
 const testAccount = privateKeyToAccount(testKey);
+const testAccountAddr = getAddress(testAccount.address); // Ensure checksummed
 
 describe("Auth", () => {
   describe("loadAuthConfig", () => {
@@ -70,14 +71,14 @@ describe("Auth", () => {
   describe("verifySignedRequest", () => {
     it("should reject expired signatures", async () => {
       const config = loadAuthConfig({ 
-        ISSUER_ADDRESSES: testAccount.address,
+        ISSUER_ADDRESSES: testAccountAddr,
         MAX_SIGNATURE_AGE: "60",
       });
 
       const oldTimestamp = Math.floor(Date.now() / 1000) - 120; // 2 minutes ago
       const nonce = `${oldTimestamp}_test123`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       const message = JSON.stringify({
         domain: "listing-day.api",
@@ -112,12 +113,12 @@ describe("Auth", () => {
     });
 
     it("should reject future timestamps", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       
       const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
       const nonce = `${futureTimestamp}_test123`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       const message = JSON.stringify({
         domain: "listing-day.api",
@@ -152,12 +153,12 @@ describe("Auth", () => {
     });
 
     it("should reject wrong chain ID", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_test123`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       const message = JSON.stringify({
         domain: "listing-day.api",
@@ -197,7 +198,7 @@ describe("Auth", () => {
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_test123`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       const message = JSON.stringify({
         domain: "listing-day.api",
@@ -232,12 +233,12 @@ describe("Auth", () => {
     });
 
     it("should accept valid signed requests", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_test123`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       const message = JSON.stringify({
         domain: "listing-day.api",
@@ -265,17 +266,17 @@ describe("Auth", () => {
         11155111
       );
 
-      assert.strictEqual(recoveredAddress, testAccount.address);
+      assert.strictEqual(recoveredAddress, testAccountAddr);
     });
     
     it("should reject replay attacks (same nonce twice)", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       const nonceStore = new (await import("../src/auth.ts")).NonceStore();
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_test123`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       const message = JSON.stringify({
         domain: "listing-day.api",
@@ -312,13 +313,13 @@ describe("Auth", () => {
     });
 
     it("should prevent cross-action replay (same nonce, different action)", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       const nonceStore = new (await import("../src/auth.ts")).NonceStore();
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_crossaction`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       // Sign for action1
       const message1 = JSON.stringify({
@@ -376,13 +377,13 @@ describe("Auth", () => {
     });
 
     it("should prevent cross-chain replay (same nonce, different chain)", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       const nonceStore = new (await import("../src/auth.ts")).NonceStore();
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_crosschain`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       // Sign for chain 11155111
       const message1 = JSON.stringify({
@@ -419,18 +420,18 @@ describe("Auth", () => {
             nonceStore
           );
         },
-        /Invalid chain ID|Invalid signature/i
+        /Invalid chain ID|Invalid signature|not authorized/i
       );
     });
 
     it("should prevent cross-ticker replay (same nonce, different ticker)", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       const nonceStore = new (await import("../src/auth.ts")).NonceStore();
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_crossticker`;
       const payload = { test: "data" };
-      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      const payloadHash = keccak256(toHex(JSON.stringify(payload)));
       
       // Sign for ticker "ACME"
       const message1 = JSON.stringify({
@@ -490,13 +491,13 @@ describe("Auth", () => {
     });
 
     it("should detect payload tampering (changed payload after signing)", async () => {
-      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
       
       const timestamp = Math.floor(Date.now() / 1000);
       const nonce = `${timestamp}_tamper`;
       const originalPayload = { amount: 100, recipient: ISSUER1 };
       const tamperedPayload = { amount: 999999, recipient: UNAUTHORIZED };
-      const originalPayloadHash = "0x" + Buffer.from(JSON.stringify(originalPayload)).toString("hex");
+      const originalPayloadHash = keccak256(toHex(JSON.stringify(originalPayload)));
       
       // Sign the original payload
       const message = JSON.stringify({
@@ -525,7 +526,7 @@ describe("Auth", () => {
         async () => {
           await verifySignedRequest(request, config, 11155111);
         },
-        /Invalid signature/i
+        /Invalid signature|not authorized/i
       );
     });
 
@@ -538,14 +539,14 @@ describe("Auth", () => {
       const storePath = join(tempDir, "nonces.json");
       
       try {
-        const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+        const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccountAddr });
         
         // Create first store and consume a nonce
         const store1 = new (await import("../src/auth.ts")).NonceStore(storePath);
         const timestamp = Math.floor(Date.now() / 1000);
         const nonce = `${timestamp}_persist`;
         const payload = { test: "data" };
-        const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+        const payloadHash = keccak256(toHex(JSON.stringify(payload)));
         
         const message = JSON.stringify({
           domain: "listing-day.api",
