@@ -148,7 +148,7 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
       
       setDeploymentStatus("Starting deployment...");
       
-      // Execute 5-step deployment
+      // Execute 8-step deployment
       const { executeDeployment } = await import("./deploy-orchestrator");
       
       // Create wallet client compatible with orchestrator
@@ -167,6 +167,10 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
           const txResponse = await signer.sendTransaction(txRequest);
           return txResponse.hash;
         },
+        signMessage: async (message: string) => {
+          // @ts-expect-error - wallet.signMessage exists in Privy
+          return await wallet.signMessage(message);
+        },
       };
       
       const deployResult = await executeDeployment(
@@ -174,7 +178,7 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
         walletClient,
         API_URL,
         (step, status) => {
-          setDeploymentStatus(`Step ${step}/5: ${status}`);
+          setDeploymentStatus(`Step ${step}/8: ${status}`);
         }
       );
       
