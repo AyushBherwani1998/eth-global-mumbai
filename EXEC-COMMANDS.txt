@@ -1,0 +1,69 @@
+# FINAL EXECUTION COMMANDS - commit 05ff2a4
+
+## Blockers FIXED
+- uint128 cast: DemoLaunch.s.sol line 157 ✓
+- MockSME 110k supply: all configs adjusted ✓
+- JIOFIN preserved: existing deployment works ✓
+- Out-of-band test: skip flag added ✓
+- Budget: 354 USDC from 6 wallets (360 available) ✓
+
+## Per-Stock Commands
+
+### JIOFIN (Resume from Deployed State)
+cd contracts
+set -a && source config-jiofin.env && set +a
+export SKIP_OUT_OF_BAND_TEST=true
+
+# Already deployed:
+# - Token 0xCddd3c36C3634758571Cd8FF9A77247ED879146B
+# - Hook 0xC22566424b09C5466f39655cFDC2A43299AB70C0  
+# - Receiver 0x594B83406A429074EE34E39aD7B62332A24F0d43
+
+# Need auction:
+make launch wait-start bids wait-migration settle trade
+
+### Reliance (Full Deployment)
+set -a && source config-reliance.env && set +a
+export SKIP_OUT_OF_BAND_TEST=true
+
+make deploy launch wait-start bids wait-migration settle trade
+
+### TCS (Full Deployment, 6-Hour Open)
+set -a && source config-tcs.env && set +a  
+export SKIP_OUT_OF_BAND_TEST=true
+
+make deploy launch wait-start bids
+# STOP - leave auction open 6 hours
+
+## Output Files
+- deployments/sepolia.json (ACME - existing, preserved)
+- deployments/sepolia-jiofin.json (auction added to existing)
+- deployments/sepolia-reliance.json (new)
+- deployments/sepolia-tcs.json (new)
+
+## API Configuration
+In services/api/.env:
+DEPLOYMENTS_FILES="../../contracts/deployments/sepolia.json#acme,../../contracts/deployments/sepolia-jiofin.json#jiofin,../../contracts/deployments/sepolia-reliance.json#reliance,../../contracts/deployments/sepolia-tcs.json#tcs"
+
+Restart API or let hot-reload
+curl http://localhost:8788/v1/listings | jq '.listings[].ticker'
+Expected: acme, jiofin, reliance, tcs
+
+## Verification Commands
+# Check policy not halted:
+cast call 0x594B83406A429074EE34E39aD7B62332A24F0d43 "policy()(uint160,uint64,uint64,uint16,uint16,uint8,bool,uint64,uint16)" --rpc-url $SEPOLIA_RPC_URL
+# 7th field (bool) should be false
+
+# Check auction exists (after launch):
+cast call $AUCTION_ADDRESS "endBlock()(uint64)" --rpc-url $SEPOLIA_RPC_URL
+
+## Budget Final
+JIOFIN: 99 USDC (6 wallets, already funded)
+Reliance: 120 USDC (6 wallets)
+TCS: 135 USDC (6 wallets)
+Total: 354 USDC (360 available, 6 buffer)
+
+## Branch & Commit
+Branch: cursor/multi-stock-config-8da0
+Commit: 05ff2a4
+PR: #34 (leave open, no merge)
