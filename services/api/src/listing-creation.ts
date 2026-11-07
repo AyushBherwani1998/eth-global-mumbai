@@ -16,6 +16,10 @@ export type ListingCreationPhase =
   | "pending_receiver"
   | "receiver_deployed"
   | "pending_policy_source"
+  | "policy_source_set"
+  | "pending_auction"
+  | "auction_created"
+  | "pending_auction_binding"
   | "completed"
   | "error";
 
@@ -55,6 +59,9 @@ export type ListingCreationState = {
     floorPoints?: string;
     issuePoints?: string;
     capPoints?: string;
+    auctionAddress?: string;
+    auctionPoolId?: string;
+    auctionTxHash?: string;
   };
 };
 

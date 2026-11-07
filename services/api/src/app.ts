@@ -600,5 +600,407 @@ export function createApp(ctx: Ctx): Hono {
     return json(c, result);
   });
 
+  // Step 7: Auction creation - prepare approval and multicall transactions
+  app.post("/v1/listings/creation/:id/prepare-auction", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
+
+    const id = c.req.param("id");
+    const listing = listingStorage.get(id);
+
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 400);
+    }
+
+    // Verify steps 1-6 are complete
+    if (!listing.tokenAddress || !listing.validationHookAddress || !listing.hookAddress || !listing.receiverAddress) {
+      return json(c, {
+        error: {
+          code: "INCOMPLETE_DEPLOYMENT",
+          message: "Complete steps 1-6 before creating auction"
+        }
+      }, 400);
+    }
+
+    try {
+      // Get network config from existing listings
+      const existingListings = allListings(ctx);
+      if (existingListings.length === 0) {
+        return json(c, {
+          error: {
+            code: "NO_REFERENCE_CONFIG",
+            message: "No existing listings found for network configuration"
+          }
+        }, 500);
+      }
+
+      const refListing = existingListings[0]!;
+      const currentBlock = await ctx.client.getBlockNumber();
+
+      // Auction schedule from env or defaults
+      const startDelayBlocks = BigInt(process.env.START_DELAY_BLOCKS || "10");
+      const bidWindowBlocks = BigInt(process.env.BID_WINDOW_BLOCKS || "30");
+      const clearBlocks = BigInt(process.env.CLEAR_BLOCKS || "20");
+
+      // Constants from ListingDay
+      const totalSupply = 110_000n * 10n ** 18n;
+      const auctionSupply = 90_000n * 10n ** 18n;
+      const lpReserve = 20_000n * 10n ** 18n;
+      const requiredCurrencyRaised = 45n * 10n ** 6n;
+
+      // Price constants from ListingPrice
+      const onePointQ96 = 792_281_625_142n;
+      const floorPriceQ96 = 80n * onePointQ96;
+      const tickSpacingQ96 = 1n * onePointQ96;
+
+      // Pool params
+      const poolFee = 3000n;
+      const poolTickSpacing = 60n;
+      const lpRateMps = 2_000_000n;
+
+      const { preparePermit2Approval, prepareLauncherPermit2Approval, prepareAuctionCreation } = await import("./auction-creation.ts");
+
+      const auctionParams = {
+        tokenAddress: listing.tokenAddress,
+        validationHookAddress: listing.validationHookAddress,
+        hookAddress: listing.hookAddress,
+        usdc: refListing.external.usdc,
+        permit2: refListing.external.permit2,
+        liquidityLauncher: refListing.external.liquidityLauncher,
+        lbpStrategy: refListing.external.lbpStrategy,
+        issuerAddress: listing.issuerAddress,
+        treasuryAddress: listing.issuerAddress, // Issuer is treasury for demo
+        totalSupply,
+        auctionSupply,
+        lpReserve,
+        requiredCurrencyRaised,
+        floorPriceQ96,
+        tickSpacingQ96,
+        poolFee,
+        poolTickSpacing,
+        lpRateMps,
+        startDelayBlocks,
+        bidWindowBlocks,
+        clearBlocks,
+        currentBlock,
+      };
+
+      // Prepare the three transactions
+      const step7a = preparePermit2Approval({
+        tokenAddress: listing.tokenAddress,
+        permit2: refListing.external.permit2,
+      });
+
+      const expiry = BigInt(Math.floor(Date.now() / 1000) + 3600); // 1 hour from now
+      const step7b = prepareLauncherPermit2Approval({
+        tokenAddress: listing.tokenAddress,
+        permit2: refListing.external.permit2,
+        liquidityLauncher: refListing.external.liquidityLauncher,
+        totalSupply,
+        expiry,
+      });
+
+      const step7c = prepareAuctionCreation(auctionParams);
+
+      return json(c, {
+        success: true,
+        steps: [step7a, step7b, step7c],
+        lbpStrategy: refListing.external.lbpStrategy, // Needed for event parsing
+        auctionSchedule: {
+          startBlock: Number(currentBlock + startDelayBlocks),
+          bidWindowEndBlock: Number(currentBlock + startDelayBlocks + bidWindowBlocks),
+          endBlock: Number(currentBlock + startDelayBlocks + bidWindowBlocks + clearBlocks),
+        }
+      });
+    } catch (error) {
+      return json(c, {
+        error: {
+          code: "AUCTION_PREP_FAILED",
+          message: error instanceof Error ? error.message : String(error)
+        }
+      }, 500);
+    }
+  });
+
+  // Submit auction creation transaction and extract auction address
+  app.post("/v1/listings/creation/:id/submit-auction", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
+
+    const id = c.req.param("id");
+    const payload = signedReq.payload as Record<string, unknown>;
+    const { txHash, lbpStrategy } = payload;
+
+    if (!txHash || typeof txHash !== "string") {
+      throw badRequest("Missing txHash");
+    }
+    if (!lbpStrategy || typeof lbpStrategy !== "string") {
+      throw badRequest("Missing lbpStrategy address");
+    }
+
+    const listing = listingStorage.get(id);
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 400);
+    }
+
+    try {
+      const { waitForAuctionCreation } = await import("./event-parser.ts");
+
+      // Wait for transaction and parse auction address
+      const event = await waitForAuctionCreation(
+        ctx.client,
+        txHash as Hex,
+        lbpStrategy as Address,
+        1
+      );
+
+      // Update listing with auction info
+      const updates: Partial<ListingCreationState> = {
+        phase: "pending_auction_binding" as any,
+      };
+
+      // Store auction address in deployment config
+      if (!listing.deploymentConfig) {
+        listing.deploymentConfig = {};
+      }
+      
+      const updatedListing = listingStorage.update(id, {
+        ...updates,
+        deploymentConfig: {
+          ...listing.deploymentConfig,
+          auctionAddress: event.auction,
+          auctionPoolId: event.poolId,
+          auctionTxHash: txHash,
+        } as any,
+      });
+
+      return json(c, {
+        success: true,
+        auction: event.auction,
+        poolId: event.poolId,
+        listing: updatedListing,
+      });
+    } catch (error) {
+      listingStorage.update(id, {
+        phase: "error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json(c, {
+        error: {
+          code: "AUCTION_PARSING_FAILED",
+          message: error instanceof Error ? error.message : String(error)
+        }
+      }, 500);
+    }
+  });
+
+  // Step 8: Prepare setAuction binding transaction
+  app.post("/v1/listings/creation/:id/prepare-set-auction", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
+
+    const id = c.req.param("id");
+    const listing = listingStorage.get(id);
+
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 400);
+    }
+
+    if (!listing.validationHookAddress) {
+      return json(c, {
+        error: {
+          code: "MISSING_VALIDATION_HOOK",
+          message: "ValidationHook not deployed"
+        }
+      }, 400);
+    }
+
+    const auctionAddress = listing.deploymentConfig?.auctionAddress as string | undefined;
+    if (!auctionAddress) {
+      return json(c, {
+        error: {
+          code: "MISSING_AUCTION",
+          message: "Auction not created yet. Complete step 7 first."
+        }
+      }, 400);
+    }
+
+    try {
+      const { prepareSetAuction } = await import("./auction-creation.ts");
+
+      const step8 = prepareSetAuction({
+        validationHookAddress: listing.validationHookAddress,
+        auctionAddress: auctionAddress as Address,
+      });
+
+      return json(c, {
+        success: true,
+        step: step8,
+      });
+    } catch (error) {
+      return json(c, {
+        error: {
+          code: "SET_AUCTION_PREP_FAILED",
+          message: error instanceof Error ? error.message : String(error)
+        }
+      }, 500);
+    }
+  });
+
+  // Submit setAuction binding transaction and complete deployment
+  app.post("/v1/listings/creation/:id/submit-set-auction", async (c) => {
+    const signedReq = await extractSignedRequest(c);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
+
+    const id = c.req.param("id");
+    const payload = signedReq.payload as Record<string, unknown>;
+    const { txHash } = payload;
+
+    if (!txHash || typeof txHash !== "string") {
+      throw badRequest("Missing txHash");
+    }
+
+    const listing = listingStorage.get(id);
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 400);
+    }
+
+    try {
+      // Wait for transaction confirmation
+      const receipt = await ctx.client.waitForTransactionReceipt({
+        hash: txHash as Hex,
+        confirmations: 1,
+      });
+
+      if (receipt.status !== "success") {
+        throw new Error("setAuction transaction failed");
+      }
+
+      // Mark deployment as complete
+      const updatedListing = listingStorage.update(id, {
+        phase: "completed",
+      });
+
+      // Register in deployments file
+      try {
+        const { registerListing, getDeploymentPath } = await import("./registry-integration.ts");
+        const existingListings = allListings(ctx);
+        const refListing = existingListings[0];
+
+        if (refListing) {
+          const deploymentPath = getDeploymentPath(listing.ticker, ctx.config.chainId);
+          
+          const deploymentData = {
+            chainId: ctx.config.chainId,
+            label: `${listing.ticker}-browser-v1`,
+            deployBlock: Number(receipt.blockNumber),
+            deployer: listing.issuerAddress,
+            issuer: listing.issuerAddress,
+            treasury: listing.issuerAddress,
+            creBroadcaster: getAddress(process.env.POLICY_BROADCASTER_ADDRESS || "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA"),
+            external: refListing.external,
+            contracts: {
+              mockSME: listing.tokenAddress!,
+              allowAllModule: listing.moduleAddress!,
+              auctionValidationHook: listing.validationHookAddress!,
+              listingHook: listing.hookAddress!,
+              listingPolicyReceiver: listing.receiverAddress!,
+            },
+            pool: {
+              poolId: listing.deploymentConfig?.auctionPoolId || "",
+              usdcIsCurrency0: true,
+              listingDayBandBps: 500,
+              listingDaySeconds: 3600,
+              poolKey: {
+                currency0: refListing.external.usdc,
+                currency1: listing.tokenAddress!,
+                fee: 3000,
+                tickSpacing: 60,
+                hooks: listing.hookAddress!,
+              },
+            },
+            receiverConfig: {
+              forwarder: getAddress("0x15fC6ae953E024d975e77382eEeC56A9101f9F88"),
+              broadcaster: getAddress(process.env.POLICY_BROADCASTER_ADDRESS || "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA"),
+              chainSelector: "0x",
+              maxAge: 86400,
+            },
+            params: {
+              totalSupply: "110000000000000000000000",
+              auctionSupply: "90000000000000000000000",
+              lpReserve: "20000000000000000000000",
+              applicantCap: "20000000",
+              requiredCurrencyRaised: "45000000",
+              floorPoints: 80,
+              issuePoints: 100,
+              capPoints: 190,
+              floorPriceQ96: (80n * 792281625142n).toString(),
+              capPriceQ96: (190n * 792281625142n).toString(),
+              tickSpacingQ96: (1n * 792281625142n).toString(),
+              onePointQ96: "792281625142",
+              lpRateMps: 2000000,
+            },
+            auction: listing.deploymentConfig?.auctionAddress ? {
+              address: listing.deploymentConfig.auctionAddress as Address,
+              startBlock: 0, // Will be filled by actual auction data
+              endBlock: 0,
+              claimBlock: 0,
+              migrationBlock: 0,
+              bidWindowBlocks: 30,
+              bidWindowEndBlock: 0,
+              clearBlocks: 20,
+              totalSupply: "90000000000000000000000",
+              floorPriceQ96: (80n * 792281625142n).toString(),
+              tickSpacingQ96: (1n * 792281625142n).toString(),
+              requiredCurrencyRaised: "45000000",
+              reservedTokenAmountForLP: "20000000000000000000000",
+              tokensRecipient: listing.issuerAddress,
+              fundsRecipient: refListing.external.lbpStrategy,
+              validationHook: listing.validationHookAddress!,
+            } : undefined,
+          };
+
+          registerListing(deploymentPath, deploymentData);
+        }
+      } catch (registryError) {
+        console.error("[registry] Failed to register listing:", registryError);
+        // Don't fail the request if registry update fails
+      }
+
+      return json(c, {
+        success: true,
+        listing: updatedListing,
+        message: "Deployment complete! Listing is now discoverable in the app."
+      });
+    } catch (error) {
+      listingStorage.update(id, {
+        phase: "error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json(c, {
+        error: {
+          code: "SET_AUCTION_FAILED",
+          message: error instanceof Error ? error.message : String(error)
+        }
+      }, 500);
+    }
+  });
+
   return app;
 }

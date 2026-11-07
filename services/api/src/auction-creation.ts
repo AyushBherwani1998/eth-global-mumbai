@@ -287,9 +287,76 @@ function encodeBrackets(brackets: Array<{ lowerThreshold: bigint; rate: bigint }
 
 /**
  * Encode distribution config data: abi.encode(migrationParams, abi.encode(auctionParams))
+ * This matches the exact encoding from DemoLaunch.s.sol
  */
 function encodeDistributionConfig(migrationParams: any, auctionParams: any): Hex {
-  // This is complex nested encoding - for now return a placeholder
-  // In production this would need proper ABI encoding matching the structs
-  return "0x" as Hex;
+  // First encode AuctionParameters
+  const encodedAuction = encodeAbiParameters(
+    [
+      { name: 'currency', type: 'address' },
+      { name: 'tokensRecipient', type: 'address' },
+      { name: 'fundsRecipient', type: 'address' },
+      { name: 'startBlock', type: 'uint64' },
+      { name: 'endBlock', type: 'uint64' },
+      { name: 'claimBlock', type: 'uint64' },
+      { name: 'tickSpacing', type: 'uint256' },
+      { name: 'validationHook', type: 'address' },
+      { name: 'floorPrice', type: 'uint256' },
+      { name: 'requiredCurrencyRaised', type: 'uint128' },
+      { name: 'auctionStepsData', type: 'bytes' }
+    ],
+    [
+      auctionParams.currency,
+      auctionParams.tokensRecipient,
+      auctionParams.fundsRecipient,
+      auctionParams.startBlock,
+      auctionParams.endBlock,
+      auctionParams.claimBlock,
+      auctionParams.tickSpacing,
+      auctionParams.validationHook,
+      auctionParams.floorPrice,
+      auctionParams.requiredCurrencyRaised,
+      auctionParams.auctionStepsData,
+    ]
+  );
+
+  // Then encode MigratorParameters with the encoded auction as bytes
+  return encodeAbiParameters(
+    [
+      { name: 'token', type: 'address' },
+      { name: 'currency', type: 'address' },
+      { name: 'migrationBlock', type: 'uint64' },
+      { name: 'reservedTokenAmountForLP', type: 'uint128' },
+      { name: 'recipient', type: 'address' },
+      { name: 'positionRecipient', type: 'address' },
+      {
+        name: 'poolParameters',
+        type: 'tuple',
+        components: [
+          { name: 'fee', type: 'uint24' },
+          { name: 'tickSpacing', type: 'int24' },
+          { name: 'hook', type: 'address' }
+        ]
+      },
+      { name: 'positionDefinitions', type: 'bytes' },
+      { name: 'lpAllocationSchedule', type: 'bytes' },
+      { name: 'encodedAuctionParams', type: 'bytes' }
+    ],
+    [
+      migrationParams.token,
+      migrationParams.currency,
+      migrationParams.migrationBlock,
+      migrationParams.reservedTokenAmountForLP,
+      migrationParams.recipient,
+      migrationParams.positionRecipient,
+      {
+        fee: migrationParams.poolParameters.fee,
+        tickSpacing: migrationParams.poolParameters.tickSpacing,
+        hook: migrationParams.poolParameters.hook,
+      },
+      migrationParams.positionDefinitions,
+      migrationParams.lpAllocationSchedule,
+      encodedAuction,
+    ]
+  );
 }
