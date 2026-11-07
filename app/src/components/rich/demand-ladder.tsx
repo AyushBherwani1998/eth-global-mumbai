@@ -1,6 +1,6 @@
 "use client";
 
-// DemandLadder (rich): how much money is waiting at each top price in an IPO,
+// DemandLadder (rich): how much money is waiting at each top price in an ICO,
 // and which of it clears. Every application names the most it will pay, so the
 // ladder says whether the price is being held up by a few high bids or a wall
 // of them, and how far the next applicant is from being refunded.

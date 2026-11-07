@@ -298,11 +298,11 @@ export function flagFor(market: MarketView | null): { text: string; tone: "warn"
 // Listings
 // ---------------------------------------------------------------------------
 
-/** An IPO is taking applications. */
+/** An ICO is taking applications. */
 export const isOpen = (l: Listing) => l.phase === "live";
-/** An IPO has not opened yet. */
+/** An ICO has not opened yet. */
 export const isUpcoming = (l: Listing) => l.phase === "draft";
-/** An IPO is over: it listed, it is waiting to list, or it is refunding. */
+/** An ICO is over: it listed, it is waiting to list, or it is refunding. */
 export const isClosed = (l: Listing) => l.phase === "listed" || l.phase === "cleared" || l.phase === "refunding";
 /** The company trades on the market. */
 export const isListed = (l: Listing) => l.phase === "listed";

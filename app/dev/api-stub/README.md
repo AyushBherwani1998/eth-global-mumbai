@@ -45,8 +45,8 @@ rule and every lifecycle phase is on screen somewhere:
 | `masala` | Listed, normal ±20% | Five policy versions over four days |
 | `nirmaan` | Listed, under watch ±5% | Slid after listing, then put under surveillance |
 | `vayu` | Listed, halted | Normal, then a one-way day, then halted an hour ago |
-| `kesar` | IPO open | Closes in ~40 minutes, 0.68x subscribed |
-| `tara` | IPO open | Just opened, barely subscribed |
+| `kesar` | ICO open | Closes in ~40 minutes, 0.68x subscribed |
+| `tara` | ICO open | Just opened, barely subscribed |
 | `lotus` | Refunding | Closed below the minimum raise |
 | `prakriti` | Upcoming | Opens in ~2 hours |
 

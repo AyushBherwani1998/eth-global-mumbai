@@ -1,6 +1,6 @@
 "use client";
 
-// Markets, IPO chip (UX.md 3.2): Open · Upcoming · Closed, one card per IPO,
+// Markets, ICO chip (UX.md 3.2): Open · Upcoming · Closed, one card per ICO,
 // and a summary row when this wallet has applications. Plain English only;
 // auction mechanics stay on the company page.
 //
@@ -58,7 +58,7 @@ export function IpoBody() {
   const { error, loading, retry, refreshing } = merge2(listings, auctions);
 
   // The segmented row holds the page height itself; a segment changed from
-  // somewhere else (the empty state's "See upcoming IPOs") has to say so.
+  // somewhere else (the empty state's "See upcoming ICOs") has to say so.
   const goSeg = (next: Seg) => {
     holdPageHeight();
     setSeg(next);
@@ -68,7 +68,7 @@ export function IpoBody() {
     <>
       <Segmented
         className="mt-4"
-        label="IPO status"
+        label="ICO status"
         value={shown}
         onChange={setSeg}
         options={[
@@ -102,10 +102,10 @@ export function IpoBody() {
         {!loading && !error && (
           <>
             {list.length === 0 && shown === "open" && (
-              <EmptyState title="No IPOs open right now" body="See what is coming up next." action={{ label: "See upcoming IPOs", onClick: () => goSeg("upcoming") }} />
+              <EmptyState title="No ICOs open right now" body="See what is coming up next." action={{ label: "See upcoming ICOs", onClick: () => goSeg("upcoming") }} />
             )}
-            {list.length === 0 && shown === "upcoming" && <EmptyState title="Nothing scheduled" body="New IPOs show up here when a company announces one." />}
-            {list.length === 0 && shown === "closed" && <EmptyState title="No closed IPOs yet" body="Finished IPOs and their results show up here." />}
+            {list.length === 0 && shown === "upcoming" && <EmptyState title="Nothing scheduled" body="New ICOs show up here when a company announces one." />}
+            {list.length === 0 && shown === "closed" && <EmptyState title="No closed ICOs yet" body="Finished ICOs and their results show up here." />}
           </>
         )}
 
@@ -133,7 +133,7 @@ export function IpoBody() {
 
         {list.length > 0 && (
           <p className="t-caption mt-6">
-            An IPO lists only if it raises the minimum shown on its card. Otherwise every application is refunded.
+            An ICO lists only if it raises the minimum shown on its card. Otherwise every application is refunded.
           </p>
         )}
       </ViewSwap>
@@ -266,8 +266,8 @@ function ListedCard({ listing, auction }: { listing: Listing; auction: Auction |
       </p>
       <p className="t-caption mt-1">
         {listing.phase === "cleared"
-          ? "This IPO is over. The company's shares are about to start trading."
-          : "This IPO is closed. The company trades on the Stocks tab."}
+          ? "This ICO is over. The company's shares are about to start trading."
+          : "This ICO is closed. The company trades on the Stocks tab."}
       </p>
       <Link href={hrefFor(listing)} className="mt-3 block">
         <Button variant="secondary" className="w-full">

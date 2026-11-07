@@ -4,7 +4,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "thaamba",
     short_name: "thaamba",
-    description: "Buy and sell shares of listed Indian SMEs, and apply to new IPOs.",
+    description: "Buy and sell shares of listed Indian SMEs, and apply to new ICOs.",
     start_url: "/",
     scope: "/",
     display: "standalone",

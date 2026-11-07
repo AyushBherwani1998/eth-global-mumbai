@@ -2,7 +2,7 @@
 
 // Markets, Stocks chip (UX.md 3.1): index strip, "Most traded" cards, the
 // "All stocks" table, today's rule changes and the disclaimer. Listed
-// companies only; IPOs live on the other chip. Every price is USDC per 1,000
+// companies only; ICOs live on the other chip. Every price is USDC per 1,000
 // shares.
 //
 // Data comes from the backend: GET /v1/listings for what exists, then
@@ -100,7 +100,7 @@ export function StocksBody() {
     return (
       <Card className="mt-4 p-4">
         <p className="t-list-title text-text">No companies listed yet</p>
-        <p className="t-body mt-1 text-text-2">Companies show up here the day their IPO lists.</p>
+        <p className="t-body mt-1 text-text-2">Companies show up here the day their ICO lists.</p>
       </Card>
     );
 
@@ -123,7 +123,7 @@ export function StocksBody() {
         />
         <IndexCard
           href="/?tab=ipo"
-          label="IPOs open"
+          label="ICOs open"
           value={String(openIpos)}
           change={<span className="t-change-sm text-text-2">{openIpos === 0 ? "none right now" : "taking applications"}</span>}
         />

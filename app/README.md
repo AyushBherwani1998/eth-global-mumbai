@@ -15,8 +15,8 @@ pnpm build && pnpm start   # service worker only registers in production
 
 | Route | Screen (screens.md §) |
 |---|---|
-| `/` | 1 · IPO list (ENS search, filter chips, circuit alerts) |
-| `/ipo/[ticker]` | 2 · IPO detail + bid sheet, 2a · World verify sheet |
+| `/` | 1 · ICO list (ENS search, filter chips, circuit alerts) |
+| `/ipo/[ticker]` | 2 · ICO detail + bid sheet, 2a · World verify sheet |
 | `/bids` | 3 · My bids / allotment |
 | `/market`, `/market/[ticker]` | 4 · Live market + trade sheet, 5 · circuit banner |
 | `/portfolio` | 6 · Portfolio + LP positions |

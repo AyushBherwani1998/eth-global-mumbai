@@ -5,7 +5,7 @@ Two modes. Both serve the app at http://localhost:3000.
 ## Mode A: fixtures, no chain needed
 
 What the demo runs on. Eight companies covering every trading rule: listing day,
-normal limits, under watch, halted, two live IPOs, one refunding, one upcoming.
+normal limits, under watch, halted, two live ICOs, one refunding, one upcoming.
 
 ```bash
 cd app

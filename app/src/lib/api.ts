@@ -130,7 +130,7 @@ const SENTENCE: Record<ApiCode, string> = {
   UNKNOWN_TICKER: "This company is not on the exchange. Go back to Markets and pick one from the list.",
   UNKNOWN_BID: "That application is no longer on the exchange. Pull Orders up to date and try again.",
   NOT_FOUND: "That isn't on the exchange. Go back and try again.",
-  NOT_LAUNCHED: "This company has not opened its IPO yet, so there is nothing to show until it does.",
+  NOT_LAUNCHED: "This company has not opened its ICO yet, so there is nothing to show until it does.",
   RPC_ERROR: "The exchange server couldn't reach the network. Wait a few seconds and tap Retry.",
   INTERNAL: "The exchange server hit an error. Wait a few seconds and tap Retry.",
 };
@@ -185,7 +185,7 @@ export function errorTitle(e: ApiFailure): string {
     case "OFFLINE":
       return "You're offline";
     case "NOT_LAUNCHED":
-      return "This IPO hasn't opened yet";
+      return "This ICO hasn't opened yet";
     case "UNKNOWN_TICKER":
     case "NOT_FOUND":
       return "We couldn't find that company";

@@ -120,10 +120,10 @@ square. Four cells, filled as the listing advances.
 **Why it is not a set of pictures.** The obvious set (an envelope for applications, a gavel for the final
 price, a chart for trading) fails the bar: in `rich/lifecycle-rail.tsx` every stage already prints its own
 word directly under it, so each drawing would say what the label says. What is missing is the compact
-form — the rail needs 280px and four labels, while an Orders row, an IPO card or a notice has room for
+form — the rail needs 280px and four labels, while an Orders row, an ICO card or a notice has room for
 16px. This mark carries the one fact a glance needs, with no pictorial content at all.
 
-**Where it goes.** Orders rows, IPO cards in the Markets list, and the console listing header. The
+**Where it goes.** Orders rows, ICO cards in the Markets list, and the console listing header. The
 `LifecycleRail` keeps its numbered circles: at that size the number plus the label is better.
 
 | prop | type | |
@@ -150,7 +150,7 @@ Also exported: `STAGES` (the four stage words in order) and `stageOf(phase)`.
   Three of the four plausible tiles (Orders, Portfolio, Markets) are the bottom nav, so the row would be
   a second copy of the navigation; the fourth, the band explainer, is already a `PromoCard` on the
   Markets list with a sentence that does more than a tile would. Groww's row works because it leads to
-  F&O, Events and IPO — products that exist nowhere else in its app. Ours has no such destination.
+  F&O, Events and ICO — products that exist nowhere else in its app. Ours has no such destination.
 - **A pictorial lifecycle set.** See StageMark above.
 - **A bespoke verified tick, shield or wallet mark.** `BadgeCheck`, `ShieldCheck` and `Wallet` are
   conventions a 50-year-old already reads; redrawing them buys nothing and costs the convention.

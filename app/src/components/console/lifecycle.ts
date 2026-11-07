@@ -36,7 +36,7 @@ export function currentStep(done: Record<StepId, boolean>): StepId | null {
 export function nextByPhase(phase: Listing["phase"]): string {
   switch (phase) {
     case "draft":
-      return "Open the IPO";
+      return "Open the ICO";
     case "live":
       return "Watch applications";
     case "cleared":

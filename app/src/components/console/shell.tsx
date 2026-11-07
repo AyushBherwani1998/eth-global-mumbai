@@ -188,7 +188,7 @@ export function NotTheOwner({ ticker }: { ticker?: string }) {
  *  console is readable before anyone signs in. */
 const CAN_DO: { title: string; sub: string }[] = [
   { title: "Follow a listing", sub: "Shares, issue price and the name investors find you by." },
-  { title: "Watch the IPO", sub: "Applications, the money raised and the price so far." },
+  { title: "Watch the ICO", sub: "Applications, the money raised and the price so far." },
   { title: "Read the trading rule", sub: "The price limits the exchange is enforcing on your share right now." },
   { title: "See every receipt", sub: "The transaction behind each step, on Etherscan." },
 ];

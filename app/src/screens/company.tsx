@@ -1,13 +1,13 @@
 "use client";
 
-// One company page for every phase (UX.md 3.3 and 3.4): listed, IPO open,
-// IPO upcoming and IPO closed without a listing. Same route, same header,
+// One company page for every phase (UX.md 3.3 and 3.4): listed, ICO open,
+// ICO upcoming and ICO closed without a listing. Same route, same header,
 // same company block; only the middle of the page changes.
 // Protocol words live in the Details tab and nowhere else.
 //
 // Data: GET /v1/listings/:ticker for the company and its offer, then either
 // /v1/market/:ticker (listed: price, trades, reference/band steps, halt spans)
-// or /v1/auction/:ticker + /clearing (every IPO phase), plus /v1/portfolio
+// or /v1/auction/:ticker + /clearing (every ICO phase), plus /v1/portfolio
 // (shares held) and /v1/bids?owner= for this wallet's own applications.
 // Nothing on this page comes from a fixture.
 
@@ -323,7 +323,7 @@ function Description({ listing }: { listing: ListingDetail }) {
 function EnsRows({ listing }: { listing: ListingDetail }) {
   const rows: [string, string | null][] = [
     ["Share token", listing.records.addr],
-    ["IPO auction", listing.records.auction],
+    ["ICO auction", listing.records.auction],
     ["Trading rule hook", listing.records.hook],
     ["Policy contract", listing.records.policy],
     ["Pool id", listing.records.pool],
@@ -549,7 +549,7 @@ function ListedCompany({ listing }: { listing: ListingDetail }) {
                         ? toCollect > 0
                           ? `${shares(toCollect)} shares ready to collect in Orders`
                           : "In your wallet"
-                        : "Shares you buy, or get from an IPO, show up here"
+                        : "Shares you buy, or get from an ICO, show up here"
                     }
                   />
                 ) : (
@@ -843,7 +843,7 @@ function OrderPanelForm({
 }
 
 // ---------------------------------------------------------------------------
-// IPO phases (UX.md 3.4)
+// ICO phases (UX.md 3.4)
 // ---------------------------------------------------------------------------
 
 type IpoTab = "overview" | "application" | "details";
@@ -985,7 +985,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
                     {raised === null ? (
                       <>
                         <p className="t-list-title text-text">How much has been applied for isn&apos;t available</p>
-                        <p className="t-caption mt-1">This server can&apos;t read the raise at that point in time. The final figure still shows once the IPO closes.</p>
+                        <p className="t-caption mt-1">This server can&apos;t read the raise at that point in time. The final figure still shows once the ICO closes.</p>
                       </>
                     ) : (
                       <>
@@ -1005,7 +1005,7 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
                     )}
                     {listing.phase === "refunding" && (
                       <p className="t-body mt-3 text-text">
-                        This IPO did not reach {usdc(offer.requiredRaise, 0)} USDC. Every application is refundable.
+                        This ICO did not reach {usdc(offer.requiredRaise, 0)} USDC. Every application is refundable.
                       </p>
                     )}
                   </Card>
@@ -1062,13 +1062,13 @@ function IpoCompany({ listing }: { listing: ListingDetail }) {
               {!connected ? (
                 <SignInCard
                   quiet
-                  title="Your application for this IPO"
+                  title="Your application for this ICO"
                   body="Sign in and what you applied for, the price you set and what is left to do show up here."
                 />
               ) : myBids.length === 0 ? (
                 <EmptyState
                   title="You have not applied yet"
-                  body={open ? "Applications are open until this IPO closes." : "This IPO is closed."}
+                  body={open ? "Applications are open until this ICO closes." : "This ICO is closed."}
                   action={open ? { label: "Apply now", onClick: () => setApplyOpen(true) } : undefined}
                 />
               ) : (
@@ -1168,7 +1168,7 @@ function DayRange({ low, high, price, className }: { low: number; high: number; 
   );
 }
 
-/** The floor / issue / cap scale shown while an IPO has not opened yet. */
+/** The floor / issue / cap scale shown while an ICO has not opened yet. */
 function RangeScale({ offer }: { offer: ListingDetail["offer"] }) {
   const pos = ((offer.issuePrice - offer.floorPrice) / (offer.capPrice - offer.floorPrice)) * 100;
   return (
@@ -1189,13 +1189,13 @@ function RangeScale({ offer }: { offer: ListingDetail["offer"] }) {
   );
 }
 
-/** Desktop panel while an IPO is open: price, then the Apply form. */
+/** Desktop panel while an ICO is open: price, then the Apply form. */
 function ApplyPanel({ listing, price, seconds }: { listing: ListingDetail; price: number | null; seconds: number | null }) {
   const { connected } = useApp();
   if (!connected)
     return (
       <SignInCard
-        title="Apply for this IPO"
+        title="Apply for this ICO"
         body={`Sign in and the application form opens in this panel. ${listing.name}'s price range and how long it stays open are the same either way.`}
         label="Sign in to apply"
       />
@@ -1260,7 +1260,7 @@ function PhasePanel({
           </Button>
         </Link>
       ) : (
-        <p className="t-body mt-4 text-text-2">This IPO is closed. Nothing to do here.</p>
+        <p className="t-body mt-4 text-text-2">This ICO is closed. Nothing to do here.</p>
       )}
     </Card>
   );
