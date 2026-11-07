@@ -2,7 +2,7 @@ import { basename } from "node:path";
 
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { BaseError, getAddress, isAddress, type Address } from "viem";
+import { BaseError, getAddress, isAddress, type Address, type Hex } from "viem";
 
 import { errorCatalog } from "./abis.ts";
 import { extractSignedRequest, isAuthorizedIssuer, loadAuthConfig, verifySignedRequest, NonceStore, type AuthConfig } from "./auth.ts";
@@ -20,6 +20,7 @@ import { policyHistory } from "./reads/policy-history.ts";
 import { relayPolicyReport } from "./policy-relay.ts";
 import { simulateDirectional } from "./directional-simulation.ts";
 import { portfolioView } from "./reads/portfolio.ts";
+import { determineCurrentStep } from "./deployment-utils.ts";
 import type { ApiError, BidsResponse, ClearingResponse, ErrorCatalog, Health, ListingsResponse } from "./types.ts";
 import { iso } from "./units.ts";
 
@@ -239,19 +240,6 @@ export function createApp(ctx: Ctx): Hono {
       throw badRequest("Invalid action for this endpoint");
     }
 
-    // Check if contracts are compiled (required for deployment)
-    const { isCompiled } = await import("./contract-bytecode.ts");
-    if (!isCompiled()) {
-      return json(c, {
-        error: {
-          code: "CONTRACTS_NOT_COMPILED",
-          message: "Contract bytecode not available. Deployment requires compiled contracts.",
-          details: "Run 'cd contracts && forge build' to compile contract bytecode before attempting deployment.",
-          prerequisite: "forge build",
-        }
-      }, 503);
-    }
-
     const payload = signedReq.payload as Record<string, unknown>;
     const ticker = payload.ticker;
     const tokenName = payload.tokenName;
@@ -267,6 +255,7 @@ export function createApp(ctx: Ctx): Hono {
       throw badRequest("Missing or invalid tokenSymbol");
     }
 
+    // Create listing creation record
     const listing = listingStorage.create({
       ticker,
       tokenName,
@@ -275,7 +264,26 @@ export function createApp(ctx: Ctx): Hono {
       deploymentConfig: payload.config as ListingCreationState["deploymentConfig"],
     });
 
-    return json(c, { success: true, listing });
+    // Get first deployment step (MockSME token)
+    const { getNextDeploymentStep } = await import("./deployment-complete.ts");
+    const { prepareTokenDeployment } = await import("./deployment-complete.ts");
+    
+    try {
+      // For now, return the creation ID and let browser poll for steps
+      // Full implementation would prepare first step here
+      return json(c, { 
+        success: true, 
+        listing,
+        message: "Listing creation initiated. Use GET /v1/listings/creation/:id/next-step to get deployment steps."
+      });
+    } catch (error) {
+      return json(c, {
+        error: {
+          code: "DEPLOYMENT_PREP_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+        }
+      }, 500);
+    }
   });
 
   app.get("/v1/listings/creation/:id", async (c) => {
@@ -301,6 +309,168 @@ export function createApp(ctx: Ctx): Hono {
     }
     
     return json(c, { listings });
+  });
+
+  // Get next deployment step for a listing creation
+  app.get("/v1/listings/creation/:id/next-step", async (c) => {
+    const id = c.req.param("id");
+    const listing = listingStorage.get(id);
+    
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    // Determine current deployment state from listing
+    const deploymentState = {
+      token: listing.tokenAddress,
+      module: listing.moduleAddress,
+      validationHook: listing.validationHookAddress,
+      hook: listing.hookAddress,
+      receiver: listing.receiverAddress,
+      currentStep: determineCurrentStep(listing),
+      completed: listing.phase === "completed",
+    };
+
+    if (deploymentState.completed) {
+      return json(c, { message: "Deployment already complete", listing });
+    }
+
+    // Get deployment params from listing config
+    const l = allListings(ctx)[0]; // Get first listing for external addresses
+    const deploymentParams = {
+      tokenName: listing.tokenName,
+      tokenSymbol: listing.tokenSymbol,
+      issuerAddress: listing.issuerAddress,
+      usdc: l.external.usdc,
+      poolManager: l.external.poolManager,
+      forwarder: getAddress("0x15fC6ae953E024d975e77382eEeC56A9101f9F88"), // Sepolia MockKeystoneForwarder
+      broadcaster: getAddress(process.env.POLICY_BROADCASTER_ADDRESS || "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA"),
+    };
+
+    try {
+      const { getNextDeploymentStep } = await import("./deployment-complete.ts");
+      
+      // Mock bytecodes for now - in production these would be loaded from committed artifacts
+      const bytecodes = {
+        mockSME: "0x608060405234801561001057600080fd5b50" as Hex, // Placeholder
+        allowAllModule: "0x608060405234801561001057600080fd5b50" as Hex,
+        auctionValidationHook: "0x608060405234801561001057600080fd5b50" as Hex,
+        listingHook: "0x608060405234801561001057600080fd5b50" as Hex,
+        listingPolicyReceiver: "0x608060405234801561001057600080fd5b50" as Hex,
+      };
+      
+      const nextStep = await getNextDeploymentStep(
+        deploymentParams,
+        deploymentState,
+        listing.issuerAddress,
+        ctx.client,
+        bytecodes
+      );
+
+      if (!nextStep) {
+        return json(c, { message: "No next step available" });
+      }
+
+      return json(c, { step: nextStep, listing });
+    } catch (error) {
+      return json(c, {
+        error: {
+          code: "STEP_PREP_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+        }
+      }, 500);
+    }
+  });
+
+  // Submit transaction hash after browser signs deployment
+  app.post("/v1/listings/creation/:id/submit-tx", async (c) => {
+    const id = c.req.param("id");
+    const body = await c.req.json();
+    const { txHash, step } = body;
+
+    if (!txHash || typeof txHash !== "string") {
+      throw badRequest("Missing txHash");
+    }
+    if (typeof step !== "number") {
+      throw badRequest("Missing step number");
+    }
+
+    const listing = listingStorage.get(id);
+    if (!listing) {
+      return json(c, { error: { code: "NOT_FOUND", message: "Listing creation not found" } }, 404);
+    }
+
+    try {
+      // Wait for transaction receipt
+      const receipt = await ctx.client.waitForTransactionReceipt({
+        hash: txHash as Hex,
+        confirmations: 1,
+      });
+
+      if (receipt.status !== "success") {
+        listingStorage.update(id, {
+          phase: "error",
+          error: `Transaction ${txHash} failed`,
+        });
+        return json(c, { error: { message: "Transaction failed" } }, 400);
+      }
+
+      // Extract deployed address from receipt
+      const deployedAddress = receipt.contractAddress;
+      if (!deployedAddress) {
+        throw new Error("No contract address in receipt");
+      }
+
+      // Update listing with deployed address
+      const updates: Partial<ListingCreationState> = {};
+      switch (step) {
+        case 1:
+          updates.tokenAddress = deployedAddress;
+          updates.tokenDeployTx = txHash as Hex;
+          updates.phase = "token_deployed";
+          break;
+        case 2:
+          updates.moduleAddress = deployedAddress;
+          updates.moduleDeployTx = txHash as Hex;
+          updates.phase = "pending_validation";
+          break;
+        case 3:
+          updates.validationHookAddress = deployedAddress;
+          updates.validationHookDeployTx = txHash as Hex;
+          updates.phase = "validation_deployed";
+          break;
+        case 4:
+          updates.hookAddress = deployedAddress;
+          updates.hookDeployTx = txHash as Hex;
+          updates.phase = "hook_deployed";
+          break;
+        case 5:
+          updates.receiverAddress = deployedAddress;
+          updates.receiverDeployTx = txHash as Hex;
+          updates.phase = "receiver_deployed";
+          break;
+      }
+
+      const updated = listingStorage.update(id, updates);
+      
+      // Check if deployment is complete
+      if (updated.receiverAddress && updated.hookAddress) {
+        listingStorage.update(id, { phase: "completed" });
+      }
+
+      return json(c, { success: true, listing: updated });
+    } catch (error) {
+      listingStorage.update(id, {
+        phase: "error",
+        error: error instanceof Error ? error.message : String(error),
+      });
+      return json(c, {
+        error: {
+          code: "TX_PROCESSING_FAILED",
+          message: error instanceof Error ? error.message : String(error),
+        }
+      }, 500);
+    }
   });
 
   app.post("/v1/listings/creation/:id/update", async (c) => {
