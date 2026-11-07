@@ -148,7 +148,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
   );
 
   const getEthersProvider = useMemo(
-    () => (canSign && injected() ? async () => {
+    () => (canSign && injected() ? async (): Promise<import("./session-context").EthersCompatProvider> => {
       const eth = injected();
       if (!eth) throw new Error("No wallet found");
       // Simple ethers-compatible wrapper
@@ -158,7 +158,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
             const result = await eth.request({
               method: 'eth_sendTransaction',
               params: [tx]
-            });
+            }) as string;
             return { hash: result };
           },
           getAddress: async () => address,

@@ -169,7 +169,7 @@ function PrivyBridge({ children }: { children: ReactNode }) {
   );
 
   const getEthersProvider = useMemo(
-    () => (wallet ? async (): Promise<unknown> => {
+    () => (wallet ? async (): Promise<import("./session-context").EthersCompatProvider> => {
       // Use getEthereumProvider for EIP-1193, wrap for ethers compatibility
       const provider = await wallet.getEthereumProvider();
       // Ethers compatibility wrapper
@@ -179,7 +179,7 @@ function PrivyBridge({ children }: { children: ReactNode }) {
             const result = await provider.request({
               method: 'eth_sendTransaction',
               params: [{ from: wallet.address, ...tx }]
-            });
+            }) as string;
             return { hash: result };
           },
           getAddress: () => wallet.address,

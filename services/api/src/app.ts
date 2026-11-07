@@ -763,7 +763,7 @@ export function createApp(ctx: Ctx): Hono {
 
       // Update listing with auction info
       const updates: Partial<ListingCreationState> = {
-        phase: "pending_auction_binding" as ListingCreationPhase,
+        phase: "pending_auction_binding",
       };
 
       // Store auction address in deployment config

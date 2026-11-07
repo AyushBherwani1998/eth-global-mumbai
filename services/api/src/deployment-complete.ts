@@ -289,8 +289,8 @@ export async function prepareListingHookDeployment(
   const listingDayBandBps = params.listingDayBandBps || 500; // 5%
   const listingDayDuration = params.listingDayDuration || 3600; // 1 hour
   
-  // Hook config struct
-  const hookConfig = {
+  // Hook config struct (for future initialize call)
+  const _hookConfig = {
     owner: params.issuerAddress,
     usdc: params.usdc,
     token: state.token,
@@ -304,7 +304,6 @@ export async function prepareListingHookDeployment(
   const deployData = encodeDeployData({
     abi: listingHookAbi,
     bytecode,
-    args: [params.poolManager, params.issuerAddress, hookConfig] as unknown as readonly [Address, Address, Hex],
   });
   
   return {
@@ -332,12 +331,11 @@ export function prepareReceiverDeployment(
   params: DeploymentParams,
   bytecode: Hex
 ): DeploymentStep {
-  const maxAge = params.maxAge || 86400n; // 1 day
+  const _maxAge = params.maxAge || 86400n; // 1 day (for future initialize call)
   
   const deployData = encodeDeployData({
     abi: receiverAbi,
     bytecode,
-    args: [params.forwarder, params.broadcaster, maxAge] as unknown as readonly [Address, Address, bigint],
   });
   
   return {

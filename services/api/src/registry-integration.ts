@@ -184,7 +184,7 @@ export function getDeploymentPath(ticker: string, chainId: number): string {
 /**
  * List all deployments for a network.
  */
-export function listDeployments(chainId: number): DeployedListing[] {
+export async function listDeployments(chainId: number): Promise<DeployedListing[]> {
   const network = chainId === 11155111 ? "sepolia" : `chain-${chainId}`;
   const deploymentsDir = `/data/deployments/${network}`;
   

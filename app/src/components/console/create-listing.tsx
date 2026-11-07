@@ -169,8 +169,12 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
           const provider = await wallet.getEthersProvider();
           const signer = provider.getSigner();
           
-          const txRequest: { to: string | null; data: string; value?: string } = {
-            to: tx.to || null,
+          if (!tx.to) {
+            throw new Error("Transaction must have a 'to' address");
+          }
+          
+          const txRequest: { to: string; data: string; value?: string } = {
+            to: tx.to,
             data: tx.data,
             value: tx.value || "0x0",
           };
