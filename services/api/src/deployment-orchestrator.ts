@@ -148,7 +148,7 @@ export function prepareTokenDeployment(params: {
     unsignedTx: {
       to: null,
       data: deployData, // Browser will need to wrap this in CREATE2 factory call
-      value: "0x0",
+      value: "0x0" as `0x${string}`,
     },
     salt,
   };
