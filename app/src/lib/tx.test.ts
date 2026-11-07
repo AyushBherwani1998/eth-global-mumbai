@@ -265,7 +265,7 @@ test("server prepared for a different address: refuses", async () => {
   if (!r.ok) assert.equal(r.reason, "wrongAccount");
 });
 
-test("stub fixtures and demo data never reach the wallet", async () => {
+test("a server that cannot produce sendable calldata never reaches the wallet", async () => {
   const w = mockWallet();
   const stub = await runPrepared({ prepare: async () => prepared([step("swap", true, ROUTER)], { details: { stub: true } }), signer: w.signer, chainId: SEPOLIA, waitForReceipt: confirmAll });
   assert.equal(stub.ok, false);
