@@ -3,7 +3,7 @@
  */
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import type { Address, Hex, Log } from "viem";
+import { keccak256, toHex, type Address, type Hex, type Log } from "viem";
 import { parseAuctionFromLogs } from "../src/event-parser.ts";
 
 test("Event parser", async (t) => {
@@ -16,9 +16,7 @@ test("Event parser", async (t) => {
     const poolId = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" as Hex;
     
     // Event signature: keccak256("InitializerCreated(address,bytes32)")
-    // = 0x17e1b16fb5a9e3ef5e2c8d7e0f2e11d4c3d4e8f2a1b3c4d5e6f7a8b9c0d1e2f3
-    // (Using a placeholder - actual signature would be computed)
-    const eventSignature = "0x17e1b16fb5a9e3ef5e2c8d7e0f2e11d4c3d4e8f2a1b3c4d5e6f7a8b9c0d1e2f3" as Hex;
+    const eventSignature = keccak256(toHex("InitializerCreated(address,bytes32)"));
     
     const mockLog: Log = {
       address: lbpStrategyAddress,
@@ -39,7 +37,7 @@ test("Event parser", async (t) => {
     const result = parseAuctionFromLogs([mockLog], lbpStrategyAddress);
     
     assert.ok(result !== null, "Parsed event successfully");
-    assert.equal(result.initializer.toLowerCase(), initializerAddress.toLowerCase(), "Initializer address matches");
+    assert.equal(result.auction.toLowerCase(), initializerAddress.toLowerCase(), "Auction address matches");
     assert.equal(result.poolId, poolId, "Pool ID matches");
   });
 
@@ -71,7 +69,7 @@ test("Event parser", async (t) => {
     const initializerAddress = "0x1234567890123456789012345678901234567890" as Address;
     const poolId = "0xabcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789" as Hex;
     
-    const eventSignature = "0x17e1b16fb5a9e3ef5e2c8d7e0f2e11d4c3d4e8f2a1b3c4d5e6f7a8b9c0d1e2f3" as Hex;
+    const eventSignature = keccak256(toHex("InitializerCreated(address,bytes32)"));
     
     const wrongLog: Log = {
       address: "0x1111111111111111111111111111111111111111" as Address,
@@ -106,7 +104,7 @@ test("Event parser", async (t) => {
     const result = parseAuctionFromLogs([wrongLog, correctLog], lbpStrategyAddress);
     
     assert.ok(result !== null, "Found correct log in array");
-    assert.equal(result.initializer.toLowerCase(), initializerAddress.toLowerCase(), "Initializer address matches");
+    assert.equal(result.auction.toLowerCase(), initializerAddress.toLowerCase(), "Auction address matches");
     assert.equal(result.poolId, poolId, "Pool ID matches");
   });
 
