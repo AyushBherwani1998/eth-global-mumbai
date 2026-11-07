@@ -165,11 +165,21 @@ export async function relayPolicyReport(
     const asOf = BigInt(Math.floor(Date.now() / 1000));
     const chainSelector = 16015286601757825753n; // Sepolia
     
-    const refPointsE2 = newPolicy.refPricePoints ? Math.round(newPolicy.refPricePoints * 100) : 0;
+    const refPricePoints = typeof newPolicy.refPricePoints === "number" ? newPolicy.refPricePoints : null;
+    const refPointsE2 = refPricePoints ? Math.round(refPricePoints * 100) : 0;
     const refSqrtPriceX96 = refPointsE2 === 0 ? 0n : pointsE2ToSqrtPriceX96(BigInt(refPointsE2), listing.usdcIsCurrency0);
     
     const modeMap: Record<string, number> = { normal: 0, surveillance: 1, directional: 2 };
-    const modeValue = modeMap[newPolicy.mode] ?? 0;
+    const mode = typeof newPolicy.mode === "string" ? newPolicy.mode : "normal";
+    const modeValue = modeMap[mode] ?? 0;
+    
+    const bands = typeof newPolicy.bands === "object" && newPolicy.bands !== null ? newPolicy.bands as Record<string, unknown> : {};
+    const normalBps = typeof bands.normalBps === "number" ? bands.normalBps : 2000;
+    const survBps = typeof bands.surveillanceBps === "number" ? bands.surveillanceBps : 500;
+    
+    const halted = typeof newPolicy.halted === "boolean" ? newPolicy.halted : false;
+    const coolOffUntil = typeof newPolicy.coolOffUntil === "number" ? BigInt(newPolicy.coolOffUntil) : 0n;
+    const status = typeof newPolicy.status === "string" ? newPolicy.status : "";
 
     const report = encodeAbiParameters(REPORT_ABI, [
       {
@@ -177,13 +187,13 @@ export async function relayPolicyReport(
         asOf,
         chainSelector,
         refSqrtPriceX96,
-        normalBandBps: newPolicy.bands?.normalBps || 2000,
-        survBandBps: newPolicy.bands?.surveillanceBps || 500,
+        normalBandBps: normalBps,
+        survBandBps: survBps,
         mode: modeValue,
-        halted: newPolicy.halted || false,
-        coolOffUntil: BigInt(newPolicy.coolOffUntil || 0),
+        halted,
+        coolOffUntil,
       },
-      newPolicy.status || "",
+      status,
     ]);
 
     console.log("[policy-relay] Constructed report:", {

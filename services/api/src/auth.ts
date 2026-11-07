@@ -34,9 +34,11 @@ export class NonceStore {
   }
 
   private load(): void {
-    if (!this.storePath || !existsSync(this.storePath)) return;
+    const path = this.storePath;
+    if (!path) return;
+    if (!existsSync(path)) return;
     try {
-      const data = JSON.parse(readFileSync(this.storePath, "utf8"));
+      const data = JSON.parse(readFileSync(path, "utf8"));
       this.nonces = new Map(
         Object.entries(data).map(([addr, nonces]) => [addr, new Set(nonces as string[])])
       );
@@ -46,16 +48,17 @@ export class NonceStore {
   }
 
   private save(): void {
-    if (!this.storePath) return;
+    const path = this.storePath;
+    if (!path) return;
     try {
-      const dir = dirname(this.storePath);
+      const dir = dirname(path);
       if (!existsSync(dir)) {
         mkdirSync(dir, { recursive: true });
       }
       const data = Object.fromEntries(
         Array.from(this.nonces.entries()).map(([addr, nonces]) => [addr, Array.from(nonces)])
       );
-      writeFileSync(this.storePath, JSON.stringify(data, null, 2));
+      writeFileSync(path, JSON.stringify(data, null, 2));
     } catch (e) {
       console.error("[auth] Failed to save nonce store:", e);
     }
@@ -83,6 +86,7 @@ export class NonceStore {
    * Clean up old nonces (older than maxAge seconds).
    */
   cleanup(maxAge: number): void {
+    if (!this.storePath) return; // Skip cleanup if no persistence
     // For simplicity, nonces include timestamp, so we can parse and remove old ones
     // Format: timestamp_random
     const cutoff = Date.now() - maxAge * 1000;
