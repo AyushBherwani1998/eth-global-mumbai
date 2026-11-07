@@ -36,7 +36,7 @@ export type WalletSession = {
   /** Sign a message with the connected wallet. Null when no wallet is connected or signing not available. */
   signMessage: ((message: string) => Promise<string>) | null;
   /** Get ethers provider for transaction signing. Null when no wallet is connected. */
-  getEthersProvider: (() => Promise<any>) | null;
+  getEthersProvider: (() => Promise<unknown>) | null;
 };
 
 export const WalletSessionContext = createContext<WalletSession | null>(null);

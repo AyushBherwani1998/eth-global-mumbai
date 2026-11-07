@@ -144,7 +144,7 @@ export async function executeDeployment(
         throw new Error(error.error?.message || "Failed to submit transaction");
       }
       
-      const { listing: updated } = await submitResponse.json();
+      await submitResponse.json();
       
       onProgress(step, `${deployStep.contract} deployed!`);
       
@@ -297,13 +297,3 @@ export async function executeDeployment(
   }
 }
 
-function getAddressField(step: number): string {
-  switch (step) {
-    case 1: return "tokenAddress";
-    case 2: return "moduleAddress";
-    case 3: return "validationHookAddress";
-    case 4: return "hookAddress";
-    case 5: return "receiverAddress";
-    default: return "tokenAddress";
-  }
-}

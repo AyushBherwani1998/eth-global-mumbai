@@ -154,7 +154,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
       // Simple ethers-compatible wrapper
       return {
         getSigner: () => ({
-          sendTransaction: async (tx: any) => {
+          sendTransaction: async (tx: { to: string; data: string; value?: string }) => {
             const result = await eth.request({
               method: 'eth_sendTransaction',
               params: [tx]

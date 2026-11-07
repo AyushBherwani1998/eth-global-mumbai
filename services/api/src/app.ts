@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
 import { BaseError, getAddress, isAddress, type Address, type Hex } from "viem";
 
 import { errorCatalog } from "./abis.ts";
-import { extractSignedRequest, isAuthorizedIssuer, loadAuthConfig, verifySignedRequest, NonceStore, type AuthConfig } from "./auth.ts";
+import { extractSignedRequest, loadAuthConfig, verifySignedRequest, NonceStore, type AuthConfig } from "./auth.ts";
 import { originAllowed, readDeployments } from "./config.ts";
 import { allListings, getListing, head, type Ctx } from "./context.ts";
 import { HttpError, badRequest } from "./errors.ts";
@@ -265,8 +265,7 @@ export function createApp(ctx: Ctx): Hono {
     });
 
     // Get first deployment step (MockSME token)
-    const { getNextDeploymentStep } = await import("./deployment-complete.ts");
-    const { prepareTokenDeployment } = await import("./deployment-complete.ts");
+    // Future: prepare first step here
     
     try {
       // For now, return the creation ID and let browser poll for steps
@@ -764,7 +763,7 @@ export function createApp(ctx: Ctx): Hono {
 
       // Update listing with auction info
       const updates: Partial<ListingCreationState> = {
-        phase: "pending_auction_binding" as any,
+        phase: "pending_auction_binding" as ListingCreationPhase,
       };
 
       // Store auction address in deployment config
@@ -779,7 +778,7 @@ export function createApp(ctx: Ctx): Hono {
           auctionAddress: event.auction,
           auctionPoolId: event.poolId,
           auctionTxHash: txHash,
-        } as any,
+        },
       });
 
       return json(c, {

@@ -224,7 +224,7 @@ export function PolicyControls({ ticker, policy }: { ticker: string; policy: Pol
 
         <div className="mt-3 p-3 bg-surface-2 border border-line rounded">
           <p className="t-caption text-text">
-            To test directionally: Set mode to "directional", then attempt trades that move price toward and away from reference. Use the Quote/Simulate functionality to preview without broadcasting.
+            To test directionally: Set mode to &ldquo;directional&rdquo;, then attempt trades that move price toward and away from reference. Use the Quote/Simulate functionality to preview without broadcasting.
           </p>
         </div>
       </Card>

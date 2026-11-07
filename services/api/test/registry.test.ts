@@ -3,7 +3,7 @@
  */
 import { test } from "node:test";
 import { strict as assert } from "node:assert";
-import { writeFileSync, mkdirSync, readFileSync, rmSync } from "node:fs";
+import { mkdirSync, readFileSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import type { Address, Hex } from "viem";
 

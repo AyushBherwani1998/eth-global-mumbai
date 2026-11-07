@@ -14,12 +14,11 @@ test("Endpoint integration", async (t) => {
   
   const unauthorizedPrivateKey = "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d" as Hex;
   const unauthorizedAccount = privateKeyToAccount(unauthorizedPrivateKey);
-  const unauthorizedAddress = getAddress(unauthorizedAccount.address);
 
   const config = loadAuthConfig({ ISSUER_ADDRESSES: issuerAddress });
 
   // Helper to create signed request
-  async function createSignedRequest(action: string, payload: any, account: typeof issuerAccount, timestamp?: number) {
+  async function createSignedRequest(action: string, payload: Record<string, unknown>, account: typeof issuerAccount, timestamp?: number) {
     const ts = timestamp || Math.floor(Date.now() / 1000);
     const nonce = `${ts}_${Math.random().toString(36).substring(7)}`;
     const payloadHash = keccak256(toHex(JSON.stringify(payload)));
@@ -60,8 +59,8 @@ test("Endpoint integration", async (t) => {
     try {
       const signer = await verifySignedRequest(request, config, 11155111);
       assert.equal(signer.toLowerCase(), issuerAddress.toLowerCase(), "Signer matches issuer");
-    } catch (e: any) {
-      assert.fail(`Should accept valid signature: ${e.message}`);
+    } catch (e: unknown) {
+      assert.fail(`Should accept valid signature: ${(e as Error).message}`);
     }
   });
 
@@ -73,8 +72,8 @@ test("Endpoint integration", async (t) => {
       async () => {
         await verifySignedRequest(request, config, 11155111);
       },
-      (err: any) => {
-        assert.ok(err.message.includes("not authorized"), "Error mentions authorization");
+      (err: unknown) => {
+        assert.ok((err as Error).message.includes("not authorized"), "Error mentions authorization");
         return true;
       },
       "Unauthorized signer rejected"
@@ -95,8 +94,8 @@ test("Endpoint integration", async (t) => {
       async () => {
         await verifySignedRequest(request, config, 11155111, nonceStore);
       },
-      (err: any) => {
-        assert.ok(err.message.includes("already used") || err.message.includes("replay"), "Error mentions replay");
+      (err: unknown) => {
+        assert.ok((err as Error).message.includes("already used") || (err as Error).message.includes("replay"), "Error mentions replay");
         return true;
       },
       "Replay rejected"
@@ -119,8 +118,8 @@ test("Endpoint integration", async (t) => {
       async () => {
         await verifySignedRequest(request, configWithShortExpiry, 11155111);
       },
-      (err: any) => {
-        assert.ok(err.message.includes("expired") || err.message.includes("old"), "Error mentions expiration");
+      (err: unknown) => {
+        assert.ok((err as Error).message.includes("expired") || (err as Error).message.includes("old"), "Error mentions expiration");
         return true;
       },
       "Expired request rejected"

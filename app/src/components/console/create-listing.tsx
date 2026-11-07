@@ -169,7 +169,7 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
           const provider = await wallet.getEthersProvider();
           const signer = provider.getSigner();
           
-          const txRequest: any = {
+          const txRequest: { to: string | null; data: string; value?: string } = {
             to: tx.to || null,
             data: tx.data,
             value: tx.value || "0x0",
@@ -209,32 +209,6 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
     }
   };
 
-  const pollDeploymentStatus = async (id: string) => {
-    // Poll every 5 seconds for status updates
-    const intervalId = setInterval(async () => {
-      try {
-        const response = await fetch(`${API_URL}/v1/listings/creation/${id}`);
-        if (response.ok) {
-          const listing = await response.json();
-          setDeploymentStatus(`Status: ${listing.phase}`);
-          
-          if (listing.phase === "completed") {
-            clearInterval(intervalId);
-            setDeploymentStatus("Listing created successfully!");
-            if (onComplete) onComplete();
-          } else if (listing.phase === "error") {
-            clearInterval(intervalId);
-            setDeploymentStatus(`Error: ${listing.error || "Unknown error"}`);
-          }
-        }
-      } catch (e) {
-        console.error("Failed to poll status:", e);
-      }
-    }, 5000);
-
-    // Stop polling after 5 minutes
-    setTimeout(() => clearInterval(intervalId), 300000);
-  };
 
   if (step === "form") {
     return (

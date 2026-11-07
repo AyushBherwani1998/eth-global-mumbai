@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+/* eslint-env node */
 /**
  * BUILD-TIME TOOL: Extract deployment bytecode from forge build output.
  * 
