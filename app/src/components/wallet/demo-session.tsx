@@ -136,7 +136,7 @@ export function DemoSessionProvider({ children }: { children: ReactNode }) {
     () => (canSign && injected() ? async (message: string) => {
       const eth = injected();
       if (!eth) throw new Error("No wallet found");
-      const accounts = await eth.request({ method: 'eth_accounts' });
+      const accounts = await eth.request({ method: 'eth_accounts' }) as string[];
       if (!accounts || accounts.length === 0) throw new Error("No accounts available");
       const result = await eth.request({
         method: 'personal_sign',
