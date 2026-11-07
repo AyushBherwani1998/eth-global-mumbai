@@ -157,10 +157,16 @@ contract DemoTrade is DemoBase {
         vm.serializeString(t, "outOfBandError", "OutOfBand(uint160,uint160,uint160)");
         vm.serializeBytes(t, "outOfBandRevertData", o.revertData);
         vm.serializeBytes(t, "outOfBandHookReason", o.reason);
-        // With USDC as currency0 the lower sqrt bound is the higher share price.
-        (uint160 forLow, uint160 forHigh) = usdc0 ? (o.hi, o.lo) : (o.lo, o.hi);
-        vm.serializeUint(t, "bandLowPointsE2", ListingPrice.sqrtPriceX96ToPointsE2(forLow, usdc0));
-        vm.serializeUint(t, "bandHighPointsE2", ListingPrice.sqrtPriceX96ToPointsE2(forHigh, usdc0));
+        // Only convert band prices if out-of-band test was run (lo/hi non-zero)
+        if (o.lo != 0 && o.hi != 0) {
+            // With USDC as currency0 the lower sqrt bound is the higher share price.
+            (uint160 forLow, uint160 forHigh) = usdc0 ? (o.hi, o.lo) : (o.lo, o.hi);
+            vm.serializeUint(t, "bandLowPointsE2", ListingPrice.sqrtPriceX96ToPointsE2(forLow, usdc0));
+            vm.serializeUint(t, "bandHighPointsE2", ListingPrice.sqrtPriceX96ToPointsE2(forHigh, usdc0));
+        } else {
+            vm.serializeUint(t, "bandLowPointsE2", 0);
+            vm.serializeUint(t, "bandHighPointsE2", 0);
+        }
         t = vm.serializeString(t, "outOfBandCastCommand", o.cast);
         _writeSection("trade", t);
     }
