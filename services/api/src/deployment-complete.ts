@@ -1,5 +1,5 @@
 /**
- * Complete 5-step deployment orchestration for browser-wallet-based listing creation.
+ * Complete 8-step deployment orchestration for browser-wallet-based listing creation.
  * 
  * ARCHITECTURE:
  * - Browser wallet signs each deployment transaction
@@ -13,7 +13,17 @@
  * 3. AuctionValidationHook (needs Module address)
  * 4. ListingHook (needs token, uses address mining for flags 0x30C0)
  * 5. ListingPolicyReceiver (needs forwarder & broadcaster)
+ * 6. Hook.setPolicySource(receiver) - REQUIRED for policy updates
+ * 7. Create auction via LiquidityLauncher - REQUIRED for trading  
+ * 8. ValidationHook.setAuction(auction) - REQUIRED binding
  */
+
+// Load compiled bytecode artifacts from forge build
+import mockSMEBytecode from "./bytecode/MockSME.json" with { type: "json" };
+import allowAllModuleBytecode from "./bytecode/AllowAllModule.json" with { type: "json" };
+import validationHookBytecode from "./bytecode/AuctionValidationHook.json" with { type: "json" };
+import listingHookBytecode from "./bytecode/ListingHook.json" with { type: "json" };
+import receiverBytecode from "./bytecode/ListingPolicyReceiver.json" with { type: "json" };
 
 import { 
   type Address, 
@@ -37,6 +47,8 @@ import {
   receiverAbi
 } from "./abis.generated.ts";
 
+import { prepareSetPolicySourceStep } from "./deployment-complete-step6.ts";
+
 export type DeploymentParams = {
   // Token params
   tokenName: string;
@@ -58,7 +70,7 @@ export type DeploymentParams = {
 
 export type DeploymentStep = {
   step: number;
-  totalSteps: 5;
+  totalSteps: 5 | 8;
   contract: string;
   description: string;
   to: Address | null;
@@ -398,6 +410,21 @@ export async function getNextDeploymentStep(
     case 5:
       if (state.receiver) return null;
       return prepareReceiverDeployment(params, bytecodes.listingPolicyReceiver);
+    
+    case 6:
+      // REQUIRED: Connect receiver to hook for policy updates
+      if (!state.hook || !state.receiver) throw new Error("Hook and Receiver required");
+      return prepareSetPolicySourceStep({ hookAddress: state.hook, receiverAddress: state.receiver });
+    
+    case 7:
+      // TODO: REQUIRED - Create auction via LiquidityLauncher
+      console.warn("Step 7 (auction creation) not yet implemented");
+      return null;
+    
+    case 8:
+      // TODO: REQUIRED - Bind validation hook to auction
+      console.warn("Step 8 (setAuction binding) not yet implemented");
+      return null;
     
     default:
       return null;

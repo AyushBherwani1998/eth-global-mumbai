@@ -325,7 +325,7 @@ export function createApp(ctx: Ctx): Hono {
     
     // Verify requester is the listing issuer
     if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
-      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 403);
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 400);
     }
 
     // Determine current deployment state from listing
@@ -368,13 +368,19 @@ export function createApp(ctx: Ctx): Hono {
     try {
       const { getNextDeploymentStep } = await import("./deployment-complete.ts");
       
-      // Mock bytecodes for now - in production these would be loaded from committed artifacts
+      // Load compiled bytecodes from forge build artifacts
+      const mockSMEBytecode = (await import("./bytecode/MockSME.json", { with: { type: "json" } })).default;
+      const allowAllModuleBytecode = (await import("./bytecode/AllowAllModule.json", { with: { type: "json" } })).default;
+      const validationHookBytecode = (await import("./bytecode/AuctionValidationHook.json", { with: { type: "json" } })).default;
+      const listingHookBytecode = (await import("./bytecode/ListingHook.json", { with: { type: "json" } })).default;
+      const receiverBytecode = (await import("./bytecode/ListingPolicyReceiver.json", { with: { type: "json" } })).default;
+      
       const bytecodes = {
-        mockSME: "0x608060405234801561001057600080fd5b50" as Hex, // Placeholder
-        allowAllModule: "0x608060405234801561001057600080fd5b50" as Hex,
-        auctionValidationHook: "0x608060405234801561001057600080fd5b50" as Hex,
-        listingHook: "0x608060405234801561001057600080fd5b50" as Hex,
-        listingPolicyReceiver: "0x608060405234801561001057600080fd5b50" as Hex,
+        mockSME: mockSMEBytecode.bytecode as Hex,
+        allowAllModule: allowAllModuleBytecode.bytecode as Hex,
+        auctionValidationHook: validationHookBytecode.bytecode as Hex,
+        listingHook: listingHookBytecode.bytecode as Hex,
+        listingPolicyReceiver: receiverBytecode.bytecode as Hex,
       };
       
       const nextStep = await getNextDeploymentStep(
@@ -423,7 +429,7 @@ export function createApp(ctx: Ctx): Hono {
     
     // Verify requester is the listing issuer
     if (listing.issuerAddress.toLowerCase() !== issuerAddress.toLowerCase()) {
-      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 403);
+      return json(c, { error: { code: "FORBIDDEN", message: "Not authorized for this listing" } }, 400);
     }
 
     try {
