@@ -2,7 +2,7 @@ import { basename } from "node:path";
 
 import { Hono, type Context } from "hono";
 import { cors } from "hono/cors";
-import { BaseError, getAddress, isAddress } from "viem";
+import { BaseError, getAddress, isAddress, type Address } from "viem";
 
 import { errorCatalog } from "./abis.ts";
 import { extractSignedRequest, isAuthorizedIssuer, loadAuthConfig, verifySignedRequest, NonceStore, type AuthConfig } from "./auth.ts";
@@ -18,6 +18,7 @@ import { ensView, listingDetail, listingSummary } from "./reads/listing.ts";
 import { marketView, policyView, swapsView } from "./reads/market.ts";
 import { policyHistory } from "./reads/policy-history.ts";
 import { relayPolicyReport } from "./policy-relay.ts";
+import { simulateDirectional } from "./directional-simulation.ts";
 import { portfolioView } from "./reads/portfolio.ts";
 import type { ApiError, BidsResponse, ClearingResponse, ErrorCatalog, Health, ListingsResponse } from "./types.ts";
 import { iso } from "./units.ts";
@@ -323,6 +324,23 @@ export function createApp(ctx: Ctx): Hono {
     const result = await relayPolicyReport(ctx, listing, payload);
     
     return json(c, { success: true, result });
+  });
+
+  // Directional simulation endpoint - READ ONLY, no auth required
+  app.get("/v1/policy/:ticker/simulate-directional", async (c) => {
+    const listing = getListing(ctx, c.req.param("ticker"));
+    
+    const testAddressRaw = c.req.query("testAddress");
+    const narrowingAmount = c.req.query("narrowingAmount");
+    const wideningAmount = c.req.query("wideningAmount");
+    
+    const result = await simulateDirectional(ctx, listing, {
+      testAddress: testAddressRaw ? testAddressRaw as Address : undefined,
+      narrowingAmount,
+      wideningAmount,
+    });
+    
+    return json(c, result);
   });
 
   return app;

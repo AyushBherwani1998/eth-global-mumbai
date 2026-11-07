@@ -94,6 +94,7 @@ export class NonceStore {
       const filtered = new Set(
         Array.from(nonces).filter(nonce => {
           const parts = nonce.split("_");
+          if (parts.length === 0 || !parts[0]) return false;
           const ts = parseInt(parts[0], 10);
           return !isNaN(ts) && ts >= cutoff;
         })
