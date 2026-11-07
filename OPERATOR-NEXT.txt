@@ -1,0 +1,88 @@
+# Operator Next Steps - commit 3633eb9
+
+## Policy Configuration REQUIRED
+
+Current state: Receivers have halted=false but ALL OTHER FIELDS ZERO
+Effect: Hooks apply defaults but NO reference price set
+
+### Commands (Run After Deploy)
+
+```bash
+cd contracts
+
+# JIOFIN (already deployed)
+DEPLOYMENTS_FILE=deployments/sepolia-jiofin.json ISSUE_POINTS=100 \
+forge script script/demo/InitPolicy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --slow --via-ir
+
+# TCS (already deployed & launched)
+DEPLOYMENTS_FILE=deployments/sepolia-tcs.json ISSUE_POINTS=1081 \
+forge script script/demo/InitPolicy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --slow --via-ir
+
+# Reliance (after deploy completes)
+DEPLOYMENTS_FILE=deployments/sepolia-reliance.json ISSUE_POINTS=571 \
+forge script script/demo/InitPolicy.s.sol --rpc-url $SEPOLIA_RPC_URL --broadcast --slow --via-ir
+```
+
+### Verification
+
+```bash
+# Check JIO policy applied:
+cast call 0x594B83406A429074EE34E39aD7B62332A24F0d43 \
+  "policy()(uint160,uint64,uint64,uint16,uint16,uint8,bool,uint64,uint16)" \
+  --rpc-url $SEPOLIA_RPC_URL
+
+# Expected: (refSqrtPrice>0, asOf>0, 0, 2000, 500, 0, false, chainSel, 0)
+#           ^set             ^set      ^    ^20% ^5%  ^normal ^UNHALTED
+```
+
+## Vercel UI Fix
+
+1. Operator provides sanitized deployment JSONs:
+   - sepolia-jiofin.json (from box)
+   - sepolia-tcs.json (from box)
+   - sepolia-reliance.json (after deploy)
+
+2. Commit to branch:
+```bash
+git add contracts/deployments/sepolia-*.json
+git commit -m "Add deployment JSONs for Vercel API"
+git push
+```
+
+3. Vercel auto-rebuilds with all 4 tickers
+
+4. Verify:
+```bash
+curl https://listing-day-api.vercel.app/v1/listings | jq '.listings[].ticker'
+# Expected: acme, jiofin, reliance, tcs
+```
+
+## Policy Settings Confirmed
+
+InitPolicy.s.sol sets:
+- normalBandBps: 2000 (20%)
+- survBandBps: 500 (5%)  
+- mode: 0 (normal)
+- halted: false (UNHALTED)
+- refSqrtPriceX96: issue price
+- asOf: current timestamp
+- chainSelector: Sepolia
+
+## Safety Verified
+
+- Script requires halted=false in struct
+- Verifies after.halted=false on-chain
+- No cool-off period
+- No halt/surveillance modes triggered
+- maxAge=86400 (24h freshness)
+
+## Execution Order
+
+1. Deploy contracts (done: JIOFIN, TCS; pending: Reliance)
+2. Run InitPolicy per stock (sets bands + reference)
+3. Run bids (bands now active with reference)
+4. Commit deployment JSONs
+5. Vercel UI shows all 4 tickers
+
+Branch: cursor/multi-stock-config-8da0
+Commit: 3633eb9
