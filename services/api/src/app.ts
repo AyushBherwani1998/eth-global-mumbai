@@ -335,14 +335,24 @@ export function createApp(ctx: Ctx): Hono {
       return json(c, { message: "Deployment already complete", listing });
     }
 
-    // Get deployment params from listing config
-    const l = allListings(ctx)[0]; // Get first listing for external addresses
+    // Get deployment params from existing deployed listing config
+    const existingListings = allListings(ctx);
+    if (existingListings.length === 0) {
+      return json(c, {
+        error: {
+          code: "NO_REFERENCE_CONFIG",
+          message: "No existing listings found. Need reference deployment config (USDC, PoolManager addresses).",
+        }
+      }, 500);
+    }
+    const refListing = existingListings[0]!;
+    
     const deploymentParams = {
       tokenName: listing.tokenName,
       tokenSymbol: listing.tokenSymbol,
       issuerAddress: listing.issuerAddress,
-      usdc: l.external.usdc,
-      poolManager: l.external.poolManager,
+      usdc: refListing.external.usdc,
+      poolManager: refListing.external.poolManager,
       forwarder: getAddress("0x15fC6ae953E024d975e77382eEeC56A9101f9F88"), // Sepolia MockKeystoneForwarder
       broadcaster: getAddress(process.env.POLICY_BROADCASTER_ADDRESS || "0x6F520A9e473f3f3DAa0EFFf5eF5e1690C86970dA"),
     };
