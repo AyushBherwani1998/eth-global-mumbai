@@ -7,7 +7,7 @@
 // On a listed company it is fed by GET /v1/market/:ticker:
 // `liquidity.usdc` / `liquidity.shares`, `policy.referencePrice`,
 // `policy.bandBps`, `policy.version`, `listingPrice`.
-// On an IPO by GET /v1/auction/:ticker (issue / floor / cap, per-applicant cap).
+// On an ICO by GET /v1/auction/:ticker (issue / floor / cap, per-applicant cap).
 //
 // Different from SummaryCard (UI.md 2.12), which is a fixed 2x2 of portfolio
 // totals with right-aligned money. This one takes any number of cells, every

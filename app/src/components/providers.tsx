@@ -77,7 +77,7 @@ type AppState = {
   /** "your email wallet", "MetaMask"... for "approve it in ___". */
   signerLabel: string | null;
   /** The API is the fixture stub: everything can be viewed, nothing can be sent. */
-  demoData: boolean;
+  notLive: boolean;
   /** A transaction is open in the wallet or waiting for its receipt. */
   txBusy: boolean;
   runTx: <D>(o: RunTx<D>) => Promise<TxResult<D>>;
@@ -132,7 +132,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
   const [txBusy, setTxBusy] = useState(false);
 
   const health = useHealth();
-  const demoData = typeof health.data?.rpc === "string" && health.data.rpc.startsWith("stub://");
+  const notLive = typeof health.data?.rpc === "string" && health.data.rpc.startsWith("stub://");
   const portfolio = usePortfolio(address);
   const listings = useListings();
   const tickers = useMemo(() => (listings.data?.listings ?? []).map((l) => l.ticker), [listings.data]);
@@ -172,7 +172,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
           guard: o.guard,
           signer,
           chainId: APP_CHAIN.id,
-          demoData,
+          notLive,
           onProgress: (p) => {
             pendingTx = p.phase === "confirming" ? p.tx : p.phase === "wallet" ? undefined : pendingTx;
             show({ status: "pending", title: o.title, detail: progressDetail(p, label), tx: pendingTx });
@@ -194,7 +194,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
         setTxBusy(false);
       }
     },
-    [show, signer, demoData],
+    [show, signer, notLive],
   );
 
   const switchNetwork = useCallback(() => {
@@ -231,7 +231,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       switchNetwork,
       canSign: !!signer,
       signerLabel: signer?.label ?? null,
-      demoData,
+      notLive,
       txBusy,
       runTx,
       anon: {
@@ -243,7 +243,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
       },
       notify,
     }),
-    [connected, session.ready, session.address, session.ensName, session.login, session.logout, portfolio, isIssuerFor, walletChainId, switchNetwork, signer, demoData, txBusy, runTx, notify],
+    [connected, session.ready, session.address, session.ensName, session.login, session.logout, portfolio, isIssuerFor, walletChainId, switchNetwork, signer, notLive, txBusy, runTx, notify],
   );
 
   return (

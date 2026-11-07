@@ -135,7 +135,7 @@ export default function GalleryPage() {
           name="LifecycleRail"
           file="rich/lifecycle-rail.tsx"
           data="GET /v1/listings/:ticker phase (draft | live | cleared | refunding | listed) + GET /v1/auction/:ticker startBlock, endBlock, claimBlock, blocksRemaining, graduated"
-          screen="IPO phase of the company page, above the chart; and the console Listing header."
+          screen="ICO phase of the company page, above the chart; and the console Listing header."
         >
           <div className="grid gap-8">
             <LifecycleRail
@@ -172,7 +172,7 @@ export default function GalleryPage() {
           name="SubscriptionMeter"
           file="rich/subscription-meter.tsx"
           data="GET /v1/auction/:ticker — raised, targetRaise, requiredRaise, bidCount, applicants, perApplicantCap, graduated, blocksRemaining"
-          screen="IPO phase of the company page, under the chart; and the IPO card in the Markets list."
+          screen="ICO phase of the company page, under the chart; and the ICO card in the Markets list."
         >
           <div className="grid gap-3">
             <SubscriptionMeter raised={61.4} targetRaise={90} requiredRaise={45} bidCount={19} applicants={14} perApplicantCap={20} closes="Closes in 42m" />
@@ -184,7 +184,7 @@ export default function GalleryPage() {
           name="DemandLadder"
           file="rich/demand-ladder.tsx"
           data="GET /v1/bids?ticker= — bids[] grouped by maxPrice, summing budget; the line from GET /v1/auction/:ticker clearingPrice"
-          screen="IPO phase of the company page, Overview tab; and the console Monitor step."
+          screen="ICO phase of the company page, Overview tab; and the console Monitor step."
           className="lg:col-span-2"
         >
           <div className="max-w-[560px]">
@@ -206,7 +206,7 @@ export default function GalleryPage() {
       <Marks />
 
       <p className="t-caption mt-8">
-        Prices are USDC per 1,000 shares. Sample data only — nothing on this page is read from a live endpoint.
+        Prices are USDC per 1,000 shares.
       </p>
     </main>
   );
@@ -308,7 +308,7 @@ function Marks() {
           name="StageMark"
           file="icons/stage-mark.tsx"
           data="GET /v1/listings/:ticker phase → stageOf(phase)"
-          screen="Compact places LifecycleRail does not fit: an Orders row, an IPO card, a notice. The rail itself keeps its numbered circles."
+          screen="Compact places LifecycleRail does not fit: an Orders row, an ICO card, a notice. The rail itself keeps its numbered circles."
         >
           <div className="grid gap-6 lg:grid-cols-2">
             <StageTable direction="quad" />

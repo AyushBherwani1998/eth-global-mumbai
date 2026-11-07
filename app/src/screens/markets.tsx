@@ -1,6 +1,6 @@
 "use client";
 
-// Markets (UX.md 3.1 / 3.2): one row of two chips, Stocks | IPO, selection in ?tab=.
+// Markets (UX.md 3.1 / 3.2): one row of two chips, Stocks | ICO, selection in ?tab=.
 // Both bodies read the backend through src/lib/api.ts.
 
 import { useSearchParams } from "next/navigation";
@@ -29,7 +29,7 @@ export function MarketsScreen() {
             Stocks
           </Chip>
           <Chip href="/?tab=ipo" selected={tab === "ipo"}>
-            IPO
+            ICO
           </Chip>
         </ChipRow>
         <ViewSwap view={tab} order={TABS}>

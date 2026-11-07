@@ -30,7 +30,7 @@ logo only; protocol words go inside `<Details>`.
 
 `useApp()`: `connected, sessionReady, address, ensName, usdcBalance, ethBalance, portfolio, connect(),
 disconnect(), isIssuerFor, network { ok, name, chainId, walletChainId }, switchNetwork(), canSign,
-signerLabel, demoData, txBusy, runTx({ title, success, failTitle?, prepare, guard?, onProgress? }),
+signerLabel, notLive, txBusy, runTx({ title, success, failTitle?, prepare, guard?, onProgress? }),
 anon { transport, fallback, live }, notify(title, status?, detail?)`. Toasts render one at a time at the
 bottom (UI.md 2.20): pending "Check your wallet app", success headline, error headline with the decoded
 error name on the grey second line.
@@ -40,7 +40,7 @@ signed-in account, `connect()` opens the sign-in flow and `disconnect()` ends th
 is false only while the session is being read; hold space rather than flashing "Sign in".
 
 Balances and holdings come from `GET /v1/portfolio/:address` (`portfolio`; `usdcBalance` / `ethBalance`
-are null until it answers). `demoData` is true while the API reports itself as the fixture stub.
+are null until it answers). `notLive` is true while the configured server cannot produce sendable calldata.
 
 `runTx` is the only way the app sends anything (`lib/tx.ts` `runPrepared`): it calls `prepare` (a
 `POST /v1/prepare/*`), refuses stub, wrong-chain or wrong-sender answers, runs `guard`, stops on a failed
@@ -127,7 +127,7 @@ The console is its own surface under `/console`, mounted by `app/(console)/layou
 | `Segmented` | `options, value, onChange, label?` | 2.5 | Single-select chip row as a radiogroup (Open · Upcoming · Closed, System · Light · Dark). |
 | `UnderlineTabs` | `tabs [{id,label,count?}], value, onChange, equal=true, underline="gain"\|"loss"` | 2.7 | 48px, one sliding 3px underline, count suffix in text-2. (`Tabs` alias.) |
 | `ListRow` | `href?, onClick?, logo, title, sub?, right?, rightSub?, flag?, sparkline?, chevron?` | 2.9 | 64px min. `right` 18/500, `rightSub` 14/500 (pass `<Change/>`). `flag` = `{ text: "Watch"\|"Halted", tone: "warn"\|"loss" }` before the price. Whole row is the link. Wrap rows in `divide-y divide-line`. |
-| `CompanyCard` | `href, logo, name, price, change?, sub?` | 2.8 | 2-col grid card (160 min). For an open IPO pass "Closes in 02:14" as `price`. |
+| `CompanyCard` | `href, logo, name, price, change?, sub?` | 2.8 | 2-col grid card (160 min). For an open ICO pass "Closes in 02:14" as `price`. |
 | `IndexCard` | `href? \| onClick?, label, value, change?` | 2.4 | 68px strip card, `flex-1`. |
 | `SummaryCard` | `cells [4 x {label, value, tone?}], footer? {left, right}` | 2.12 | 2x2 grid, right cells right-aligned. |
 | `PromoCard` | `href? \| onClick?, icon, title, sub?` | 2.13 | Icon tile 48 + title + sub + chevron. Max one per screen. |
@@ -160,13 +160,13 @@ The wrong-network button lives in `AccountSheet`; it shows when the signed-in wa
 
 `PriceChart` props: `data [{time, value, halted?}]`, `kind "market"\|"clearing"\|"raised"`,
 `type "line"\|"bars"` (candles, market only), `baseline?` (dotted line at the window open, or the
-issue price on an IPO), `reference?` (`RefPoint[]` → the trading limits from `bandBps`), `showBand?`
+issue price on an ICO), `reference?` (`RefPoint[]` → the trading limits from `bandBps`), `showBand?`
 (force the limits on/off), `lines? [{price, label?}]` (floor / cap / minimum raise, dashed,
 right-edge labels, pinned to the edge with a caret when off-scale), `rejects? number[]` (times inside
 the window, drawn as 9px red x), `height=280`, `digits=2`, `onHover(p | null)`, `readout=true`,
 `labels=true` (right-edge level labels), `axes=false` (time axis, Expand only), `detail=false`
 (Expand only: adds the dotted reference step line).
-`baseline?` (dotted: range start, or the issue price on an IPO), `reference?`
+`baseline?` (dotted: range start, or the issue price on an ICO), `reference?`
 (`RefPoint[]` → dotted step line + shaded band from `bandBps`; directional draws the zone a swap may land in (no further from the
 reference than now or within 5%, always inside the band); halted spans draw no band), `showBand?`, `lines? [{price, label?}]` (floor / cap /
 minimum raise, dotted, right-edge labels), `rejects? number[]` (times, clamped to the nearest point,

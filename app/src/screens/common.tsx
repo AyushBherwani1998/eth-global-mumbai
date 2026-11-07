@@ -8,7 +8,7 @@ export function BottomSpacer() {
   return <div className="h-4" />;
 }
 
-/** Logo, name and verified ENS name: top of the IPO and market screens. */
+/** Logo, name and verified ENS name: top of the ICO and market screens. */
 export function TickerTitle({ ipo }: { ipo: Ipo }) {
   return (
     <div>

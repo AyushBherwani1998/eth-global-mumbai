@@ -294,7 +294,7 @@ function swapDir<T extends string>(order: readonly T[] | undefined, from: T, to:
 }
 
 /**
- * One view replacing another in place: Markets' Stocks and IPO bodies, the IPO
+ * One view replacing another in place: Markets' Stocks and ICO bodies, the ICO
  * status segments. The incoming body arrives on the shared swap movement while
  * the page holds the height it had, so the change reads as a movement and the
  * tab row above it does not shift. Under reduced motion it is immediate.
@@ -342,10 +342,13 @@ export function ViewSwap<T extends string>({
 function chipClass(opts: { selected?: boolean; variant?: "filter" | "range"; disabled?: boolean; className?: string }) {
   const { selected, variant = "filter", disabled, className } = opts;
   return cx(
-    "t-chip relative inline-flex h-10 shrink-0 items-center justify-center rounded-full border whitespace-nowrap select-none",
+    "t-chip relative inline-flex h-10 items-center justify-center rounded-full border whitespace-nowrap select-none",
     "transition-[background-color,border-color,color,filter] duration-120",
     "after:absolute after:inset-x-0 after:-top-1 after:-bottom-1 after:content-['']",
-    variant === "filter" ? "px-[18px]" : "min-w-[52px] px-[14px]",
+    // A filter chip keeps its width. A range chip is one of seven on a phone,
+    // so it may shrink: seven at 52px plus gaps overflowed a 390px screen once
+    // the typeface changed. The 48px touch target is held by the after box.
+    variant === "filter" ? "shrink-0 px-[18px]" : "min-w-[40px] px-[10px]",
     selected
       ? cx("border-chip-on-line bg-chip-on-bg text-text", !disabled && "active:brightness-[0.96]")
       : variant === "filter"
@@ -661,7 +664,7 @@ export function ListRow({
   onClick?: () => void;
   logo?: ReactNode;
   title: ReactNode;
-  /** One grey line under the name (sector, "IPO open · closes in 42m"). */
+  /** One grey line under the name (sector, "ICO open · closes in 42m"). */
   sub?: ReactNode;
   /** Right column, line 1 (price 18/500 or "Apply"). */
   right?: ReactNode;
@@ -732,7 +735,7 @@ export function CompanyCard({
   href: string;
   logo: ReactNode;
   name: string;
-  /** Price line (16/400). For an open IPO pass "Closes in 02:14" instead. */
+  /** Price line (16/400). For an open ICO pass "Closes in 02:14" instead. */
   price: ReactNode;
   /** Change line (14/500 gain/loss), usually <Change />. */
   change?: ReactNode;
@@ -1269,7 +1272,7 @@ export function statusLabel(ipo: Pick<Ipo, "status" | "phase">): string {
     case "draft":
       return "Upcoming";
     case "auction":
-      return "IPO open";
+      return "ICO open";
     case "listed":
       return "Listed";
     case "surveillance":

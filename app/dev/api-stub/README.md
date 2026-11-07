@@ -45,8 +45,8 @@ rule and every lifecycle phase is on screen somewhere:
 | `masala` | Listed, normal ±20% | Five policy versions over four days |
 | `nirmaan` | Listed, under watch ±5% | Slid after listing, then put under surveillance |
 | `vayu` | Listed, halted | Normal, then a one-way day, then halted an hour ago |
-| `kesar` | IPO open | Closes in ~40 minutes, 0.68x subscribed |
-| `tara` | IPO open | Just opened, barely subscribed |
+| `kesar` | ICO open | Closes in ~40 minutes, 0.68x subscribed |
+| `tara` | ICO open | Just opened, barely subscribed |
 | `lotus` | Refunding | Closed below the minimum raise |
 | `prakriti` | Upcoming | Opens in ~2 hours |
 
@@ -78,7 +78,7 @@ asks, so Orders and Portfolio have something to show for any wallet.
 ## It says it is a stub
 
 `/health` reports `rpc: "stub://fixtures"` and every response carries
-`X-Data-Source: stub`. The app watches `/health` and shows a **Demo data** strip
+`X-Data-Source: stub`. `/health` reports `stub://fixtures`, so the app can tell
 across the top of Markets, Orders and Portfolio for as long as it is pointed
 here, so nobody can mistake these numbers for live ones.
 
@@ -87,7 +87,7 @@ here, so nobody can mistake these numbers for live ones.
 Nothing in the app changes: point `NEXT_PUBLIC_API_URL` at
 `http://127.0.0.1:8788` served by `services/api` instead. Seven of the eight
 companies simply stop existing, because the app shows what the API returns and
-nothing else, and the Demo data strip disappears on its own because `/health`
+nothing else, because `/health`
 then reports a real RPC host.
 
 ## Editing the demo

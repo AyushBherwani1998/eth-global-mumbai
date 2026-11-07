@@ -10,7 +10,6 @@
 //
 // It is honest about being a stub: /health reports `rpc: "stub://fixtures"`
 // and every response carries `X-Data-Source: stub`. The app reads that and
-// shows a "Demo data" strip the whole time it is pointed here.
 //
 // Env:
 //   PORT=8788            port

@@ -5,7 +5,7 @@ Two modes. Both serve the app at http://localhost:3000.
 ## Mode A: fixtures, no chain needed
 
 What the demo runs on. Eight companies covering every trading rule: listing day,
-normal limits, under watch, halted, two live IPOs, one refunding, one upcoming.
+normal limits, under watch, halted, two live ICOs, one refunding, one upcoming.
 
 ```bash
 cd app
@@ -13,10 +13,6 @@ cp .env.example .env.local        # the defaults already point at the stub
 node dev/api-stub/server.mjs &    # fixture API on port 8788
 pnpm dev                          # app on port 3000
 ```
-
-Every screen carries a "Demo data" strip while the app is pointed at the stub.
-That strip is driven by the server reporting itself as a stub, not by a flag in
-the app, so it cannot be forgotten.
 
 Error and loading states:
 
@@ -45,9 +41,9 @@ Then in `app/.env.local`:
 NEXT_PUBLIC_API_URL=http://127.0.0.1:8788
 ```
 
-Restart `pnpm dev`. Seven demo companies disappear, the "Demo data" strip
-disappears, and the issuer console checks ownership with
-`GET /v1/issuer/:ticker?address=` against the signed-in wallet.
+Restart `pnpm dev`. The fixture companies disappear and the issuer console
+checks ownership with `GET /v1/issuer/:ticker?address=` against the signed-in
+wallet.
 
 Reads are free. Anything confirmed in the wallet (Buy, Sell, Apply, Collect,
 Refund) is a real Sepolia transaction: the app prepares it on the server, the

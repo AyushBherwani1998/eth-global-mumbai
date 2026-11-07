@@ -15,7 +15,7 @@ const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jet
 
 export const metadata: Metadata = {
   title: { default: "thaamba", template: "%s · thaamba" },
-  description: "Buy and sell shares of listed Indian SMEs, and apply to new IPOs.",
+  description: "Buy and sell shares of listed Indian SMEs, and apply to new ICOs.",
   applicationName: "thaamba",
   appleWebApp: { capable: true, title: "thaamba", statusBarStyle: "default" },
   formatDetection: { telephone: false },

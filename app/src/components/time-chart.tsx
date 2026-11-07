@@ -152,7 +152,7 @@ export function PriceChart({
   kind?: "market" | "clearing" | "raised";
   /** Candles are offered on the market chart only. */
   type?: ChartType;
-  /** Dotted line at the start of the window, or the issue price on an IPO. */
+  /** Dotted line at the start of the window, or the issue price on an ICO. */
   baseline?: number;
   /** Reference price over time with its band; sets the trading limits. */
   reference?: ChartRef[];

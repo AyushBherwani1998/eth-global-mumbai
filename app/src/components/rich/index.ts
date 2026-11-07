@@ -1,4 +1,4 @@
-// Rich components: extra blocks for the company, IPO and Markets screens, each
+// Rich components: extra blocks for the company, ICO and Markets screens, each
 // one backed by a field the API really returns. See README.md in this folder for
 // what feeds each one and where it belongs. Nothing here imports a screen.
 

@@ -42,8 +42,8 @@ export type WalletSigner = {
 export type TxFailure =
   /** Nobody signed in, or this session has no wallet that can sign. */
   | "noSigner"
-  /** The server is the fixture stub: its calls are placeholders and must never reach a wallet. */
-  | "demoData"
+  /** The configured server does not return sendable calldata, so nothing may reach a wallet. */
+  | "notLive"
   /** The wallet's account is not the signed-in address, or the server prepared for another one. */
   | "wrongAccount"
   | "wrongChain"
@@ -88,8 +88,8 @@ export type RunOptions<D = Record<string, unknown>> = {
   prepare: () => Promise<Prepared<D>>;
   signer: WalletSigner | null;
   chainId: number;
-  /** True while the API reports fixtures (`/health` rpc `stub://`). */
-  demoData?: boolean;
+  /** True while the configured server cannot produce sendable calldata. */
+  notLive?: boolean;
   /** Return a sentence to refuse; checked on every prepare, before the simulation result. */
   guard?: (p: Prepared<D>) => string | null;
   onProgress?: (p: TxProgress) => void;
@@ -104,7 +104,7 @@ export type RunOptions<D = Record<string, unknown>> = {
 
 const MESSAGES: Record<TxFailure, string> = {
   noSigner: "Sign in with a wallet that can sign to do this. The demo accounts can look around but cannot send anything.",
-  demoData: "This copy of the app is showing demo data, so nothing can be sent. Point it at the real exchange server to trade.",
+  notLive: "This app is not pointed at the exchange server, so nothing can be sent. Point it at the exchange server to trade.",
   wrongAccount: "Your wallet is on a different account from the one you signed in with. Switch it back, or sign in again with that account.",
   wrongChain: "Your wallet is on another network. Switch it to Sepolia and try again.",
   rejected: "You declined in your wallet, so nothing was sent.",
@@ -206,7 +206,7 @@ export async function runPrepared<D = Record<string, unknown>>(o: RunOptions<D>)
     steps,
   });
 
-  if (o.demoData) return fail("demoData");
+  if (o.notLive) return fail("notLive");
   if (!o.signer) return fail("noSigner");
   const from = lower(o.signer.address);
   const sleep = o.sleep ?? defaultSleep;
@@ -270,7 +270,7 @@ export async function runPrepared<D = Record<string, unknown>>(o: RunOptions<D>)
     } catch (e) {
       return fail("api", { message: errorSentence(e) ?? MESSAGES.api });
     }
-    if ((p.details as { stub?: unknown } | null)?.stub === true) return fail("demoData");
+    if ((p.details as { stub?: unknown } | null)?.stub === true) return fail("notLive");
     if (p.chainId !== o.chainId) return fail("wrongChain", { message: `The exchange prepared this for chain ${p.chainId}, not Sepolia. Nothing was sent.` });
     if (lower(p.from) !== from) return fail("wrongAccount");
     if (p.steps.length === 0) return fail("api");

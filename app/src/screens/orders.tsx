@@ -1,6 +1,6 @@
 "use client";
 
-// Orders (UX.md 3.7). Two tabs: IPO applications (this wallet's bids from
+// Orders (UX.md 3.7). Two tabs: ICO applications (this wallet's bids from
 // GET /v1/bids?owner=, grouped by company, plain state words and the verbs
 // Refund / Settle / Collect shares) and Market trades (every trade in the
 // listed pools from GET /v1/market/:ticker, not filtered to this wallet:
@@ -56,14 +56,14 @@ function statusOf(bid: Bid, listing: Listing | undefined): Status {
       if (!bid.claimableShares) return bid.filledShares === 0 ? { word: "Refunded" } : { word: "Exited" };
       return canClaim
         ? { word: "Claimable", tone: "gain", verb: "collect", note: `Your unspent USDC is back. Collect your ${shares(bid.claimableShares)} shares to finish.` }
-        : { word: "Exited", note: "Your unspent USDC is back. Your shares can be collected once the IPO opens claims." };
+        : { word: "Exited", note: "Your unspent USDC is back. Your shares can be collected once the ICO opens claims." };
   }
 
   switch (bid.state) {
     case "refundable":
       return canExit
         ? { word: "Refund available", tone: "warn", verb: "refund", note: back.trim() || undefined }
-        : { word: "Refund available", tone: "warn", note: "The refund opens when the IPO closes." };
+        : { word: "Refund available", tone: "warn", note: "The refund opens when the ICO closes." };
     case "partial":
       return canExit
         ? {
@@ -72,11 +72,11 @@ function statusOf(bid: Bid, listing: Listing | undefined): Status {
             verb: refundOnly ? "refund" : "settle",
             note: "Settle returns the USDC that wasn't used. Then collect your shares.",
           }
-        : { word: "Partly allotted", tone: "warn", note: "You can settle once the IPO closes." };
+        : { word: "Partly allotted", tone: "warn", note: "You can settle once the ICO closes." };
     case "filled":
       return canExit
         ? { word: "Allotted", tone: "gain", verb: "settle", note: "Settle first, then collect your shares." }
-        : { word: "Allotted", tone: "gain", note: "You can settle once the IPO closes." };
+        : { word: "Allotted", tone: "gain", note: "You can settle once the ICO closes." };
     case "outbid":
       return canExit
         ? { word: "Refund available", tone: "warn", verb: "refund", note: back.trim() || undefined }
@@ -93,11 +93,11 @@ const VERB_LABEL: Record<Verb, string> = { refund: "Refund", collect: "Collect s
 
 function groupSub(listing: Listing | undefined): string {
   if (!listing) return "This company is no longer on the exchange";
-  if (listing.phase === "live") return listing.clearingPrice === null ? "IPO open" : `Current price ${lotFixed(listing.clearingPrice)} · IPO open`;
+  if (listing.phase === "live") return listing.clearingPrice === null ? "ICO open" : `Current price ${lotFixed(listing.clearingPrice)} · ICO open`;
   if (listing.phase === "listed") return listing.clearingPrice === null ? "Listed" : `Listed at ${lotFixed(listing.clearingPrice)}`;
-  if (listing.phase === "cleared") return "IPO closed · about to list";
+  if (listing.phase === "cleared") return "ICO closed · about to list";
   if (listing.phase === "refunding") return "Not listed · refunds open";
-  return "IPO not open yet";
+  return "ICO not open yet";
 }
 
 /** `<auction>:<id>` from the server: ids restart per auction, so the id alone is not unique. */
@@ -121,7 +121,7 @@ type Tab = "applications" | "trades";
 type Override = Partial<Record<string, { from: BidStatus; to: "exited" | "claimed" }>>;
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: "applications", label: "IPO applications" },
+  { id: "applications", label: "ICO applications" },
   { id: "trades", label: "Market trades" },
 ];
 
@@ -188,8 +188,8 @@ export function OrdersScreen() {
             title="Your orders live here"
             body="Sign in and this page fills in with everything you have placed, and what is left to do on each one."
             points={[
-              "Every IPO application you have made, and where it stands",
-              "Shares to collect and money to take back once an IPO closes",
+              "Every ICO application you have made, and where it stands",
+              "Shares to collect and money to take back once an ICO closes",
               "Your buys and sells, with a receipt for each",
             ]}
           />
@@ -321,8 +321,8 @@ export function OrdersScreen() {
               !error && (
                 <EmptyState
                   title="No applications yet"
-                  body="IPOs that are open now are under Markets, IPO."
-                  action={{ label: "See open IPOs", href: "/?tab=ipo" }}
+                  body="ICOs that are open now are under Markets, ICO."
+                  action={{ label: "See open ICOs", href: "/?tab=ipo" }}
                 />
               )
             ) : (

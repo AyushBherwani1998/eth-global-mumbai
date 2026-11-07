@@ -20,9 +20,9 @@ export function AboutScreen() {
         <section className="mt-4">
           <h2 className="t-section-title">What this is</h2>
           <p className="t-body mt-1 text-text-2">
-            thaamba is a place to buy and sell shares in small Indian companies, and to apply for their IPOs. An IPO runs as an open sale: you say
+            thaamba is a place to buy and sell shares in small Indian companies, and to apply for their ICOs. An ICO runs as an open sale: you say
             how much you want to put in and, if you like, the most you are willing to pay. Everyone who gets shares pays the same final price. If the
-            IPO does not raise enough, every application is refunded.
+            ICO does not raise enough, every application is refunded.
           </p>
           <p className="t-body mt-3 text-text-2">
             Once a company lists, its shares trade with the same kind of price limits an Indian exchange uses: a tighter range on listing day, extra
@@ -36,8 +36,8 @@ export function AboutScreen() {
           <Card className="mt-1 p-4">
             <p className="t-body text-text">
               Every exchange rule here is inspired by the NSE but is not the NSE. This is not a regulated product, there are no regulatory claims, and
-              nothing here is advice. Money is Sepolia test USDC with no value. Anyone with a wallet can apply for an IPO: nobody is identified, there
-              is no KYC, and the only limit is that one wallet can put at most {OFFER.perApplicantCap} USDC into a single IPO.
+              nothing here is advice. Money is Sepolia test USDC with no value. Anyone with a wallet can apply for an ICO: nobody is identified, there
+              is no KYC, and the only limit is that one wallet can put at most {OFFER.perApplicantCap} USDC into a single ICO.
             </p>
           </Card>
         </section>
@@ -76,7 +76,7 @@ export function AboutScreen() {
             </p>
           </Card>
           <p className="t-body mt-3 text-text-2">
-            Prices, companies and applications in this build come from a fixed set of sample data. Icons are from Lucide, under the ISC licence.
+            Icons are from Lucide, under the ISC licence.
           </p>
         </section>
 
@@ -84,7 +84,6 @@ export function AboutScreen() {
           <h2 className="t-section-title">Version</h2>
           <div className="mt-1 divide-y divide-line">
             <KV k="App version" v={APP_VERSION} />
-            <KV k="Data" v="Sample data, not live chain reads" />
             <KV k="Network" v={`${network.name} test network`} />
           </div>
         </section>

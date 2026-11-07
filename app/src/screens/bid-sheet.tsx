@@ -1,6 +1,6 @@
 "use client";
 
-// Apply for an IPO (UX.md 3.5): one amount, one price choice, plain derived
+// Apply for an ICO (UX.md 3.5): one amount, one price choice, plain derived
 // lines, the per-wallet limit and the wallet steps. The same form is the
 // bottom sheet on phone and the sticky panel on desktop.
 //
@@ -39,7 +39,7 @@ type Opts = {
 type Warning = { text: string; fix: string; blocking: boolean };
 
 export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: ReactNode } {
-  const { connected, connect, address, usdcBalance, portfolio, runTx, canSign, txBusy, demoData } = useApp();
+  const { connected, connect, address, usdcBalance, portfolio, runTx, canSign, txBusy } = useApp();
   const offer = ipo.offer ?? null;
   const price = ipo.clearingPrice ?? offer?.issuePrice ?? null;
   const eligibility = useEligibility(connected ? ipo.ticker : null, connected ? address : null);
@@ -69,9 +69,9 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
   const balanceRaw = portfolio.data?.balances.raw.usdc;
   const warnings: Warning[] = [];
   if (room.known && room.atCap)
-    warnings.push({ text: `You've put the most one wallet can into this IPO (${usdc(room.cap)} USDC).`, fix: "There's nothing more to apply for.", blocking: true });
+    warnings.push({ text: `You've put the most one wallet can into this ICO (${usdc(room.cap)} USDC).`, fix: "There's nothing more to apply for.", blocking: true });
   else if (capLeft !== null && a > capLeft)
-    warnings.push({ text: `That's more than your ${usdc(capLeft)} USDC remaining for this IPO.`, fix: `Enter ${usdc(capLeft)} or less.`, blocking: true });
+    warnings.push({ text: `That's more than your ${usdc(capLeft)} USDC remaining for this ICO.`, fix: `Enter ${usdc(capLeft)} or less.`, blocking: true });
   if (parsed.ok && balanceRaw !== undefined && parsed.raw > BigInt(balanceRaw))
     warnings.push({ text: `That's more than your balance of ${usdc(usdcBalance ?? 0)} USDC.`, fix: "Get free test USDC or lower the amount.", blocking: true });
   if (mode === "limit" && price !== null && limit < price)
@@ -83,7 +83,7 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
   const approvals = prepared ? prepared.steps.filter((s) => s.needed && s.kind !== "submitBid") : [];
   const steps = [
     ...approvals.map((s) => ({ title: approvalTitle(s.kind, "USDC"), sub: s.kind === "permit2Approve" ? "Only for this application amount. See Details for the contract and expiry." : "Approve once so applications can use your USDC." })),
-    { title: "Apply", sub: "Place your application. It can't be cancelled: your USDC stays with the IPO until it closes." },
+    { title: "Apply", sub: "Place your application. It can't be cancelled: your USDC stays with the ICO until it closes." },
   ];
   const current = busy && progress && progress.phase !== "preparing" ? Math.min(steps.length, progress.index + 1) : 1;
 
@@ -119,9 +119,7 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
           : quote.status === "error"
             ? ((quote.error as { sentence?: string })?.sentence ?? "The exchange couldn't check this. Try again.")
             : quote.status === "ready" && !prepared
-              ? demoData
-                ? "Applications need the live exchange server, not demo data."
-                : "The exchange sent nothing to sign for this."
+              ? "The exchange sent nothing to sign for this."
               : null;
 
   const label = blocked ? "Not allowed" : `Apply for ${usdc(a)} USDC`;
@@ -164,13 +162,13 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
             selected={mode === "cutoff"}
             onSelect={() => setMode("cutoff")}
             title="At cut-off (recommended)"
-            helper={`You pay whatever price the IPO closes at, never more than ${lotFixed(offer.capPrice)}.`}
+            helper={`You pay whatever price the ICO closes at, never more than ${lotFixed(offer.capPrice)}.`}
           />
           <PriceOption
             selected={mode === "limit"}
             onSelect={() => setMode("limit")}
             title="Set my own limit"
-            helper="If the price ends above your limit, you get no shares and can take your money back after the IPO closes."
+            helper="If the price ends above your limit, you get no shares and can take your money back after the ICO closes."
           />
           {mode === "limit" && (
             <div className="mt-2">
@@ -195,14 +193,14 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
 
       <div className="mt-4 divide-y divide-line">
         {price !== null && <KV k="Shares at today's price" v={`about ${shares((a / price) * 1000)}`} sub={`Today's price ${lotFixed(price)} per 1,000 shares`} />}
-        <KV k="Money paid in" v={`${usdc(a)} USDC`} sub="Moves to the IPO now. After it closes, settle to get back whatever didn't buy shares." />
+        <KV k="Money paid in" v={`${usdc(a)} USDC`} sub="Moves to the ICO now. After it closes, settle to get back whatever didn't buy shares." />
       </div>
 
       <div className="mt-4 flex min-h-14 items-center gap-3 border-t border-line pt-3">
         <ShieldCheck className="size-5 shrink-0 text-text-2" aria-hidden />
         <span className="t-body min-w-0 flex-1 text-text-2">
           Anyone can apply.{" "}
-          {room.known ? `Each wallet can put in up to ${usdc(room.cap)} USDC for this IPO.` : offer ? `Each wallet can put in up to ${usdc(offer.perApplicantCap)} USDC for this IPO.` : ""}
+          {room.known ? `Each wallet can put in up to ${usdc(room.cap)} USDC for this ICO.` : offer ? `Each wallet can put in up to ${usdc(offer.perApplicantCap)} USDC for this ICO.` : ""}
         </span>
       </div>
 
@@ -252,7 +250,7 @@ export function useApplyForm({ ipo, onDone }: Opts): { body: ReactNode; footer: 
       )}
       {connected && !canSign && (
         <p className="t-label mt-2 text-center">
-          {demoData ? "This is demo data, so nothing can be sent." : "This sign-in can look but not send. Sign in with a wallet to apply."}
+          {"This sign-in can look but not send. Sign in with a wallet to apply."}
         </p>
       )}
     </>
