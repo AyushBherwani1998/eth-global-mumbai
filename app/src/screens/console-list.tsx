@@ -65,8 +65,8 @@ export function ConsoleListScreen() {
         <span className="flex items-center gap-3">
           <TickerLogo ipo={r.ipo} size={28} />
           <span className="min-w-0">
-            <span className="block truncate text-text">{r.ipo.name}</span>
-            <span className="t-label block truncate">{r.ipo.ensName}</span>
+            <span className="block [overflow-wrap:anywhere] text-text">{r.ipo.name}</span>
+            <span className="t-label block [overflow-wrap:anywhere]">{r.ipo.ensName}</span>
           </span>
         </span>
       ),
@@ -129,11 +129,11 @@ export function ConsoleListScreen() {
               <Link key={r.ipo.ticker} href={`/console/${r.ipo.ticker}`} className="flex min-h-14 items-center gap-3 py-3">
                 <TickerLogo ipo={r.ipo} size={32} />
                 <span className="min-w-0 flex-1">
-                  <span className="t-list-title block truncate text-text">{r.ipo.name}</span>
-                  <span className="t-label block truncate">
+                  <span className="t-list-title block [overflow-wrap:anywhere] text-text">{r.ipo.name}</span>
+                  <span className="t-label block [overflow-wrap:anywhere]">
                     {statusLabel(r.ipo)} · {r.ipo.ensName}
                   </span>
-                  <span className="t-label block truncate text-text">Next: {r.next}</span>
+                  <span className="t-label block [overflow-wrap:anywhere] text-text">Next: {r.next}</span>
                 </span>
                 <span className="num flex w-[104px] shrink-0 flex-col items-end text-right">
                   <span className="t-list-title text-text">{raisedWords(r)}</span>

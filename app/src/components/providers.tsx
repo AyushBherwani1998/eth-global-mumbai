@@ -154,7 +154,7 @@ function AppProvider({ children }: { children: React.ReactNode }) {
     return id;
   }, []);
 
-  const notify = useCallback((title: string, status: ToastItem["status"] = "success", detail?: string) => show({ title, status, detail }, 3000), [show]);
+  const notify = useCallback((title: string, status: ToastItem["status"] = "success", detail?: string) => show({ title, status, detail }, 6000), [show]);
 
   const runTx = useCallback(
     async <D,>(o: RunTx<D>): Promise<TxResult<D>> => {
@@ -180,12 +180,12 @@ function AppProvider({ children }: { children: React.ReactNode }) {
           },
         });
         if (r.ok) {
-          show({ status: "success", title: o.success, tx: r.tx }, 6000);
+          show({ status: "success", title: o.success, tx: r.tx });
         } else {
           const done = r.steps.filter((s) => s.status === "confirmed").length;
           const partial = done > 0 ? ` ${done === 1 ? "One earlier step was" : `${done} earlier steps were`} confirmed and stay done.` : "";
           const code = r.error && r.error.name !== "Error" ? ` (${r.error.name})` : "";
-          show({ status: "error", title: o.failTitle ?? "That didn't go through", detail: `${r.message}${code}${partial}`, tx: r.tx ?? undefined }, r.reason === "rejected" ? 5000 : undefined);
+          show({ status: "error", title: o.failTitle ?? "That didn't go through", detail: `${r.message}${code}${partial}`, tx: r.tx ?? undefined }, r.reason === "rejected" ? 10000 : undefined);
         }
         if (r.ok || r.steps.some((s) => s.status !== "rejected")) refreshLive();
         return r;

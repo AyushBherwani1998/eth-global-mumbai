@@ -14,7 +14,7 @@ import { useTheme, type ThemeSetting } from "./theme";
 import { Logo as BrandLockup, Mark } from "@/components/brand";
 import { TickerMark } from "@/components/company/logos";
 import { EditAvatarSheet, UserAvatar } from "@/components/avatar";
-import { Button, Card, Change, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
+import { Button, Card, CopyAddress, Change, ListRow, SearchField, Segmented, Sheet, TickerLogo, cx } from "./ui";
 import { blocksToCountdown, changeVs, lotFixed, shortAddr, usdc } from "@/lib/format";
 import { FAUCET_URL } from "@/lib/mock";
 import { COPY, dayOpenOf, flagFor, lastPriceOf, nowSeconds, orCopy, pricePoints } from "@/lib/adapt";
@@ -757,7 +757,7 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
           <div className="flex min-h-14 items-center gap-3 py-3">
             <Avatar size={40} />
             <div className="min-w-0 flex-1">
-              <p className="t-body text-text">Signed in as {app.ensName ?? shortAddr(app.address)}</p>
+              <p className="t-body [overflow-wrap:anywhere] text-text">Signed in as {app.ensName ?? shortAddr(app.address)}</p>
               <p className="num t-label">Available to spend {orCopy(app.usdcBalance, (n) => `${usdc(n)} USDC`, "Loading your balance")}</p>
             </div>
             <button
@@ -770,6 +770,11 @@ export function AccountSheet({ open, onClose }: { open: boolean; onClose: () => 
             >
               Sign out
             </button>
+          </div>
+
+          <div className="py-3">
+            <p className="t-label mb-2">Your wallet address · Sepolia</p>
+            <CopyAddress value={app.address} />
           </div>
 
           <AccountRow

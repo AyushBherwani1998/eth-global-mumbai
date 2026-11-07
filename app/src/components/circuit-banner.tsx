@@ -13,7 +13,7 @@ import { Details, KV, RuleStrip, Sheet, TextLink, type RuleKind } from "./ui";
 
 export type RuleCopy = { kind: RuleKind; text: string; why: string; label: string } | null;
 
-/** Plain-English copy for a policy. Returns null for Normal (no strip). */
+/** Plain-English copy for a policy. Includes the normal band: normal never means unlimited trading. */
 export function ruleCopy(p: Pick<Policy, "mode" | "referencePrice" | "bandBps" | "halted" | "since">): RuleCopy {
   const ref = lotFixed(p.referencePrice);
   const d = bandDigits(p.referencePrice, p.bandBps);
@@ -26,6 +26,13 @@ export function ruleCopy(p: Pick<Policy, "mode" | "referencePrice" | "bandBps" |
       why: "The exchange pauses trading when it sees unusual activity. Your shares are safe, and you can still withdraw liquidity.",
     };
   switch (p.mode) {
+    case "normal":
+      return {
+        kind: "normal",
+        label: "Normal trading",
+        text: `Normal trading. Trades allowed between ${lotFixed(lo, d)} and ${lotFixed(hi, d)} (±${p.bandBps / 100}%). Both limits are included.`,
+        why: "Normal trading still has a price limit. The on-chain hook rejects trades that finish outside this range, even through another app or router.",
+      };
     case "listing":
       return {
         kind: "listing",
@@ -54,7 +61,7 @@ export function ruleCopy(p: Pick<Policy, "mode" | "referencePrice" | "bandBps" |
 
 const tickerStatus = (p: Policy) => (p.halted || p.mode === "halted" ? "halted" : p.mode === "surveillance" || p.mode === "directional" ? "surveillance" : "listed");
 
-/** Rule strip for a policy, with the Trading rule sheet. Renders nothing on Normal. */
+/** Rule strip for a policy, with the Trading rule sheet. Also shows the enforced band on normal trading days. */
 export function CircuitBanner({ ticker, policy, className }: { ticker: string; policy: Policy; className?: string; compact?: boolean }) {
   const [open, setOpen] = useState(false);
   const copy = ruleCopy(policy);

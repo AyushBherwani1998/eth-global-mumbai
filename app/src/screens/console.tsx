@@ -27,7 +27,7 @@ import { ErrorCard, SkeletonList } from "@/components/states";
 import { PriceChart } from "@/components/time-chart";
 import { TickerMark } from "@/components/company/logos";
 import { Button, Card, CopyAddress, Details, KV, ProgressBar, SectionTitle, TextLink, TickerLogo, cx, statusLabel } from "@/components/ui";
-import { blockNo, dateTimeIST, lotFixed, shares, shortAddr, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
+import { addrUrl, blockNo, dateTimeIST, lotFixed, shares, shortAddr, shortHash, timeIST, txUrl, usdc } from "@/lib/format";
 import { pricePoints } from "@/lib/adapt";
 import { useAuction, useClearing, useEns, useListing, useListings, useMarket, useTickerBids } from "@/lib/live";
 
@@ -449,8 +449,8 @@ function MonitorStep({ reads }: { reads: Reads }) {
             {bids.map((b) => {
               const w = bidWord(b, ipo.clearingPrice);
               return (
-                <li key={b.key} className="flex min-h-12 items-center justify-between gap-3 py-2">
-                  <span className="num t-mono truncate text-text-2">{shortAddr(b.owner)}</span>
+                <li key={b.key} className="flex min-h-12 flex-wrap items-center justify-between gap-3 py-2">
+                  <a href={addrUrl(b.owner)} target="_blank" rel="noreferrer" title={b.owner} className="num t-mono min-w-0 text-text-2 underline underline-offset-2">{shortAddr(b.owner)}</a>
                   <span className="num t-body text-text">
                     {usdc(b.budget)} up to {lotFixed(b.maxPrice)}
                   </span>
