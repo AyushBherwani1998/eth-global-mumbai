@@ -75,11 +75,18 @@ describe("Auth", () => {
       });
 
       const oldTimestamp = Math.floor(Date.now() / 1000) - 120; // 2 minutes ago
+      const nonce = `${oldTimestamp}_test123`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
       const message = JSON.stringify({
+        domain: "listing-day.api",
         action: "test_action",
         chainId: 11155111,
         timestamp: oldTimestamp,
-        payload: { test: "data" },
+        nonce,
+        ticker: null,
+        payloadHash,
       });
 
       const signature = await testAccount.signMessage({ message });
@@ -88,10 +95,12 @@ describe("Auth", () => {
         async () => {
           await verifySignedRequest(
             {
+              domain: "listing-day.api",
               action: "test_action",
               chainId: 11155111,
               timestamp: oldTimestamp,
-              payload: { test: "data" },
+              nonce,
+              payload,
               signature,
             },
             config,
@@ -106,11 +115,18 @@ describe("Auth", () => {
       const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
       
       const futureTimestamp = Math.floor(Date.now() / 1000) + 3600;
+      const nonce = `${futureTimestamp}_test123`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
       const message = JSON.stringify({
+        domain: "listing-day.api",
         action: "test_action",
         chainId: 11155111,
         timestamp: futureTimestamp,
-        payload: { test: "data" },
+        nonce,
+        ticker: null,
+        payloadHash,
       });
 
       const signature = await testAccount.signMessage({ message });
@@ -119,10 +135,12 @@ describe("Auth", () => {
         async () => {
           await verifySignedRequest(
             {
+              domain: "listing-day.api",
               action: "test_action",
               chainId: 11155111,
               timestamp: futureTimestamp,
-              payload: { test: "data" },
+              nonce,
+              payload,
               signature,
             },
             config,
@@ -137,11 +155,18 @@ describe("Auth", () => {
       const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
       
       const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_test123`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
       const message = JSON.stringify({
+        domain: "listing-day.api",
         action: "test_action",
         chainId: 1, // Mainnet
         timestamp,
-        payload: { test: "data" },
+        nonce,
+        ticker: null,
+        payloadHash,
       });
 
       const signature = await testAccount.signMessage({ message });
@@ -150,10 +175,12 @@ describe("Auth", () => {
         async () => {
           await verifySignedRequest(
             {
+              domain: "listing-day.api",
               action: "test_action",
               chainId: 1,
               timestamp,
-              payload: { test: "data" },
+              nonce,
+              payload,
               signature,
             },
             config,
@@ -168,11 +195,18 @@ describe("Auth", () => {
       const config = loadAuthConfig({ ISSUER_ADDRESSES: ISSUER1 });
       
       const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_test123`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
       const message = JSON.stringify({
+        domain: "listing-day.api",
         action: "test_action",
         chainId: 11155111,
         timestamp,
-        payload: { test: "data" },
+        nonce,
+        ticker: null,
+        payloadHash,
       });
 
       const signature = await testAccount.signMessage({ message });
@@ -181,10 +215,12 @@ describe("Auth", () => {
         async () => {
           await verifySignedRequest(
             {
+              domain: "listing-day.api",
               action: "test_action",
               chainId: 11155111,
               timestamp,
-              payload: { test: "data" },
+              nonce,
+              payload,
               signature,
             },
             config,
@@ -199,21 +235,30 @@ describe("Auth", () => {
       const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
       
       const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_test123`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
       const message = JSON.stringify({
+        domain: "listing-day.api",
         action: "test_action",
         chainId: 11155111,
         timestamp,
-        payload: { test: "data" },
+        nonce,
+        ticker: null,
+        payloadHash,
       });
 
       const signature = await testAccount.signMessage({ message });
 
       const recoveredAddress = await verifySignedRequest(
         {
+          domain: "listing-day.api",
           action: "test_action",
           chainId: 11155111,
           timestamp,
-          payload: { test: "data" },
+          nonce,
+          payload,
           signature,
         },
         config,
@@ -221,6 +266,49 @@ describe("Auth", () => {
       );
 
       assert.strictEqual(recoveredAddress, testAccount.address);
+    });
+    
+    it("should reject replay attacks (same nonce twice)", async () => {
+      const config = loadAuthConfig({ ISSUER_ADDRESSES: testAccount.address });
+      const nonceStore = new (await import("../src/auth.ts")).NonceStore();
+      
+      const timestamp = Math.floor(Date.now() / 1000);
+      const nonce = `${timestamp}_test123`;
+      const payload = { test: "data" };
+      const payloadHash = "0x" + Buffer.from(JSON.stringify(payload)).toString("hex");
+      
+      const message = JSON.stringify({
+        domain: "listing-day.api",
+        action: "test_action",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        ticker: null,
+        payloadHash,
+      });
+
+      const signature = await testAccount.signMessage({ message });
+      
+      const request = {
+        domain: "listing-day.api",
+        action: "test_action",
+        chainId: 11155111,
+        timestamp,
+        nonce,
+        payload,
+        signature,
+      };
+
+      // First request should succeed
+      await verifySignedRequest(request, config, 11155111, nonceStore);
+
+      // Second request with same nonce should fail
+      await assert.rejects(
+        async () => {
+          await verifySignedRequest(request, config, 11155111, nonceStore);
+        },
+        /nonce already used|replay/i
+      );
     });
   });
 });

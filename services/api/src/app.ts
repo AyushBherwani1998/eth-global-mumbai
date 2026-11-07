@@ -5,7 +5,7 @@ import { cors } from "hono/cors";
 import { BaseError, getAddress, isAddress } from "viem";
 
 import { errorCatalog } from "./abis.ts";
-import { extractSignedRequest, isAuthorizedIssuer, loadAuthConfig, verifySignedRequest, type AuthConfig } from "./auth.ts";
+import { extractSignedRequest, isAuthorizedIssuer, loadAuthConfig, verifySignedRequest, NonceStore, type AuthConfig } from "./auth.ts";
 import { originAllowed, readDeployments } from "./config.ts";
 import { allListings, getListing, head, type Ctx } from "./context.ts";
 import { HttpError, badRequest } from "./errors.ts";
@@ -75,9 +75,15 @@ export function createApp(ctx: Ctx): Hono {
   const app = new Hono();
   const origins = ctx.config.corsOrigins;
   
-  // Initialize auth config and listing creation storage
+  // Initialize auth config, nonce store, and listing creation storage
   const authConfig: AuthConfig = loadAuthConfig(process.env);
+  const nonceStore = new NonceStore(process.env.NONCE_STORE_PATH || "/data/nonces.json");
   const listingStorage = new ListingCreationStorage(process.env.LISTING_STATE_PATH);
+  
+  // Clean up old nonces periodically (every hour)
+  setInterval(() => {
+    nonceStore.cleanup(authConfig.maxSignatureAge || 300);
+  }, 3600000);
 
   app.use(
     "*",
@@ -226,7 +232,7 @@ export function createApp(ctx: Ctx): Hono {
   // Listing creation endpoints
   app.post("/v1/listings/create", async (c) => {
     const signedReq = await extractSignedRequest(c);
-    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId);
+    const issuerAddress = await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
 
     if (signedReq.action !== "create_listing") {
       throw badRequest("Invalid action for this endpoint");
@@ -285,7 +291,7 @@ export function createApp(ctx: Ctx): Hono {
 
   app.post("/v1/listings/creation/:id/update", async (c) => {
     const signedReq = await extractSignedRequest(c);
-    await verifySignedRequest(signedReq, authConfig, ctx.config.chainId);
+    await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
 
     const id = c.req.param("id");
     const payload = signedReq.payload as Record<string, unknown>;
@@ -302,7 +308,7 @@ export function createApp(ctx: Ctx): Hono {
   // Policy relay endpoint for demo manual relaying
   app.post("/v1/policy/:ticker/relay", async (c) => {
     const signedReq = await extractSignedRequest(c);
-    await verifySignedRequest(signedReq, authConfig, ctx.config.chainId);
+    await verifySignedRequest(signedReq, authConfig, ctx.config.chainId, nonceStore);
 
     const ticker = c.req.param("ticker");
     const listing = getListing(ctx, ticker);

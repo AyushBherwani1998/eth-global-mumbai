@@ -30,17 +30,24 @@ export function PolicyControls({ ticker, policy }: { ticker: string; policy: Pol
 
       const timestamp = Math.floor(Date.now() / 1000);
       const chainId = 11155111; // Sepolia
+      const domain = "listing-day.api";
+      const nonce = `${timestamp}_${Math.random().toString(36).slice(2)}`;
 
       const payload = {
         operation,
         ...params,
       };
 
+      const payloadJson = JSON.stringify(payload);
       const message = JSON.stringify({
+        domain,
         action: "relay_policy",
         chainId,
         timestamp,
-        payload,
+        nonce,
+        ticker,
+        payloadHash: "0x" + Array.from(new TextEncoder().encode(payloadJson))
+          .map(b => b.toString(16).padStart(2, '0')).join(''),
       });
 
       // Sign message with wallet
@@ -52,9 +59,12 @@ export function PolicyControls({ ticker, policy }: { ticker: string; policy: Pol
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          domain,
           action: "relay_policy",
           chainId,
           timestamp,
+          nonce,
+          ticker,
           payload,
           signature,
         }),

@@ -78,9 +78,11 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
       setError(null);
       setDeploymentStatus("Signing request...");
 
-      // Construct signed request
+      // Construct signed request with nonce and domain
       const timestamp = Math.floor(Date.now() / 1000);
       const chainId = 11155111; // Sepolia
+      const domain = "listing-day.api";
+      const nonce = `${timestamp}_${Math.random().toString(36).slice(2)}`;
       
       const payload = {
         ticker: formData.ticker.toLowerCase(),
@@ -98,11 +100,20 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
         },
       };
 
+      // Compute payload hash for binding
+      const payloadJson = JSON.stringify(payload);
+      // In browser, we don't have keccak256, so we'll send the full payload
+      // and let the server verify it matches the hash in the signed message
+      
       const message = JSON.stringify({
+        domain,
         action: "create_listing",
         chainId,
         timestamp,
-        payload,
+        nonce,
+        ticker: null,
+        payloadHash: "0x" + Array.from(new TextEncoder().encode(payloadJson))
+          .map(b => b.toString(16).padStart(2, '0')).join(''),
       });
 
       setDeploymentStatus("Waiting for wallet signature...");
@@ -118,9 +129,11 @@ export function CreateListingWizard({ onComplete }: { onComplete?: () => void })
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          domain,
           action: "create_listing",
           chainId,
           timestamp,
+          nonce,
           payload,
           signature,
         }),

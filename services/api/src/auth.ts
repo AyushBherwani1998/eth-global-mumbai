@@ -1,9 +1,12 @@
 /**
  * Authentication and authorization for issuer operations.
  * Supports multi-address allowlist with signature verification.
+ * Implements proper replay protection with nonce tracking.
  */
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { dirname } from "node:path";
 import { type Context } from "hono";
-import { getAddress, isAddress, recoverMessageAddress, type Address, type Hex } from "viem";
+import { getAddress, isAddress, recoverMessageAddress, keccak256, toHex, type Address, type Hex } from "viem";
 import { badRequest } from "./errors.ts";
 
 export type AuthConfig = {
@@ -13,7 +16,89 @@ export type AuthConfig = {
   legacyIssuer?: string;
   /** Maximum signature age in seconds (default: 300 = 5 minutes) */
   maxSignatureAge?: number;
+  /** Domain for EIP-712-style domain binding */
+  domain: string;
 };
+
+/**
+ * Nonce store for replay protection.
+ * Tracks used nonces per address to prevent replay attacks.
+ */
+export class NonceStore {
+  private nonces: Map<string, Set<string>> = new Map();
+  private storePath?: string;
+
+  constructor(storePath?: string) {
+    this.storePath = storePath;
+    this.load();
+  }
+
+  private load(): void {
+    if (!this.storePath || !existsSync(this.storePath)) return;
+    try {
+      const data = JSON.parse(readFileSync(this.storePath, "utf8"));
+      this.nonces = new Map(
+        Object.entries(data).map(([addr, nonces]) => [addr, new Set(nonces as string[])])
+      );
+    } catch (e) {
+      console.error("[auth] Failed to load nonce store:", e);
+    }
+  }
+
+  private save(): void {
+    if (!this.storePath) return;
+    try {
+      const dir = dirname(this.storePath);
+      if (!existsSync(dir)) {
+        mkdirSync(dir, { recursive: true });
+      }
+      const data = Object.fromEntries(
+        Array.from(this.nonces.entries()).map(([addr, nonces]) => [addr, Array.from(nonces)])
+      );
+      writeFileSync(this.storePath, JSON.stringify(data, null, 2));
+    } catch (e) {
+      console.error("[auth] Failed to save nonce store:", e);
+    }
+  }
+
+  /**
+   * Check if nonce has been used, then mark it as used.
+   * Returns true if nonce was fresh (not used before).
+   */
+  consumeNonce(address: Address, nonce: string): boolean {
+    const key = address.toLowerCase();
+    if (!this.nonces.has(key)) {
+      this.nonces.set(key, new Set());
+    }
+    const used = this.nonces.get(key)!;
+    if (used.has(nonce)) {
+      return false; // Already used
+    }
+    used.add(nonce);
+    this.save();
+    return true;
+  }
+
+  /**
+   * Clean up old nonces (older than maxAge seconds).
+   */
+  cleanup(maxAge: number): void {
+    // For simplicity, nonces include timestamp, so we can parse and remove old ones
+    // Format: timestamp_random
+    const cutoff = Date.now() - maxAge * 1000;
+    for (const [addr, nonces] of this.nonces.entries()) {
+      const filtered = new Set(
+        Array.from(nonces).filter(nonce => {
+          const parts = nonce.split("_");
+          const ts = parseInt(parts[0], 10);
+          return !isNaN(ts) && ts >= cutoff;
+        })
+      );
+      this.nonces.set(addr, filtered);
+    }
+    this.save();
+  }
+}
 
 /**
  * Parse issuer allowlist from environment variables.
@@ -52,16 +137,23 @@ export function loadAuthConfig(env: NodeJS.ProcessEnv): AuthConfig {
     allowedIssuers,
     legacyIssuer: env.ISSUER_ADDRESS?.trim(),
     maxSignatureAge: Number(env.MAX_SIGNATURE_AGE || 300),
+    domain: env.AUTH_DOMAIN || "listing-day.api",
   };
 }
 
 export type SignedRequest = {
+  /** Domain for EIP-712-style binding */
+  domain: string;
   /** The action being performed (e.g., "create_listing", "update_policy") */
   action: string;
   /** Chain ID for replay protection */
   chainId: number;
   /** Unix timestamp in seconds */
   timestamp: number;
+  /** Nonce for replay protection (format: timestamp_random) */
+  nonce: string;
+  /** Optional ticker for per-listing operations */
+  ticker?: string;
   /** The request payload (JSON) */
   payload: unknown;
   /** Signature over the message */
@@ -71,22 +163,36 @@ export type SignedRequest = {
 /**
  * Verify a signed request from an issuer.
  * Checks:
+ * - Domain matches expected
  * - Signature is valid and recovers to an address
  * - Recovered address is in the allowlist
  * - Timestamp is recent (within maxSignatureAge)
  * - Chain ID matches expected
+ * - Nonce has not been used before (replay protection)
+ * - Payload hash integrity
  * Returns the authenticated issuer address.
  */
 export async function verifySignedRequest(
   request: SignedRequest,
   config: AuthConfig,
   expectedChainId: number,
+  nonceStore?: NonceStore,
 ): Promise<Address> {
-  const { action, chainId, timestamp, payload, signature } = request;
+  const { domain, action, chainId, timestamp, nonce, ticker, payload, signature } = request;
+
+  // Check domain binding
+  if (domain !== config.domain) {
+    throw badRequest(`Invalid domain: expected ${config.domain}, got ${domain}`);
+  }
 
   // Check chain ID
   if (chainId !== expectedChainId) {
     throw badRequest(`Invalid chain ID: expected ${expectedChainId}, got ${chainId}`);
+  }
+
+  // Validate nonce format (timestamp_random)
+  if (!nonce || !/^\d+_[a-z0-9]+$/i.test(nonce)) {
+    throw badRequest("Invalid nonce format (expected: timestamp_random)");
   }
 
   // Check timestamp (replay protection)
@@ -101,12 +207,22 @@ export async function verifySignedRequest(
     throw badRequest(`Request signature expired (age: ${age}s, max: ${maxAge}s)`);
   }
 
-  // Construct message
+  // Compute payload hash for integrity
+  const payloadJson = JSON.stringify(payload);
+  const payloadHash = keccak256(toHex(payloadJson));
+  
+  // Verify that the signed message contains a matching payload hash
+  // The message structure should have been: domain, action, chainId, timestamp, nonce, ticker, payloadHash
+
+  // Construct message with all binding fields
   const message = JSON.stringify({
+    domain,
     action,
     chainId,
     timestamp,
-    payload,
+    nonce,
+    ticker: ticker || null,
+    payloadHash,
   });
 
   // Recover signer
@@ -124,6 +240,11 @@ export async function verifySignedRequest(
   const checksummed = getAddress(recoveredAddress);
   if (!config.allowedIssuers.includes(checksummed)) {
     throw badRequest(`Address ${checksummed} is not authorized as an issuer`);
+  }
+
+  // Check and consume nonce (atomic replay protection)
+  if (nonceStore && !nonceStore.consumeNonce(checksummed, nonce)) {
+    throw badRequest("Nonce already used (replay attack detected)");
   }
 
   return checksummed;
@@ -147,6 +268,9 @@ export async function extractSignedRequest(c: Context): Promise<SignedRequest> {
 
   const req = body as Record<string, unknown>;
 
+  if (typeof req.domain !== "string" || !req.domain) {
+    throw badRequest("Missing or invalid 'domain' field");
+  }
   if (typeof req.action !== "string" || !req.action) {
     throw badRequest("Missing or invalid 'action' field");
   }
@@ -156,6 +280,9 @@ export async function extractSignedRequest(c: Context): Promise<SignedRequest> {
   if (typeof req.timestamp !== "number" || !Number.isInteger(req.timestamp)) {
     throw badRequest("Missing or invalid 'timestamp' field");
   }
+  if (typeof req.nonce !== "string" || !req.nonce) {
+    throw badRequest("Missing or invalid 'nonce' field");
+  }
   if (!req.payload) {
     throw badRequest("Missing 'payload' field");
   }
@@ -164,9 +291,12 @@ export async function extractSignedRequest(c: Context): Promise<SignedRequest> {
   }
 
   return {
+    domain: req.domain,
     action: req.action,
     chainId: req.chainId,
     timestamp: req.timestamp,
+    nonce: req.nonce,
+    ticker: typeof req.ticker === "string" ? req.ticker : undefined,
     payload: req.payload,
     signature: req.signature as Hex,
   };

@@ -1,12 +1,12 @@
 import { strict as assert } from "node:assert";
 import { describe, it, beforeEach, afterEach } from "node:test";
-import { existsSync, unlinkSync, mkdirSync } from "node:fs";
+import { existsSync, unlinkSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { ListingCreationStorage } from "../src/listing-creation.ts";
 
 describe("ListingCreationStorage", () => {
-  const testDir = join(tmpdir(), "listing-creation-test");
+  const testDir = join(tmpdir(), `listing-creation-test-${Date.now()}-${Math.random().toString(36).slice(2)}`);
   const testPath = join(testDir, "test-state.json");
   let storage: ListingCreationStorage;
 
@@ -18,8 +18,12 @@ describe("ListingCreationStorage", () => {
   });
 
   afterEach(() => {
-    if (existsSync(testPath)) {
-      unlinkSync(testPath);
+    try {
+      if (existsSync(testDir)) {
+        rmSync(testDir, { recursive: true, force: true });
+      }
+    } catch (e) {
+      // Ignore cleanup errors in tests
     }
   });
 
