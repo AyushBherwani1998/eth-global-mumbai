@@ -297,7 +297,7 @@ export async function prepareListingHookDeployment(
   const deployData = encodeDeployData({
     abi: listingHookAbi,
     bytecode,
-    args: [params.poolManager, params.issuerAddress, hookConfig], // Using issuer as strategy for demo
+    args: [params.poolManager, params.issuerAddress, hookConfig] as any,
   });
   
   return {
@@ -330,7 +330,7 @@ export function prepareReceiverDeployment(
   const deployData = encodeDeployData({
     abi: receiverAbi,
     bytecode,
-    args: [params.forwarder, params.broadcaster, maxAge],
+    args: [params.forwarder, params.broadcaster, maxAge] as any,
   });
   
   return {
